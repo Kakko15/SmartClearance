@@ -107,11 +107,14 @@ function App() {
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return;
 
-      if (event === 'SIGNED_IN' && session?.user) {
+      // Handle all events that indicate an active session
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') && session?.user) {
         setUser(session.user);
         // Set app mode immediately so UI transitions fast
         setAppMode('app');
         sessionStorage.setItem('currentAppMode', 'app');
+        // Reset the guard so profile can be re-fetched
+        fetchingProfileRef.current = false;
         await fetchProfile(session.user.id, isMounted);
         // Update last_login in background (don't await)
         supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('id', session.user.id);
@@ -119,6 +122,7 @@ function App() {
         setUser(null);
         setProfile(null);
         setSelectedRole(null);
+        fetchingProfileRef.current = false;
 
         // Clear all session storage except the loader flag
         const hasSeenLoader = sessionStorage.getItem('hasSeenLoader');
@@ -172,13 +176,13 @@ function App() {
         .select('id, full_name, role, student_number, course_year, account_enabled')
         .eq('id', userId)
         .single()
-        .abortSignal(AbortSignal.timeout(5000));
+        .abortSignal(AbortSignal.timeout(8000));
 
       if (error) throw error;
       if (!isMounted) return;
       if (!data) throw new Error('No profile data');
       if (data.account_enabled === false) {
-        toast.error('Account deactivated');
+        toast.error('Your account is pending approval. Please contact your administrator.');
         await supabase.auth.signOut();
         return;
       }
@@ -186,7 +190,7 @@ function App() {
     } catch (error) {
       if (error.name !== 'AbortError') {
         console.error('Profile fetch error:', error);
-        toast.error('Failed to load profile');
+        toast.error('Failed to load profile. Please try again.');
         if (isMounted) {
           await supabase.auth.signOut();
           setUser(null);

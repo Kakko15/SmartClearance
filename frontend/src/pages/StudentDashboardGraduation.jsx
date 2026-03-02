@@ -177,14 +177,18 @@ const StageNode = ({ stage, index, total, isExpanded, onToggle, unresolvedCount,
 };
 
 // ─── Professor Card (Child Node) ────────────────────────────────────
-const ProfessorCard = ({ approval, index, onViewComments }) => {
+const ProfessorCard = ({ approval, index, onViewComments, clearanceComments = [] }) => {
   const statusColors = {
     approved: { dot: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700' },
     rejected: { dot: 'bg-red-500', badge: 'bg-red-50 text-red-700' },
     pending: { dot: 'bg-amber-500', badge: 'bg-amber-50 text-amber-700' }
   };
   const colors = statusColors[approval.status] || statusColors.pending;
-  const hasComment = !!(approval.comments && approval.comments.trim());
+  // Check both approval.comments (rejection reason) AND clearance_comments by this professor
+  const hasClearanceComments = clearanceComments.some(c => c.commenter_id === approval.professor_id);
+  const hasApprovalComment = !!(approval.comments && approval.comments.trim());
+  const hasComment = hasApprovalComment || hasClearanceComments;
+  const clearanceCommentCount = clearanceComments.filter(c => c.commenter_id === approval.professor_id && !c.is_resolved).length;
 
   return (
     <motion.div
@@ -215,7 +219,7 @@ const ProfessorCard = ({ approval, index, onViewComments }) => {
       </div>
       <div className="flex items-center gap-2">
         <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${colors.badge}`}>{approval.status}</span>
-        {hasComment && <UnresolvedBadge count={1} />}
+        {hasComment && <UnresolvedBadge count={clearanceCommentCount + (hasApprovalComment ? 1 : 0)} />}
         {/* Arrow indicator on hover */}
         <motion.div
           initial={{ opacity: 0, x: -4 }}
@@ -472,6 +476,14 @@ export default function StudentDashboardGraduation({ studentId, studentInfo, onS
     fetchClearanceStatus();
   }, []);
 
+  // Poll for new clearance comments every 10 seconds for near-realtime updates
+  useEffect(() => {
+    const reqId = clearanceStatus?.request?.request_id || clearanceStatus?.request?.id;
+    if (!reqId) return;
+    const interval = setInterval(() => fetchClearanceComments(reqId), 10000);
+    return () => clearInterval(interval);
+  }, [clearanceStatus]);
+
   const fetchClearanceStatus = async () => {
     setLoading(true);
     try {
@@ -559,8 +571,13 @@ export default function StudentDashboardGraduation({ studentId, studentInfo, onS
     const approvalCount = clearanceStatus.professorApprovals?.length || 0;
     const approvedCount = clearanceStatus.professorApprovals?.filter(a => a.status === 'approved').length || 0;
 
-    // Check if any professor has comments
-    const professorCommentCount = clearanceStatus.professorApprovals?.filter(a => a.comments && a.comments.trim()).length || 0;
+    // Check both approval.comments AND clearance_comments from professors
+    const professorApprovalCommentCount = clearanceStatus.professorApprovals?.filter(a => a.comments && a.comments.trim()).length || 0;
+    const professorIds = (clearanceStatus.professorApprovals || []).map(a => a.professor_id);
+    const professorClearanceComments = clearanceComments.filter(c => professorIds.includes(c.commenter_id));
+    const professorUnresolvedClearanceCount = professorClearanceComments.filter(c => !c.is_resolved).length;
+    const totalProfessorCommentCount = professorApprovalCommentCount + professorClearanceComments.length;
+    const totalProfessorUnresolvedCount = professorApprovalCommentCount + professorUnresolvedClearanceCount;
 
     return [
       {
@@ -568,8 +585,8 @@ export default function StudentDashboardGraduation({ studentId, studentInfo, onS
         description: `${approvedCount} of ${approvalCount} professors approved`,
         iconComponent: <UsersIcon className="w-4 h-4 text-white" />,
         status: r.professors_status || 'pending', comments: null, hasChildren: true,
-        hasComments: professorCommentCount > 0,
-        unresolvedCount: professorCommentCount // professors use approval.comments, not clearance_comments
+        hasComments: totalProfessorCommentCount > 0,
+        unresolvedCount: totalProfessorUnresolvedCount
       },
       {
         key: 'library', title: 'Library Clearance',
@@ -735,6 +752,7 @@ export default function StudentDashboardGraduation({ studentId, studentInfo, onS
                               approval={approval}
                               index={j}
                               onViewComments={openProfessorComments}
+                              clearanceComments={clearanceComments}
                             />
                           ))}
                         </div>

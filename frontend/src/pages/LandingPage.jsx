@@ -136,7 +136,7 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
             onClick={onEnter}
             className="hidden md:flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-full font-bold tracking-wide transition-all shadow-md hover:shadow-lg hover:shadow-primary-500/30 text-sm"
           >
-            <span>STUDENT PORTAL</span>
+            <span>SMART CLEARANCE PORTAL</span>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
           </button>
         </div>
