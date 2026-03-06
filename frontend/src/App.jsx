@@ -20,6 +20,21 @@ import PasswordStrengthMeter from "./components/ui/PasswordStrengthMeter";
 import TwoFactorVerify from "./components/auth/TwoFactorVerify";
 import logo from "./assets/logo.png";
 
+const PRESERVED_LOCAL_STORAGE_KEYS = ["theme", "saved_login_emails"];
+
+function clearLocalStoragePreservingPreferences() {
+  const preservedEntries = PRESERVED_LOCAL_STORAGE_KEYS.map((key) => [
+    key,
+    localStorage.getItem(key),
+  ]).filter(([, value]) => value !== null);
+
+  localStorage.clear();
+
+  preservedEntries.forEach(([key, value]) => {
+    localStorage.setItem(key, value);
+  });
+}
+
 function App() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -316,7 +331,7 @@ function App() {
       setPendingProfile(null);
 
       sessionStorage.clear();
-      localStorage.clear();
+      clearLocalStoragePreservingPreferences();
 
       await supabase.auth.signOut();
 
@@ -329,7 +344,7 @@ function App() {
       console.error("Logout error:", error);
 
       sessionStorage.clear();
-      localStorage.clear();
+      clearLocalStoragePreservingPreferences();
       setAppMode("landing");
       sessionStorage.setItem("currentAppMode", "landing");
       sessionStorage.setItem("hasSeenLoader", "true");

@@ -9,9 +9,11 @@ export default function CustomSelect({
   isDark,
   placeholder,
   searchable = false,
+  placement = "auto",
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [menuPlacement, setMenuPlacement] = useState("bottom");
   const containerRef = useRef(null);
   const clearTimerRef = useRef(null);
 
@@ -95,6 +97,22 @@ export default function CustomSelect({
     if (!isOpen) setSearch("");
   }, [isOpen]);
 
+  useEffect(() => {
+    if (isOpen && containerRef.current) {
+      if (placement === "auto") {
+        const rect = containerRef.current.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        if (spaceBelow < 300 && rect.top > 300) {
+          setMenuPlacement("top");
+        } else {
+          setMenuPlacement("bottom");
+        }
+      } else {
+        setMenuPlacement(placement);
+      }
+    }
+  }, [isOpen, placement]);
+
   return (
     <div className="relative" ref={containerRef}>
       <div
@@ -150,11 +168,13 @@ export default function CustomSelect({
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 8 }}
-            exit={{ opacity: 0, y: -10 }}
+            initial={{ opacity: 0, y: menuPlacement === "top" ? 5 : -5 }}
+            animate={{ opacity: 1, y: menuPlacement === "top" ? -4 : 4 }}
+            exit={{ opacity: 0, y: menuPlacement === "top" ? 5 : -5 }}
             transition={{ duration: 0.2 }}
-            className={`absolute z-50 left-0 right-0 top-full border rounded-2xl shadow-xl overflow-hidden backdrop-blur-md
+            className={`absolute z-[60] left-0 right-0 ${
+              menuPlacement === "top" ? "bottom-full mb-1" : "top-full mt-1"
+            } border rounded-2xl shadow-xl overflow-hidden backdrop-blur-md
               ${isDark ? "bg-slate-900/95 border-slate-700" : "bg-white border-slate-200"}
             `}
           >
@@ -201,7 +221,7 @@ export default function CustomSelect({
               )}
             </AnimatePresence>
 
-            <div className="py-2 max-h-[200px] overflow-y-auto custom-scrollbar">
+            <div className="py-1 my-1 max-h-[250px] overflow-y-auto custom-scrollbar pr-1 mr-1">
               {searchable && search && filteredOptions.length === 0 && (
                 <div
                   className={`px-5 py-8 text-center text-sm ${isDark ? "text-slate-500" : "text-gray-400"}`}
@@ -213,7 +233,7 @@ export default function CustomSelect({
                 option.options ? (
                   <div key={index}>
                     <div
-                      className={`px-5 py-2 text-xs font-bold uppercase tracking-wider ${isDark ? "text-slate-500" : "text-gray-400"}`}
+                      className={`px-4 py-2 mt-1 text-xs font-bold uppercase tracking-wider ${isDark ? "text-slate-500" : "text-gray-400"}`}
                     >
                       {option.label}
                     </div>
@@ -226,16 +246,16 @@ export default function CustomSelect({
                           setSearch("");
                         }}
                         className={`
-                          px-5 py-3 text-sm font-bold cursor-pointer transition-all duration-200 pl-8
+                          px-4 py-2.5 mx-1.5 my-0.5 text-sm font-bold cursor-pointer transition-all duration-200 pl-8 rounded-xl
                           flex items-center justify-between
                           ${
                             subOption.value === value
                               ? isDark
-                                ? "bg-green-900/20 text-green-400"
+                                ? "bg-green-500/20 text-green-400"
                                 : "bg-green-50 text-green-700"
                               : isDark
-                                ? "text-slate-400 hover:bg-slate-800 hover:text-slate-100"
-                                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                                ? "text-slate-300 hover:bg-slate-800 hover:text-white"
+                                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                           }
                         `}
                       >
@@ -269,16 +289,16 @@ export default function CustomSelect({
                       setSearch("");
                     }}
                     className={`
-                      px-5 py-3 text-sm font-bold cursor-pointer transition-all duration-200
+                      px-4 py-2.5 mx-1.5 my-0.5 text-sm font-bold cursor-pointer transition-all duration-200 rounded-xl
                       flex items-center justify-between
                       ${
                         option.value === value
                           ? isDark
-                            ? "bg-green-900/20 text-green-400"
+                            ? "bg-green-500/20 text-green-400"
                             : "bg-green-50 text-green-700"
                           : isDark
-                            ? "text-slate-400 hover:bg-slate-800 hover:text-slate-100"
-                            : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                            ? "text-slate-300 hover:bg-slate-800 hover:text-white"
+                            : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                       }
                     `}
                   >

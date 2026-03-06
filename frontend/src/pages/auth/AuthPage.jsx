@@ -6,6 +6,28 @@ import SignupFormWithFaceVerification from "../../components/auth/SignupFormWith
 import Particles from "../../components/visuals/Particles";
 import logo from "../../assets/logo.png";
 
+const ROLE_LABELS = {
+  student: "Student",
+  professor: "Professor",
+  admin: "Admin",
+  library_admin: "Library Admin",
+  cashier_admin: "Cashier Admin",
+  registrar_admin: "Registrar Admin",
+  super_admin: "Super Admin",
+};
+
+function formatRoleLabel(role) {
+  if (!role) return null;
+
+  return (
+    ROLE_LABELS[role] ||
+    role
+      .split("_")
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ")
+  );
+}
+
 export default function AuthPage({
   onBackToHome,
   isDark,
@@ -13,6 +35,9 @@ export default function AuthPage({
   onLoginSuccess,
 }) {
   const canSignUp = true;
+  const selectedRoleLabel = formatRoleLabel(selectedRole);
+  const selectedRoleIsAdmin =
+    selectedRole === "admin" || selectedRole?.includes("admin");
 
   const [isSignUp, setIsSignUp] = useState(() => {
     const savedMode = sessionStorage.getItem("authMode") === "signup";
@@ -118,6 +143,26 @@ export default function AuthPage({
                 {isSignUp ? "Create your account" : "Sign in to your account"}
               </h1>
             </motion.div>
+            {!isSignUp && selectedRoleLabel && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25, delay: 0.05 }}
+                className="mb-3"
+              >
+                <span
+                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${selectedRoleIsAdmin ? (isDark ? "bg-indigo-500/15 text-indigo-200 border border-indigo-400/20" : "bg-indigo-50 text-indigo-700 border border-indigo-200") : (isDark ? "bg-green-500/15 text-green-200 border border-green-400/20" : "bg-green-50 text-green-700 border border-green-200")}`}
+                >
+                  <span
+                    className={`h-2 w-2 rounded-full ${selectedRoleIsAdmin ? "bg-indigo-400" : "bg-green-500"}`}
+                  ></span>
+                  <span>
+                    Signing in as{" "}
+                    <span className="font-bold">{selectedRoleLabel}</span>
+                  </span>
+                </span>
+              </motion.div>
+            )}
             <p
               className={`text-sm font-medium transition-colors ${isDark ? "text-slate-400" : "text-gray-500"}`}
             >
