@@ -1,30 +1,40 @@
-import { useState, useEffect } from 'react';
-import toast from 'react-hot-toast';
-import { motion, AnimatePresence } from 'framer-motion';
-import axios from 'axios';
-import RequestComments from '../components/features/RequestComments';
-import DashboardLayout, { GlassCard, StatusBadge } from '../components/ui/DashboardLayout';
+import { useState, useEffect } from "react";
+import toast from "react-hot-toast";
+import { motion } from "framer-motion";
+import axios from "axios";
+import RequestComments from "../components/features/RequestComments";
+import DashboardLayout, {
+  GlassCard,
+  StatusBadge,
+} from "../components/ui/DashboardLayout";
 import {
-  BuildingLibraryIcon, ClockIcon, CheckIcon, XMarkIcon,
-  ChatBubbleIcon, InboxStackIcon, UserIcon, ShieldCheckIcon,
-  DocumentCheckIcon, UsersIcon
-} from '../components/ui/Icons';
+  CheckIcon,
+  XMarkIcon,
+  ChatBubbleIcon,
+  InboxStackIcon,
+  ShieldCheckIcon,
+  DocumentCheckIcon,
+  UsersIcon,
+} from "../components/ui/Icons";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSettings }) {
+export default function RegistrarAdminDashboard({
+  adminId,
+  onSignOut,
+  onOpenSettings,
+}) {
   const [requests, setRequests] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [comments, setComments] = useState('');
-  const [activeView, setActiveView] = useState('pending');
+  const [comments, setComments] = useState("");
+  const [activeView, setActiveView] = useState("pending");
 
-  // Pending accounts state
   const [pendingAccounts, setPendingAccounts] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [accountsLoading, setAccountsLoading] = useState(false);
-  const [rejectReason, setRejectReason] = useState('');
+  const [rejectReason, setRejectReason] = useState("");
 
   useEffect(() => {
     document.title = "Registrar Dashboard | ISU Clearance System";
@@ -35,24 +45,25 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
   const fetchPendingRequests = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${API_URL}/graduation/registrar/pending`);
+      const response = await axios.get(
+        `${API_URL}/graduation/registrar/pending`,
+      );
       if (response.data.success) setRequests(response.data.requests);
     } catch (error) {
-      console.error('Error fetching requests:', error);
-      toast.error('Failed to load pending clearances');
+      console.error("Error fetching requests:", error);
+      toast.error("Failed to load pending clearances");
     } finally {
       setLoading(false);
     }
   };
 
-  // ── Pending Accounts Functions ──
   const fetchPendingAccounts = async () => {
     setAccountsLoading(true);
     try {
       const response = await axios.get(`${API_URL}/admin/pending-accounts`);
       if (response.data.success) setPendingAccounts(response.data.accounts);
     } catch (error) {
-      console.error('Error fetching pending accounts:', error);
+      console.error("Error fetching pending accounts:", error);
     } finally {
       setAccountsLoading(false);
     }
@@ -63,15 +74,15 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
     try {
       const response = await axios.post(`${API_URL}/admin/approve-account`, {
         userId,
-        adminId
+        adminId,
       });
       if (response.data.success) {
-        toast.success('Account approved! Student can now login.');
+        toast.success("Account approved! Student can now login.");
         setSelectedAccount(null);
         fetchPendingAccounts();
       }
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to approve account');
+      toast.error(error.response?.data?.error || "Failed to approve account");
     } finally {
       setActionLoading(false);
     }
@@ -79,7 +90,7 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
 
   const handleRejectAccount = async (userId) => {
     if (!rejectReason.trim()) {
-      toast.error('Please provide a reason for rejection');
+      toast.error("Please provide a reason for rejection");
       return;
     }
     setActionLoading(true);
@@ -87,16 +98,16 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
       const response = await axios.post(`${API_URL}/admin/reject-account`, {
         userId,
         adminId,
-        reason: rejectReason.trim()
+        reason: rejectReason.trim(),
       });
       if (response.data.success) {
-        toast.success('Account rejected.');
+        toast.success("Account rejected.");
         setSelectedAccount(null);
-        setRejectReason('');
+        setRejectReason("");
         fetchPendingAccounts();
       }
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to reject account');
+      toast.error(error.response?.data?.error || "Failed to reject account");
     } finally {
       setActionLoading(false);
     }
@@ -106,19 +117,22 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
     if (!selectedRequest) return;
     setActionLoading(true);
     try {
-      const response = await axios.post(`${API_URL}/graduation/registrar/approve`, {
-        request_id: selectedRequest.id,
-        admin_id: adminId,
-        comments: comments.trim() || null
-      });
+      const response = await axios.post(
+        `${API_URL}/graduation/registrar/approve`,
+        {
+          request_id: selectedRequest.id,
+          admin_id: adminId,
+          comments: comments.trim() || null,
+        },
+      );
       if (response.data.success) {
-        toast.success('Registrar clearance approved — certificate generated!');
-        setComments('');
+        toast.success("Registrar clearance approved — certificate generated!");
+        setComments("");
         setSelectedRequest(null);
         fetchPendingRequests();
       }
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to approve');
+      toast.error(error.response?.data?.error || "Failed to approve");
     } finally {
       setActionLoading(false);
     }
@@ -127,49 +141,68 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
   const handleReject = async () => {
     if (!selectedRequest) return;
     if (!comments.trim()) {
-      toast.error('Please provide a reason for rejection');
+      toast.error("Please provide a reason for rejection");
       return;
     }
     setActionLoading(true);
     try {
-      const response = await axios.post(`${API_URL}/graduation/registrar/reject`, {
-        request_id: selectedRequest.id,
-        admin_id: adminId,
-        comments: comments.trim()
-      });
+      const response = await axios.post(
+        `${API_URL}/graduation/registrar/reject`,
+        {
+          request_id: selectedRequest.id,
+          admin_id: adminId,
+          comments: comments.trim(),
+        },
+      );
       if (response.data.success) {
-        toast.success('Registrar clearance rejected');
-        setComments('');
+        toast.success("Registrar clearance rejected");
+        setComments("");
         setSelectedRequest(null);
         fetchPendingRequests();
       }
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to reject');
+      toast.error(error.response?.data?.error || "Failed to reject");
     } finally {
       setActionLoading(false);
     }
   };
 
-  // ── Theme: Slate/Charcoal (Registrar = authoritative, final) ──
   const theme = {
-    name: 'Registrar', abbrev: 'RG', dashboardTitle: 'Registrar Dashboard',
-    sidebarGradient: 'bg-gradient-to-b from-slate-700 to-slate-900 border-r border-slate-600/20',
-    sidebarActive: 'bg-white text-slate-800 shadow-slate-900/20',
-    accentGradient: 'bg-gradient-to-br from-slate-600 to-slate-800',
-    accentShadow: 'shadow-slate-500/20',
-    dotColor: 'bg-slate-400',
-    bg: 'bg-gradient-to-br from-slate-50 via-gray-50/30 to-white',
-    glow1: 'bg-slate-400/8', glow2: 'bg-gray-400/5',
-    topbar: 'bg-white/80 border-b border-slate-200',
-    topbarText: 'text-gray-900', topbarSub: 'text-gray-500',
-    topbarBtn: 'hover:bg-slate-50', topbarIcon: 'text-gray-500',
-    topbarDivider: 'bg-gray-200',
-    logoutBtn: 'bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500 hover:text-white',
+    name: "Registrar",
+    abbrev: "RG",
+    dashboardTitle: "Registrar Dashboard",
+    sidebarGradient:
+      "bg-gradient-to-b from-slate-700 to-slate-900 border-r border-slate-600/20",
+    sidebarActive: "bg-white text-slate-800 shadow-slate-900/20",
+    accentGradient: "bg-gradient-to-br from-slate-600 to-slate-800",
+    accentShadow: "shadow-slate-500/20",
+    dotColor: "bg-slate-400",
+    bg: "bg-gradient-to-br from-slate-50 via-gray-50/30 to-white",
+    glow1: "bg-slate-400/8",
+    glow2: "bg-gray-400/5",
+    topbar: "bg-white/80 border-b border-slate-200",
+    topbarText: "text-gray-900",
+    topbarSub: "text-gray-500",
+    topbarBtn: "hover:bg-slate-50",
+    topbarIcon: "text-gray-500",
+    topbarDivider: "bg-gray-200",
+    logoutBtn:
+      "bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500 hover:text-white",
   };
 
   const menuItems = [
-    { id: 'pending', label: 'Final Approvals', icon: <ShieldCheckIcon className="w-5 h-5" />, count: requests.length },
-    { id: 'accounts', label: 'Pending Accounts', icon: <UsersIcon className="w-5 h-5" />, count: pendingAccounts.length },
+    {
+      id: "pending",
+      label: "Final Approvals",
+      icon: <ShieldCheckIcon className="w-5 h-5" />,
+      count: requests.length,
+    },
+    {
+      id: "accounts",
+      label: "Pending Accounts",
+      icon: <UsersIcon className="w-5 h-5" />,
+      count: pendingAccounts.length,
+    },
   ];
 
   return (
@@ -178,20 +211,22 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
       menuItems={menuItems}
       activeView={activeView}
       setActiveView={setActiveView}
-      userInfo={{ name: 'Registrar', subtitle: 'Registrar Admin' }}
+      userInfo={{ name: "Registrar", subtitle: "Registrar Admin" }}
       onSignOut={onSignOut}
       onOpenSettings={onOpenSettings}
     >
       <div className="max-w-5xl mx-auto space-y-6">
-
-        {/* ═══════════ FINAL APPROVALS VIEW ═══════════ */}
-        {activeView === 'pending' && (
+        {activeView === "pending" && (
           <>
-            {/* Header */}
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-3xl font-bold text-gray-900">Registrar Final Approval</h2>
-                <p className="text-gray-500 mt-1">Final validation and certificate generation for graduating students</p>
+                <h2 className="text-3xl font-bold text-gray-900">
+                  Registrar Final Approval
+                </h2>
+                <p className="text-gray-500 mt-1">
+                  Final validation and certificate generation for graduating
+                  students
+                </p>
               </div>
               <div className="flex items-center gap-3">
                 <div className="px-4 py-2 rounded-xl border text-slate-600 bg-slate-50 border-slate-200 text-center">
@@ -205,23 +240,33 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
               <GlassCard className="p-12">
                 <div className="flex flex-col items-center gap-4">
                   <div className="w-12 h-12 border-4 border-slate-500 border-t-transparent rounded-full animate-spin" />
-                  <p className="text-sm text-gray-500">Loading pending approvals...</p>
+                  <p className="text-sm text-gray-500">
+                    Loading pending approvals...
+                  </p>
                 </div>
               </GlassCard>
             ) : requests.length === 0 ? (
               <GlassCard className="p-12 text-center">
-                <motion.div initial={{ scale: 0.8 }} animate={{ scale: 1 }}
-                  className="w-20 h-20 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto mb-5">
+                <motion.div
+                  initial={{ scale: 0.8 }}
+                  animate={{ scale: 1 }}
+                  className="w-20 h-20 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto mb-5"
+                >
                   <InboxStackIcon className="w-10 h-10 text-slate-400" />
                 </motion.div>
-                <h3 className="text-xl font-bold mb-2 text-gray-900">No Pending Final Approvals</h3>
-                <p className="text-gray-500">All registrar clearance requests have been processed.</p>
+                <h3 className="text-xl font-bold mb-2 text-gray-900">
+                  No Pending Final Approvals
+                </h3>
+                <p className="text-gray-500">
+                  All registrar clearance requests have been processed.
+                </p>
               </GlassCard>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {/* Request List */}
                 <div className="space-y-3">
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Students Awaiting Final Approval</h3>
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
+                    Students Awaiting Final Approval
+                  </h3>
                   {requests.map((req, idx) => (
                     <motion.div
                       key={req.id}
@@ -230,29 +275,43 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
                       transition={{ delay: idx * 0.05 }}
                     >
                       <div
-                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${selectedRequest?.id === req.id
-                          ? 'border-slate-400 bg-slate-50/50 shadow-lg shadow-slate-500/10'
-                          : 'border-gray-100 bg-white/70 hover:border-slate-300 hover:shadow-md'
-                          }`}
-                        onClick={() => { setSelectedRequest(req); setComments(''); }}
+                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                          selectedRequest?.id === req.id
+                            ? "border-slate-400 bg-slate-50/50 shadow-lg shadow-slate-500/10"
+                            : "border-gray-100 bg-white/70 hover:border-slate-300 hover:shadow-md"
+                        }`}
+                        onClick={() => {
+                          setSelectedRequest(req);
+                          setComments("");
+                        }}
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-gradient-to-br from-slate-600 to-slate-800 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-slate-500/20">
-                            {req.student?.full_name?.charAt(0) || '?'}
+                            {req.student?.full_name?.charAt(0) || "?"}
                           </div>
                           <div className="flex-1">
-                            <h4 className="font-bold text-sm text-gray-900">{req.student?.full_name || 'Unknown Student'}</h4>
+                            <h4 className="font-bold text-sm text-gray-900">
+                              {req.student?.full_name || "Unknown Student"}
+                            </h4>
                             <div className="flex items-center gap-2 mt-0.5">
-                              <p className="text-xs text-gray-500">{req.student?.student_number || ''}</p>
+                              <p className="text-xs text-gray-500">
+                                {req.student?.student_number || ""}
+                              </p>
                               <div className="flex items-center gap-1">
-                                {req.professors_status === 'approved' && (
-                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-600">Prof ✓</span>
+                                {req.professors_status === "approved" && (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-600">
+                                    Prof ✓
+                                  </span>
                                 )}
-                                {req.library_status === 'approved' && (
-                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-600">Lib ✓</span>
+                                {req.library_status === "approved" && (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-600">
+                                    Lib ✓
+                                  </span>
                                 )}
-                                {req.cashier_status === 'approved' && (
-                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-600">Cash ✓</span>
+                                {req.cashier_status === "approved" && (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-600">
+                                    Cash ✓
+                                  </span>
                                 )}
                               </div>
                             </div>
@@ -264,18 +323,23 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
                   ))}
                 </div>
 
-                {/* Detail Panel */}
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Final Review</h3>
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                    Final Review
+                  </h3>
                   {selectedRequest ? (
                     <GlassCard className="p-5">
                       <div className="flex items-center gap-3 mb-4">
                         <div className="w-12 h-12 bg-gradient-to-br from-slate-600 to-slate-800 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg">
-                          {selectedRequest.student?.full_name?.charAt(0) || '?'}
+                          {selectedRequest.student?.full_name?.charAt(0) || "?"}
                         </div>
                         <div>
-                          <h3 className="font-bold text-gray-900">{selectedRequest.student?.full_name}</h3>
-                          <p className="text-sm text-gray-500">{selectedRequest.student?.student_number}</p>
+                          <h3 className="font-bold text-gray-900">
+                            {selectedRequest.student?.full_name}
+                          </h3>
+                          <p className="text-sm text-gray-500">
+                            {selectedRequest.student?.student_number}
+                          </p>
                         </div>
                       </div>
 
@@ -286,13 +350,27 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
                         </h4>
                         <div className="grid grid-cols-3 gap-2">
                           {[
-                            { label: 'Professors', status: selectedRequest.professors_status },
-                            { label: 'Library', status: selectedRequest.library_status },
-                            { label: 'Cashier', status: selectedRequest.cashier_status },
-                          ].map(item => (
-                            <div key={item.label} className="text-center p-2 rounded-lg bg-white">
-                              <div className="text-xs text-gray-500 mb-0.5">{item.label}</div>
-                              <StatusBadge status={item.status || 'pending'} />
+                            {
+                              label: "Professors",
+                              status: selectedRequest.professors_status,
+                            },
+                            {
+                              label: "Library",
+                              status: selectedRequest.library_status,
+                            },
+                            {
+                              label: "Cashier",
+                              status: selectedRequest.cashier_status,
+                            },
+                          ].map((item) => (
+                            <div
+                              key={item.label}
+                              className="text-center p-2 rounded-lg bg-white"
+                            >
+                              <div className="text-xs text-gray-500 mb-0.5">
+                                {item.label}
+                              </div>
+                              <StatusBadge status={item.status || "pending"} />
                             </div>
                           ))}
                         </div>
@@ -300,7 +378,11 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
 
                       {selectedRequest.id && (
                         <div className="mb-4">
-                          <RequestComments requestId={selectedRequest.id} userRole="registrar_admin" userId={adminId} />
+                          <RequestComments
+                            requestId={selectedRequest.id}
+                            userRole="registrar_admin"
+                            userId={adminId}
+                          />
                         </div>
                       )}
 
@@ -320,7 +402,8 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
 
                       <div className="flex gap-3">
                         <motion.button
-                          whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
                           onClick={handleApprove}
                           disabled={actionLoading}
                           className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl font-semibold shadow-lg shadow-green-500/20 disabled:opacity-50 transition-all text-sm"
@@ -329,7 +412,8 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
                           Approve & Generate Certificate
                         </motion.button>
                         <motion.button
-                          whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
                           onClick={handleReject}
                           disabled={actionLoading}
                           className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-xl font-semibold shadow-lg shadow-red-500/20 disabled:opacity-50 transition-all text-sm"
@@ -344,7 +428,9 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
                       <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto mb-4">
                         <ShieldCheckIcon className="w-8 h-8 text-slate-400" />
                       </div>
-                      <p className="text-gray-500 text-sm">Select a student for final review</p>
+                      <p className="text-gray-500 text-sm">
+                        Select a student for final review
+                      </p>
                     </GlassCard>
                   )}
                 </div>
@@ -353,24 +439,31 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
           </>
         )}
 
-        {/* ═══════════ PENDING ACCOUNTS VIEW ═══════════ */}
-        {activeView === 'accounts' && (
+        {activeView === "accounts" && (
           <>
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-3xl font-bold text-gray-900">Pending Account Verifications</h2>
-                <p className="text-gray-500 mt-1">Review and approve student accounts with low face verification scores</p>
+                <h2 className="text-3xl font-bold text-gray-900">
+                  Pending Account Verifications
+                </h2>
+                <p className="text-gray-500 mt-1">
+                  Review and approve student accounts with low face verification
+                  scores
+                </p>
               </div>
               <div className="flex items-center gap-3">
                 <motion.button
-                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={fetchPendingAccounts}
                   className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 transition-all"
                 >
                   Refresh
                 </motion.button>
                 <div className="px-4 py-2 rounded-xl border text-amber-600 bg-amber-50 border-amber-200 text-center">
-                  <div className="text-xl font-bold">{pendingAccounts.length}</div>
+                  <div className="text-xl font-bold">
+                    {pendingAccounts.length}
+                  </div>
                   <div className="text-xs font-medium">Pending</div>
                 </div>
               </div>
@@ -380,23 +473,33 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
               <GlassCard className="p-12">
                 <div className="flex flex-col items-center gap-4">
                   <div className="w-12 h-12 border-4 border-slate-500 border-t-transparent rounded-full animate-spin" />
-                  <p className="text-sm text-gray-500">Loading pending accounts...</p>
+                  <p className="text-sm text-gray-500">
+                    Loading pending accounts...
+                  </p>
                 </div>
               </GlassCard>
             ) : pendingAccounts.length === 0 ? (
               <GlassCard className="p-12 text-center">
-                <motion.div initial={{ scale: 0.8 }} animate={{ scale: 1 }}
-                  className="w-20 h-20 rounded-2xl bg-green-50 flex items-center justify-center mx-auto mb-5">
+                <motion.div
+                  initial={{ scale: 0.8 }}
+                  animate={{ scale: 1 }}
+                  className="w-20 h-20 rounded-2xl bg-green-50 flex items-center justify-center mx-auto mb-5"
+                >
                   <CheckIcon className="w-10 h-10 text-green-400" />
                 </motion.div>
-                <h3 className="text-xl font-bold mb-2 text-gray-900">All Accounts Verified</h3>
-                <p className="text-gray-500">No pending account verifications at this time.</p>
+                <h3 className="text-xl font-bold mb-2 text-gray-900">
+                  All Accounts Verified
+                </h3>
+                <p className="text-gray-500">
+                  No pending account verifications at this time.
+                </p>
               </GlassCard>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {/* Account List */}
                 <div className="space-y-3">
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Accounts Awaiting Review</h3>
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
+                    Accounts Awaiting Review
+                  </h3>
                   {pendingAccounts.map((account, idx) => (
                     <motion.div
                       key={account.id}
@@ -405,25 +508,37 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
                       transition={{ delay: idx * 0.05 }}
                     >
                       <div
-                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${selectedAccount?.id === account.id
-                          ? 'border-amber-400 bg-amber-50/50 shadow-lg shadow-amber-500/10'
-                          : 'border-gray-100 bg-white/70 hover:border-amber-300 hover:shadow-md'
-                          }`}
-                        onClick={() => { setSelectedAccount(account); setRejectReason(''); }}
+                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                          selectedAccount?.id === account.id
+                            ? "border-amber-400 bg-amber-50/50 shadow-lg shadow-amber-500/10"
+                            : "border-gray-100 bg-white/70 hover:border-amber-300 hover:shadow-md"
+                        }`}
+                        onClick={() => {
+                          setSelectedAccount(account);
+                          setRejectReason("");
+                        }}
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-amber-500/20">
-                            {account.full_name?.charAt(0) || '?'}
+                            {account.full_name?.charAt(0) || "?"}
                           </div>
                           <div className="flex-1">
-                            <h4 className="font-bold text-sm text-gray-900">{account.full_name || 'Unknown'}</h4>
+                            <h4 className="font-bold text-sm text-gray-900">
+                              {account.full_name || "Unknown"}
+                            </h4>
                             <div className="flex items-center gap-2 mt-0.5">
-                              <p className="text-xs text-gray-500">{account.student_number || 'No student #'}</p>
-                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${(account.face_similarity || 0) >= 70
-                                ? 'bg-yellow-100 text-yellow-700'
-                                : 'bg-red-100 text-red-700'
-                                }`}>
-                                {(account.face_similarity || 0).toFixed(0)}% match
+                              <p className="text-xs text-gray-500">
+                                {account.student_number || "No student #"}
+                              </p>
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                  (account.face_similarity || 0) >= 70
+                                    ? "bg-yellow-100 text-yellow-700"
+                                    : "bg-red-100 text-red-700"
+                                }`}
+                              >
+                                {(account.face_similarity || 0).toFixed(0)}%
+                                match
                               </span>
                             </div>
                           </div>
@@ -436,78 +551,110 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
                   ))}
                 </div>
 
-                {/* Account Detail Panel */}
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Account Review</h3>
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                    Account Review
+                  </h3>
                   {selectedAccount ? (
                     <GlassCard className="p-5">
                       <div className="flex items-center gap-3 mb-4">
                         <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg">
-                          {selectedAccount.full_name?.charAt(0) || '?'}
+                          {selectedAccount.full_name?.charAt(0) || "?"}
                         </div>
                         <div>
-                          <h3 className="font-bold text-gray-900">{selectedAccount.full_name}</h3>
-                          <p className="text-sm text-gray-500">{selectedAccount.student_number}</p>
+                          <h3 className="font-bold text-gray-900">
+                            {selectedAccount.full_name}
+                          </h3>
+                          <p className="text-sm text-gray-500">
+                            {selectedAccount.student_number}
+                          </p>
                         </div>
                       </div>
 
-                      {/* Account Details */}
                       <div className="mb-4 space-y-3">
                         <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
-                          <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Account Information</h4>
+                          <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                            Account Information
+                          </h4>
                           <div className="space-y-2 text-sm">
                             <div className="flex justify-between">
-                              <span className="text-gray-500">Course & Year</span>
-                              <span className="font-medium text-gray-900">{selectedAccount.course_year || 'N/A'}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-500">Face Verified</span>
-                              <span className={`font-medium ${selectedAccount.face_verified ? 'text-green-600' : 'text-red-600'}`}>
-                                {selectedAccount.face_verified ? 'Yes' : 'No'}
+                              <span className="text-gray-500">
+                                Course & Year
+                              </span>
+                              <span className="font-medium text-gray-900">
+                                {selectedAccount.course_year || "N/A"}
                               </span>
                             </div>
                             <div className="flex justify-between">
-                              <span className="text-gray-500">Face Similarity</span>
-                              <span className={`font-bold ${(selectedAccount.face_similarity || 0) >= 70 ? 'text-yellow-600' : 'text-red-600'}`}>
-                                {(selectedAccount.face_similarity || 0).toFixed(1)}%
+                              <span className="text-gray-500">
+                                Face Verified
+                              </span>
+                              <span
+                                className={`font-medium ${selectedAccount.face_verified ? "text-green-600" : "text-red-600"}`}
+                              >
+                                {selectedAccount.face_verified ? "Yes" : "No"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">
+                                Face Similarity
+                              </span>
+                              <span
+                                className={`font-bold ${(selectedAccount.face_similarity || 0) >= 70 ? "text-yellow-600" : "text-red-600"}`}
+                              >
+                                {(selectedAccount.face_similarity || 0).toFixed(
+                                  1,
+                                )}
+                                %
                               </span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-gray-500">Registered</span>
                               <span className="font-medium text-gray-900">
-                                {selectedAccount.created_at ? new Date(selectedAccount.created_at).toLocaleDateString() : 'N/A'}
+                                {selectedAccount.created_at
+                                  ? new Date(
+                                      selectedAccount.created_at,
+                                    ).toLocaleDateString()
+                                  : "N/A"}
                               </span>
                             </div>
                           </div>
                         </div>
 
-                        {/* Similarity score bar */}
                         <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
-                          <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Face Match Score</h4>
+                          <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                            Face Match Score
+                          </h4>
                           <div className="flex items-center gap-3">
                             <div className="flex-1 h-3 bg-gray-200 rounded-full overflow-hidden">
                               <div
-                                className={`h-full rounded-full transition-all ${(selectedAccount.face_similarity || 0) >= 70 ? 'bg-yellow-500' : 'bg-red-500'
-                                  }`}
-                                style={{ width: `${Math.min(selectedAccount.face_similarity || 0, 100)}%` }}
+                                className={`h-full rounded-full transition-all ${
+                                  (selectedAccount.face_similarity || 0) >= 70
+                                    ? "bg-yellow-500"
+                                    : "bg-red-500"
+                                }`}
+                                style={{
+                                  width: `${Math.min(selectedAccount.face_similarity || 0, 100)}%`,
+                                }}
                               />
                             </div>
                             <span className="text-sm font-bold text-gray-700 min-w-[50px] text-right">
-                              {(selectedAccount.face_similarity || 0).toFixed(1)}%
+                              {(selectedAccount.face_similarity || 0).toFixed(
+                                1,
+                              )}
+                              %
                             </span>
                           </div>
                           <p className="text-xs text-gray-400 mt-1">
                             {(selectedAccount.face_similarity || 0) >= 90
-                              ? 'Auto-approved threshold met'
+                              ? "Auto-approved threshold met"
                               : (selectedAccount.face_similarity || 0) >= 70
-                                ? 'Moderate match — manual review recommended'
-                                : 'Low match — verify identity carefully'
-                            }
+                                ? "Moderate match — manual review recommended"
+                                : "Low match — verify identity carefully"}
                           </p>
                         </div>
                       </div>
 
-                      {/* Reject reason input */}
                       <div className="mb-4">
                         <label className="text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
                           <ChatBubbleIcon className="w-4 h-4 text-gray-400" />
@@ -524,8 +671,11 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
 
                       <div className="flex gap-3">
                         <motion.button
-                          whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                          onClick={() => handleApproveAccount(selectedAccount.id)}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() =>
+                            handleApproveAccount(selectedAccount.id)
+                          }
                           disabled={actionLoading}
                           className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl font-semibold shadow-lg shadow-green-500/20 disabled:opacity-50 transition-all text-sm"
                         >
@@ -533,8 +683,11 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
                           Approve Account
                         </motion.button>
                         <motion.button
-                          whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                          onClick={() => handleRejectAccount(selectedAccount.id)}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() =>
+                            handleRejectAccount(selectedAccount.id)
+                          }
                           disabled={actionLoading}
                           className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-xl font-semibold shadow-lg shadow-red-500/20 disabled:opacity-50 transition-all text-sm"
                         >
@@ -548,7 +701,9 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
                       <div className="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto mb-4">
                         <UsersIcon className="w-8 h-8 text-amber-400" />
                       </div>
-                      <p className="text-gray-500 text-sm">Select an account to review</p>
+                      <p className="text-gray-500 text-sm">
+                        Select an account to review
+                      </p>
                     </GlassCard>
                   )}
                 </div>
@@ -556,7 +711,6 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
             )}
           </>
         )}
-
       </div>
     </DashboardLayout>
   );

@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -6,7 +6,7 @@ class ErrorBoundary extends React.Component {
     this.state = {
       hasError: false,
       error: null,
-      errorInfo: null
+      errorInfo: null,
     };
   }
 
@@ -15,30 +15,23 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    // Log error to console in development
     if (import.meta.env.DEV) {
-      console.error('Error caught by boundary:', error, errorInfo);
+      console.error("Error caught by boundary:", error, errorInfo);
     }
 
-    // Store error details
     this.setState({
       error,
-      errorInfo
+      errorInfo,
     });
-
-    // TODO: Log to error reporting service (e.g., Sentry) in production
-    // if (import.meta.env.PROD) {
-    //   logErrorToService(error, errorInfo);
-    // }
   }
 
   handleReset = () => {
     this.setState({
       hasError: false,
       error: null,
-      errorInfo: null
+      errorInfo: null,
     });
-    window.location.href = '/';
+    window.location.href = "/";
   };
 
   render() {
@@ -47,7 +40,6 @@ class ErrorBoundary extends React.Component {
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
           <div className="max-w-2xl w-full mx-4">
             <div className="bg-white rounded-3xl shadow-2xl p-8 md:p-12 border border-gray-200">
-              {/* Error Icon */}
               <div className="flex justify-center mb-6">
                 <div className="w-20 h-20 rounded-full bg-red-100 flex items-center justify-center">
                   <svg
@@ -66,19 +58,20 @@ class ErrorBoundary extends React.Component {
                 </div>
               </div>
 
-              {/* Error Message */}
               <h1 className="text-3xl md:text-4xl font-bold text-gray-900 text-center mb-4">
                 Oops! Something went wrong
               </h1>
 
               <p className="text-gray-600 text-center mb-8 text-lg">
-                We're sorry for the inconvenience. The application encountered an unexpected error.
+                We're sorry for the inconvenience. The application encountered
+                an unexpected error.
               </p>
 
-              {/* Error Details (Development Only) */}
               {import.meta.env.DEV && this.state.error && (
                 <div className="mb-8 p-4 bg-red-50 border border-red-200 rounded-xl">
-                  <p className="text-sm font-bold text-red-900 mb-2">Error Details (Dev Mode):</p>
+                  <p className="text-sm font-bold text-red-900 mb-2">
+                    Error Details (Dev Mode):
+                  </p>
                   <p className="text-xs text-red-800 font-mono break-all">
                     {this.state.error.toString()}
                   </p>
@@ -95,7 +88,6 @@ class ErrorBoundary extends React.Component {
                 </div>
               )}
 
-              {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <button
                   onClick={this.handleReset}
@@ -112,9 +104,9 @@ class ErrorBoundary extends React.Component {
                 </button>
               </div>
 
-              {/* Help Text */}
               <p className="text-center text-sm text-gray-500 mt-8">
-                If this problem persists, please contact support or try again later.
+                If this problem persists, please contact support or try again
+                later.
               </p>
             </div>
           </div>

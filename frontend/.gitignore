@@ -13,9 +13,11 @@ dist-ssr
 *.local
 
 # Lint outputs
+eslint_out*.json
+eslint_output*.txt
+lint_output*.txt
 eslint-*.txt
 lint-*.txt
-eslint-output.json
 
 # Editor directories and files
 .vscode/*

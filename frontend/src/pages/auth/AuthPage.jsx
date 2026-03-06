@@ -6,20 +6,21 @@ import SignupFormWithFaceVerification from "../../components/auth/SignupFormWith
 import Particles from "../../components/visuals/Particles";
 import logo from "../../assets/logo.png";
 
-export default function AuthPage({ onBackToHome, isDark, selectedRole }) {
-  // Role-based signup - students use face verification, admins use regular signup
-  const canSignUp = true; // Both students and admins can sign up now
+export default function AuthPage({
+  onBackToHome,
+  isDark,
+  selectedRole,
+  onLoginSuccess,
+}) {
+  const canSignUp = true;
 
   const [isSignUp, setIsSignUp] = useState(() => {
-    // Persist auth mode in sessionStorage so refresh keeps you on the same form
-    // But ensure students cannot start in signup mode
-    const savedMode = sessionStorage.getItem('authMode') === 'signup';
+    const savedMode = sessionStorage.getItem("authMode") === "signup";
     return canSignUp && savedMode;
   });
 
-  // Save auth mode to sessionStorage whenever it changes
   useEffect(() => {
-    sessionStorage.setItem('authMode', isSignUp ? 'signup' : 'login');
+    sessionStorage.setItem("authMode", isSignUp ? "signup" : "login");
   }, [isSignUp]);
 
   useEffect(() => {
@@ -27,8 +28,9 @@ export default function AuthPage({ onBackToHome, isDark, selectedRole }) {
   }, [isSignUp]);
 
   return (
-    <div className={`relative flex min-h-screen items-center justify-center p-4 overflow-x-hidden transition-colors duration-500 ${isDark ? 'bg-slate-950' : 'bg-[#f8fafc]'}`}>
-      {/* Background */}
+    <div
+      className={`relative flex min-h-screen items-center justify-center p-4 overflow-x-hidden transition-colors duration-500 ${isDark ? "bg-slate-950" : "bg-[#f8fafc]"}`}
+    >
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute inset-0 grid-bg opacity-[0.15]"></div>
         <div className="absolute inset-0 z-0">
@@ -45,7 +47,6 @@ export default function AuthPage({ onBackToHome, isDark, selectedRole }) {
             disableRotation={false}
           />
         </div>
-        {/* Blobs */}
         <div
           className={`absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full blur-[80px] animate-float transition-colors duration-500 ${isDark ? "bg-green-900/20" : "bg-green-200/40"}`}
         ></div>
@@ -67,19 +68,22 @@ export default function AuthPage({ onBackToHome, isDark, selectedRole }) {
           layout: { duration: 0.3, ease: "easeInOut" },
           opacity: { duration: 0.5 },
         }}
-        className={`w-full max-w-[500px] rounded-3xl overflow-hidden relative z-20 transition-all duration-500 ${isDark ? 'spatial-glass-dark' : 'spatial-glass'}`}
+        className={`w-full max-w-[500px] rounded-3xl overflow-visible relative z-20 transition-all duration-500 ${isDark ? "spatial-glass-dark" : "spatial-glass"}`}
       >
-        {/* Header Section */}
         <div
-          className={`sticky top-0 z-30 pt-8 px-8 mb-8 backdrop-blur-xl transition-colors duration-500 border-b ${isDark ? "bg-slate-900/40 border-slate-800" : "bg-white/40 border-gray-100"}`}
+          className={`sticky top-0 z-30 pt-8 px-8 mb-8 backdrop-blur-xl transition-colors duration-500 border-b rounded-t-3xl ${isDark ? "bg-slate-900/40 border-slate-800" : "bg-white/40 border-gray-100"}`}
         >
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <img src={logo} alt="SmartDocs Logo" className="w-10 h-10 object-contain drop-shadow-md" />
+              <img
+                src={logo}
+                alt="SmartDocs Logo"
+                className="w-10 h-10 object-contain drop-shadow-md"
+              />
             </div>
             <button
               onClick={() => {
-                sessionStorage.removeItem('authMode'); // Clear auth mode
+                sessionStorage.removeItem("authMode");
                 onBackToHome();
               }}
               className={`flex items-center gap-2 text-sm font-medium transition-colors ${isDark ? "text-slate-400 hover:text-white" : "text-gray-500 hover:text-gray-900"}`}
@@ -121,10 +125,11 @@ export default function AuthPage({ onBackToHome, isDark, selectedRole }) {
               <button
                 onClick={() => canSignUp && setIsSignUp(!isSignUp)}
                 disabled={!canSignUp}
-                className={`ml-1 font-bold transition-colors ${canSignUp
-                    ? 'text-green-600 hover:text-green-500'
-                    : 'text-gray-400 cursor-not-allowed'
-                  }`}
+                className={`ml-1 font-bold transition-colors ${
+                  canSignUp
+                    ? "text-green-600 hover:text-green-500"
+                    : "text-gray-400 cursor-not-allowed"
+                }`}
               >
                 {isSignUp ? "Sign in" : "Sign up"}
               </button>
@@ -132,7 +137,6 @@ export default function AuthPage({ onBackToHome, isDark, selectedRole }) {
           </div>
         </div>
 
-        {/* Form Switcher */}
         <div className="relative px-8 md:px-10 pb-8">
           <AnimatePresence mode="popLayout" initial={false}>
             {!isSignUp ? (
@@ -147,6 +151,7 @@ export default function AuthPage({ onBackToHome, isDark, selectedRole }) {
                   onSwitchMode={() => canSignUp && setIsSignUp(true)}
                   isDark={isDark}
                   selectedRole={selectedRole}
+                  onLoginSuccess={onLoginSuccess}
                 />
               </motion.div>
             ) : (
@@ -157,7 +162,7 @@ export default function AuthPage({ onBackToHome, isDark, selectedRole }) {
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.3, ease: "easeInOut" }}
               >
-                {selectedRole === 'student' ? (
+                {selectedRole === "student" ? (
                   <SignupFormWithFaceVerification
                     onSwitchMode={() => setIsSignUp(false)}
                     isDark={isDark}

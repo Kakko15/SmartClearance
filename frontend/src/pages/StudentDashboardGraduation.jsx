@@ -1,19 +1,30 @@
-import { useState, useEffect } from 'react';
-import toast from 'react-hot-toast';
-import { motion, AnimatePresence } from 'framer-motion';
-import axios from 'axios';
-import { getClearanceComments } from '../services/api';
-import GraduationCertificate from '../components/features/GraduationCertificate';
-import DashboardLayout, { GlassCard, StatusBadge } from '../components/ui/DashboardLayout';
+import { useState, useEffect } from "react";
+import toast from "react-hot-toast";
+import { motion, AnimatePresence } from "framer-motion";
+import axios from "axios";
+import { getClearanceComments } from "../services/api";
+import GraduationCertificate from "../components/features/GraduationCertificate";
+import DashboardLayout, {
+  GlassCard,
+  StatusBadge,
+} from "../components/ui/DashboardLayout";
 import {
-  ChartBarIcon, AcademicCapIcon, UsersIcon, BookOpenIcon,
-  BanknotesIcon, BuildingLibraryIcon, CheckIcon, XMarkIcon,
-  ClockIcon, ChevronDownIcon, DocumentCheckIcon, ChatBubbleIcon
-} from '../components/ui/Icons';
+  ChartBarIcon,
+  AcademicCapIcon,
+  UsersIcon,
+  BookOpenIcon,
+  BanknotesIcon,
+  BuildingLibraryIcon,
+  CheckIcon,
+  XMarkIcon,
+  ClockIcon,
+  ChevronDownIcon,
+  DocumentCheckIcon,
+  ChatBubbleIcon,
+} from "../components/ui/Icons";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-// ─── Unresolved Badge ───────────────────────────────────────────────
 const UnresolvedBadge = ({ count = 0 }) => {
   if (count <= 0) return null;
   return (
@@ -28,12 +39,11 @@ const UnresolvedBadge = ({ count = 0 }) => {
         transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
         className="w-1.5 h-1.5 rounded-full bg-orange-500"
       />
-      {count === 1 ? 'Unresolved' : `${count} Unresolved`}
+      {count === 1 ? "Unresolved" : `${count} Unresolved`}
     </motion.span>
   );
 };
 
-// ─── Comment Indicator (small icon for rows) ────────────────────────
 const CommentIndicator = ({ hasComment }) => {
   if (!hasComment) return null;
   return (
@@ -48,34 +58,43 @@ const CommentIndicator = ({ hasComment }) => {
   );
 };
 
-// ─── Stage Node (Tree Node) ─────────────────────────────────────────
-const StageNode = ({ stage, index, total, isExpanded, onToggle, unresolvedCount, hasComments, onViewComments, children }) => {
+const StageNode = ({
+  stage,
+  index,
+  total,
+  isExpanded,
+  onToggle,
+  unresolvedCount,
+  hasComments,
+  onViewComments,
+  children,
+}) => {
   const isLast = index === total - 1;
   const statusConfig = {
     approved: {
-      gradient: 'from-emerald-400 to-green-500',
-      ring: 'ring-emerald-400/30',
-      bg: 'bg-emerald-50',
-      badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      gradient: "from-emerald-400 to-green-500",
+      ring: "ring-emerald-400/30",
+      bg: "bg-emerald-50",
+      badge: "bg-emerald-50 text-emerald-700 border-emerald-200",
       icon: <CheckIcon className="w-5 h-5 text-white" />,
-      label: 'Approved'
+      label: "Approved",
     },
     rejected: {
-      gradient: 'from-red-400 to-rose-500',
-      ring: 'ring-red-400/30',
-      bg: 'bg-red-50',
-      badge: 'bg-red-50 text-red-700 border-red-200',
+      gradient: "from-red-400 to-rose-500",
+      ring: "ring-red-400/30",
+      bg: "bg-red-50",
+      badge: "bg-red-50 text-red-700 border-red-200",
       icon: <XMarkIcon className="w-5 h-5 text-white" />,
-      label: 'Rejected'
+      label: "Rejected",
     },
     pending: {
-      gradient: 'from-amber-400 to-orange-500',
-      ring: 'ring-amber-400/30',
-      bg: 'bg-amber-50',
-      badge: 'bg-amber-50 text-amber-700 border-amber-200',
+      gradient: "from-amber-400 to-orange-500",
+      ring: "ring-amber-400/30",
+      bg: "bg-amber-50",
+      badge: "bg-amber-50 text-amber-700 border-amber-200",
       icon: <ClockIcon className="w-4.5 h-4.5 text-white" />,
-      label: 'Pending'
-    }
+      label: "Pending",
+    },
   };
 
   const config = statusConfig[stage.status] || statusConfig.pending;
@@ -84,58 +103,77 @@ const StageNode = ({ stage, index, total, isExpanded, onToggle, unresolvedCount,
     <motion.div
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: index * 0.1, type: "spring", stiffness: 200, damping: 25 }}
+      transition={{
+        delay: index * 0.1,
+        type: "spring",
+        stiffness: 200,
+        damping: 25,
+      }}
       className="relative"
     >
       <div className="flex items-start gap-4">
-        {/* Vertical Tree Line + Node */}
-        <div className="flex flex-col items-center flex-shrink-0">
+      <div className="flex flex-col items-center flex-shrink-0">
           <motion.div
             whileHover={{ scale: 1.1 }}
             className={`relative w-11 h-11 rounded-full bg-gradient-to-br ${config.gradient} ring-4 ${config.ring} flex items-center justify-center shadow-lg z-10 cursor-pointer`}
             onClick={onToggle}
           >
             {config.icon}
-            {stage.status === 'pending' && (
-              <div className={`absolute inset-0 rounded-full bg-gradient-to-br ${config.gradient} animate-ping opacity-20`} />
+            {stage.status === "pending" && (
+              <div
+                className={`absolute inset-0 rounded-full bg-gradient-to-br ${config.gradient} animate-ping opacity-20`}
+              />
             )}
           </motion.div>
           {!isLast && (
-            <div className={`w-0.5 flex-1 min-h-[60px] ${stage.status === 'approved'
-              ? 'bg-gradient-to-b from-emerald-400 to-emerald-400/30'
-              : 'bg-gray-200'
-              }`} />
+            <div
+              className={`w-0.5 flex-1 min-h-[60px] ${
+                stage.status === "approved"
+                  ? "bg-gradient-to-b from-emerald-400 to-emerald-400/30"
+                  : "bg-gray-200"
+              }`}
+            />
           )}
         </div>
 
-        {/* Content */}
-        <div className={`flex-1 ${isLast ? 'pb-0' : 'pb-6'}`}>
+        <div className={`flex-1 ${isLast ? "pb-0" : "pb-6"}`}>
           <div
-            className={`rounded-xl p-4 transition-all duration-300 cursor-pointer ${config.bg} ${isExpanded ? 'ring-1 ring-green-200/50' : ''
-              }`}
+            className={`rounded-xl p-4 transition-all duration-300 cursor-pointer ${config.bg} ${
+              isExpanded ? "ring-1 ring-green-200/50" : ""
+            }`}
             onClick={onToggle}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${config.gradient} bg-opacity-20 flex items-center justify-center`}>
+                <div
+                  className={`w-8 h-8 rounded-lg bg-gradient-to-br ${config.gradient} bg-opacity-20 flex items-center justify-center`}
+                >
                   {stage.iconComponent}
                 </div>
                 <div>
-                  <h4 className="font-bold text-sm text-gray-900">{stage.title}</h4>
-                  <p className="text-xs mt-0.5 text-gray-500">{stage.description}</p>
+                  <h4 className="font-bold text-sm text-gray-900">
+                    {stage.title}
+                  </h4>
+                  <p className="text-xs mt-0.5 text-gray-500">
+                    {stage.description}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${config.badge}`}>
+                <span
+                  className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${config.badge}`}
+                >
                   {config.label}
                 </span>
                 <UnresolvedBadge count={unresolvedCount} />
-                {/* View comments button for non-professor stages */}
                 {hasComments && !stage.hasChildren && (
                   <motion.button
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
-                    onClick={(e) => { e.stopPropagation(); onViewComments(); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onViewComments();
+                    }}
                     className="w-7 h-7 rounded-lg bg-orange-100 hover:bg-orange-200 flex items-center justify-center transition-colors"
                     title="View comments"
                   >
@@ -143,7 +181,11 @@ const StageNode = ({ stage, index, total, isExpanded, onToggle, unresolvedCount,
                   </motion.button>
                 )}
                 {children && (
-                  <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.2 }} className="text-gray-400">
+                  <motion.div
+                    animate={{ rotate: isExpanded ? 180 : 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="text-gray-400"
+                  >
                     <ChevronDownIcon className="w-4 h-4" />
                   </motion.div>
                 )}
@@ -154,19 +196,25 @@ const StageNode = ({ stage, index, total, isExpanded, onToggle, unresolvedCount,
               {isExpanded && children && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
+                  animate={{ opacity: 1, height: "auto" }}
                   exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.3, ease: 'easeInOut' }}
+                  transition={{ duration: 0.3, ease: "easeInOut" }}
                   className="overflow-hidden"
                 >
-                  <div className="mt-3 pt-3 border-t border-gray-200/50">{children}</div>
+                  <div className="mt-3 pt-3 border-t border-gray-200/50">
+                    {children}
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
 
           {stage.comments && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-2 px-4 py-2.5 rounded-lg text-xs bg-gray-50 text-gray-600">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="mt-2 px-4 py-2.5 rounded-lg text-xs bg-gray-50 text-gray-600"
+            >
               <span className="font-semibold">Note:</span> {stage.comments}
             </motion.div>
           )}
@@ -176,37 +224,53 @@ const StageNode = ({ stage, index, total, isExpanded, onToggle, unresolvedCount,
   );
 };
 
-// ─── Professor Card (Child Node) ────────────────────────────────────
-const ProfessorCard = ({ approval, index, onViewComments, clearanceComments = [] }) => {
+const ProfessorCard = ({
+  approval,
+  index,
+  onViewComments,
+  clearanceComments = [],
+}) => {
   const statusColors = {
-    approved: { dot: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700' },
-    rejected: { dot: 'bg-red-500', badge: 'bg-red-50 text-red-700' },
-    pending: { dot: 'bg-amber-500', badge: 'bg-amber-50 text-amber-700' }
+    approved: {
+      dot: "bg-emerald-500",
+      badge: "bg-emerald-50 text-emerald-700",
+    },
+    rejected: { dot: "bg-red-500", badge: "bg-red-50 text-red-700" },
+    pending: { dot: "bg-amber-500", badge: "bg-amber-50 text-amber-700" },
   };
   const colors = statusColors[approval.status] || statusColors.pending;
-  // Check both approval.comments (rejection reason) AND clearance_comments by this professor
-  const hasClearanceComments = clearanceComments.some(c => c.commenter_id === approval.professor_id);
+
+  const hasClearanceComments = clearanceComments.some(
+    (c) => c.commenter_id === approval.professor_id,
+  );
   const hasApprovalComment = !!(approval.comments && approval.comments.trim());
   const hasComment = hasApprovalComment || hasClearanceComments;
-  const clearanceCommentCount = clearanceComments.filter(c => c.commenter_id === approval.professor_id && !c.is_resolved).length;
+  const clearanceCommentCount = clearanceComments.filter(
+    (c) => c.commenter_id === approval.professor_id && !c.is_resolved,
+  ).length;
 
   return (
     <motion.div
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: index * 0.05 }}
-      onClick={(e) => { e.stopPropagation(); onViewComments(approval); }}
+      onClick={(e) => {
+        e.stopPropagation();
+        onViewComments(approval);
+      }}
       className="group flex items-center justify-between p-3 rounded-xl transition-all duration-200 hover:bg-white/80 hover:shadow-md hover:shadow-green-500/5 cursor-pointer border border-transparent hover:border-green-100"
     >
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2">
           <div className="w-5 h-px bg-gray-300 group-hover:bg-green-300 transition-colors" />
-          <div className={`w-3 h-3 rounded-full ${colors.dot} shadow-sm ring-2 ring-offset-1 ring-offset-white ring-gray-200 ${approval.status === 'pending' ? 'animate-pulse' : ''}`} />
+          <div
+            className={`w-3 h-3 rounded-full ${colors.dot} shadow-sm ring-2 ring-offset-1 ring-offset-white ring-gray-200 ${approval.status === "pending" ? "animate-pulse" : ""}`}
+          />
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <p className="font-medium text-sm text-gray-800 group-hover:text-gray-900 transition-colors">
-              {approval.professor?.full_name || 'Unknown Professor'}
+              {approval.professor?.full_name || "Unknown Professor"}
             </p>
             <CommentIndicator hasComment={hasComment} />
           </div>
@@ -218,17 +282,34 @@ const ProfessorCard = ({ approval, index, onViewComments, clearanceComments = []
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${colors.badge}`}>{approval.status}</span>
-        {hasComment && <UnresolvedBadge count={clearanceCommentCount + (hasApprovalComment ? 1 : 0)} />}
-        {/* Arrow indicator on hover */}
+        <span
+          className={`px-2 py-0.5 rounded-full text-xs font-semibold ${colors.badge}`}
+        >
+          {approval.status}
+        </span>
+        {hasComment && (
+          <UnresolvedBadge
+            count={clearanceCommentCount + (hasApprovalComment ? 1 : 0)}
+          />
+        )}
         <motion.div
           initial={{ opacity: 0, x: -4 }}
           animate={{ opacity: 0 }}
           whileHover={{ opacity: 1, x: 0 }}
           className="text-green-400 opacity-0 group-hover:opacity-100 transition-opacity"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 5l7 7-7 7"
+            />
           </svg>
         </motion.div>
       </div>
@@ -236,8 +317,13 @@ const ProfessorCard = ({ approval, index, onViewComments, clearanceComments = []
   );
 };
 
-// ─── Comment Popup Modal ────────────────────────────────────────────
-const CommentPopupModal = ({ target, requestId, studentId, onClose, clearanceComments = [] }) => {
+const CommentPopupModal = ({
+  target,
+  requestId: _requestId,
+  studentId: _studentId,
+  onClose,
+  clearanceComments = [],
+}) => {
   if (!target) return null;
 
   return (
@@ -249,10 +335,8 @@ const CommentPopupModal = ({ target, requestId, studentId, onClose, clearanceCom
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       onClick={onClose}
     >
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
 
-      {/* Modal */}
       <motion.div
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -261,16 +345,19 @@ const CommentPopupModal = ({ target, requestId, studentId, onClose, clearanceCom
         onClick={(e) => e.stopPropagation()}
         className="relative w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border border-green-200/60 bg-gradient-to-br from-white via-green-50/30 to-emerald-50/20 shadow-2xl"
       >
-        {/* Modal Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-green-100/60 bg-white/90 backdrop-blur-md rounded-t-2xl">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-green-500/20">
               <ChatBubbleIcon className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h4 className="font-bold text-sm text-gray-900">{target.title}</h4>
+              <h4 className="font-bold text-sm text-gray-900">
+                {target.title}
+              </h4>
               <p className="text-xs text-gray-500">
-                {target.type === 'professor' ? 'Professor feedback & comments' : 'Stage comments & discussion'}
+                {target.type === "professor"
+                  ? "Professor feedback & comments"
+                  : "Stage comments & discussion"}
               </p>
             </div>
           </div>
@@ -284,50 +371,60 @@ const CommentPopupModal = ({ target, requestId, studentId, onClose, clearanceCom
           </motion.button>
         </div>
 
-        {/* Specific comment display */}
         <div className="p-6">
           {(() => {
-            // Get comments specific to this professor/stage
             let specificComments = [];
 
-            if (target.type === 'professor' && target.approval) {
-              // Filter clearance_comments by this professor's ID
-              // Also match comments where commenter is any professor/dept_head
-              // assigned to this approval
+            if (target.type === "professor" && target.approval) {
               specificComments = clearanceComments.filter(
-                c => c.commenter_id === target.approval.professor_id
+                (c) => c.commenter_id === target.approval.professor_id,
               );
-              // Also include the approval.comments if it exists (rejection reason)
+
               if (target.approval.comments && target.approval.comments.trim()) {
-                specificComments = [{
-                  id: `approval-${target.approval.id}`,
-                  commenter_name: target.approval.professor?.full_name || 'Professor',
-                  commenter_role: 'professor',
-                  comment_text: target.approval.comments,
-                  created_at: target.approval.approved_at || target.approval.created_at,
-                  is_resolved: false,
-                  isApprovalComment: true
-                }, ...specificComments];
+                specificComments = [
+                  {
+                    id: `approval-${target.approval.id}`,
+                    commenter_name:
+                      target.approval.professor?.full_name || "Professor",
+                    commenter_role: "professor",
+                    comment_text: target.approval.comments,
+                    created_at:
+                      target.approval.approved_at || target.approval.created_at,
+                    is_resolved: false,
+                    isApprovalComment: true,
+                  },
+                  ...specificComments,
+                ];
               }
-            } else if (target.type === 'stage') {
-              // Filter by stage role
-              const roleMap = { library: 'library_admin', cashier: 'cashier_admin', registrar: 'registrar_admin' };
+            } else if (target.type === "stage") {
+              const roleMap = {
+                library: "library_admin",
+                cashier: "cashier_admin",
+                registrar: "registrar_admin",
+              };
               const role = roleMap[target.key];
-              specificComments = clearanceComments.filter(c => c.commenter_role === role);
-              // Also include the stage comment from the request record
+              specificComments = clearanceComments.filter(
+                (c) => c.commenter_role === role,
+              );
+
               if (target.stageComment && target.stageComment.trim()) {
-                specificComments = [{
-                  id: `stage-${target.key}`,
-                  commenter_name: target.title,
-                  commenter_role: role || 'admin',
-                  comment_text: target.stageComment,
-                  is_resolved: false,
-                  isStageComment: true
-                }, ...specificComments];
+                specificComments = [
+                  {
+                    id: `stage-${target.key}`,
+                    commenter_name: target.title,
+                    commenter_role: role || "admin",
+                    comment_text: target.stageComment,
+                    is_resolved: false,
+                    isStageComment: true,
+                  },
+                  ...specificComments,
+                ];
               }
             }
 
-            const unresolvedCount = specificComments.filter(c => !c.is_resolved).length;
+            const unresolvedCount = specificComments.filter(
+              (c) => !c.is_resolved,
+            ).length;
 
             if (specificComments.length === 0) {
               return (
@@ -335,9 +432,11 @@ const CommentPopupModal = ({ target, requestId, studentId, onClose, clearanceCom
                   <div className="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-3">
                     <ChatBubbleIcon className="w-7 h-7 text-gray-300" />
                   </div>
-                  <p className="text-sm font-medium text-gray-400">No comments yet</p>
+                  <p className="text-sm font-medium text-gray-400">
+                    No comments yet
+                  </p>
                   <p className="text-xs text-gray-300 mt-1">
-                    {target.type === 'professor'
+                    {target.type === "professor"
                       ? "This professor hasn't left any feedback"
                       : "This office hasn't left any feedback"}
                   </p>
@@ -348,29 +447,38 @@ const CommentPopupModal = ({ target, requestId, studentId, onClose, clearanceCom
             return (
               <div className="space-y-3">
                 <div className="flex items-center gap-2 mb-3">
-                  <div className={`w-2 h-2 rounded-full ${unresolvedCount > 0 ? 'bg-orange-500' : 'bg-green-500'}`} />
+                  <div
+                    className={`w-2 h-2 rounded-full ${unresolvedCount > 0 ? "bg-orange-500" : "bg-green-500"}`}
+                  />
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {specificComments.length} Comment{specificComments.length !== 1 ? 's' : ''}
+                    {specificComments.length} Comment
+                    {specificComments.length !== 1 ? "s" : ""}
                     {unresolvedCount > 0 && ` · ${unresolvedCount} unresolved`}
                   </p>
                 </div>
                 {specificComments.map((comment) => (
                   <div
                     key={comment.id}
-                    className={`border-l-4 pl-4 py-3 rounded-r-xl bg-white shadow-sm ${comment.is_resolved
-                      ? 'border-green-300 opacity-60'
-                      : target.type === 'professor' ? 'border-purple-400' : 'border-blue-400'
-                      }`}
+                    className={`border-l-4 pl-4 py-3 rounded-r-xl bg-white shadow-sm ${
+                      comment.is_resolved
+                        ? "border-green-300 opacity-60"
+                        : target.type === "professor"
+                          ? "border-purple-400"
+                          : "border-blue-400"
+                    }`}
                   >
                     <div className="flex items-start gap-3">
-                      <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${comment.is_resolved
-                        ? 'bg-green-400'
-                        : target.type === 'professor'
-                          ? 'bg-gradient-to-br from-purple-400 to-indigo-500'
-                          : 'bg-gradient-to-br from-blue-400 to-indigo-500'
-                        }`}>
+                      <div
+                        className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          comment.is_resolved
+                            ? "bg-green-400"
+                            : target.type === "professor"
+                              ? "bg-gradient-to-br from-purple-400 to-indigo-500"
+                              : "bg-gradient-to-br from-blue-400 to-indigo-500"
+                        }`}
+                      >
                         <span className="text-white text-xs font-bold">
-                          {comment.commenter_name?.charAt(0) || '?'}
+                          {comment.commenter_name?.charAt(0) || "?"}
                         </span>
                       </div>
                       <div className="flex-1">
@@ -378,15 +486,23 @@ const CommentPopupModal = ({ target, requestId, studentId, onClose, clearanceCom
                           <span className="font-semibold text-sm text-gray-900">
                             {comment.commenter_name}
                           </span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${comment.commenter_role === 'professor' || comment.commenter_role === 'department_head'
-                            ? 'bg-purple-50 text-purple-700 border-purple-200'
-                            : 'bg-blue-50 text-blue-700 border-blue-200'
-                            }`}>
-                            {comment.commenter_role === 'professor' ? 'Professor'
-                              : comment.commenter_role === 'library_admin' ? 'Library'
-                                : comment.commenter_role === 'cashier_admin' ? 'Cashier'
-                                  : comment.commenter_role === 'registrar_admin' ? 'Registrar'
-                                    : 'Admin'}
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
+                              comment.commenter_role === "professor" ||
+                              comment.commenter_role === "department_head"
+                                ? "bg-purple-50 text-purple-700 border-purple-200"
+                                : "bg-blue-50 text-blue-700 border-blue-200"
+                            }`}
+                          >
+                            {comment.commenter_role === "professor"
+                              ? "Professor"
+                              : comment.commenter_role === "library_admin"
+                                ? "Library"
+                                : comment.commenter_role === "cashier_admin"
+                                  ? "Cashier"
+                                  : comment.commenter_role === "registrar_admin"
+                                    ? "Registrar"
+                                    : "Admin"}
                           </span>
                           {comment.is_resolved ? (
                             <span className="text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200 font-medium">
@@ -398,16 +514,27 @@ const CommentPopupModal = ({ target, requestId, studentId, onClose, clearanceCom
                             </span>
                           )}
                         </div>
-                        <p className={`text-sm whitespace-pre-wrap leading-relaxed mt-1 ${comment.is_resolved ? 'text-gray-400 line-through decoration-1' : 'text-gray-700'
-                          }`}>
+                        <p
+                          className={`text-sm whitespace-pre-wrap leading-relaxed mt-1 ${
+                            comment.is_resolved
+                              ? "text-gray-400 line-through decoration-1"
+                              : "text-gray-700"
+                          }`}
+                        >
                           {comment.comment_text}
                         </p>
                         {comment.created_at && (
                           <p className="text-xs text-gray-400 mt-2">
-                            {new Date(comment.created_at).toLocaleString('en-US', {
-                              month: 'short', day: 'numeric', year: 'numeric',
-                              hour: '2-digit', minute: '2-digit'
-                            })}
+                            {new Date(comment.created_at).toLocaleString(
+                              "en-US",
+                              {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              },
+                            )}
                           </p>
                         )}
                       </div>
@@ -423,23 +550,26 @@ const CommentPopupModal = ({ target, requestId, studentId, onClose, clearanceCom
   );
 };
 
-// ─── Progress Bar ───────────────────────────────────────────────────
 const ProgressBar = ({ stages }) => {
-  const approved = stages.filter(s => s.status === 'approved').length;
+  const approved = stages.filter((s) => s.status === "approved").length;
   const total = stages.length;
   const pct = total > 0 ? (approved / total) * 100 : 0;
 
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold text-gray-500">Overall Progress</span>
-        <span className="text-xs font-bold text-emerald-600">{approved}/{total} stages complete</span>
+        <span className="text-xs font-semibold text-gray-500">
+          Overall Progress
+        </span>
+        <span className="text-xs font-bold text-emerald-600">
+          {approved}/{total} stages complete
+        </span>
       </div>
       <div className="h-2 rounded-full overflow-hidden bg-gray-100">
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${pct}%` }}
-          transition={{ duration: 1, ease: 'easeOut', delay: 0.5 }}
+          transition={{ duration: 1, ease: "easeOut", delay: 0.5 }}
           className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-green-500 to-emerald-600 shadow-sm shadow-emerald-500/30"
         />
       </div>
@@ -447,27 +577,29 @@ const ProgressBar = ({ stages }) => {
   );
 };
 
-// ════════════════════════════════════════════════════════════════════
-// MAIN COMPONENT
-// ════════════════════════════════════════════════════════════════════
-export default function StudentDashboardGraduation({ studentId, studentInfo, onSignOut, onOpenSettings, isDarkMode = false }) {
+export default function StudentDashboardGraduation({
+  studentId,
+  studentInfo,
+  onSignOut,
+  onOpenSettings,
+  _isDarkMode = false,
+}) {
   const [clearanceStatus, setClearanceStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
-  const [activeView, setActiveView] = useState('status');
+  const [activeView, setActiveView] = useState("status");
   const [expandedStages, setExpandedStages] = useState({ professors: true });
   const [cancelling, setCancelling] = useState(false);
-  const [commentTarget, setCommentTarget] = useState(null); // { type, key, title, requestId, approval? }
-  const [clearanceComments, setClearanceComments] = useState([]); // comments from clearance_comments table
+  const [commentTarget, setCommentTarget] = useState(null);
+  const [clearanceComments, setClearanceComments] = useState([]);
 
-  // Helper: fetch clearance comments for a given request ID
   const fetchClearanceComments = async (reqId) => {
     if (!reqId) return;
     try {
       const commentsRes = await getClearanceComments(reqId, studentId);
       if (commentsRes.success) setClearanceComments(commentsRes.comments || []);
     } catch (e) {
-      console.warn('Could not fetch clearance comments:', e);
+      console.warn("Could not fetch clearance comments:", e);
     }
   };
 
@@ -476,9 +608,9 @@ export default function StudentDashboardGraduation({ studentId, studentInfo, onS
     fetchClearanceStatus();
   }, []);
 
-  // Poll for new clearance comments every 10 seconds for near-realtime updates
   useEffect(() => {
-    const reqId = clearanceStatus?.request?.request_id || clearanceStatus?.request?.id;
+    const reqId =
+      clearanceStatus?.request?.request_id || clearanceStatus?.request?.id;
     if (!reqId) return;
     const interval = setInterval(() => fetchClearanceComments(reqId), 10000);
     return () => clearInterval(interval);
@@ -487,16 +619,19 @@ export default function StudentDashboardGraduation({ studentId, studentInfo, onS
   const fetchClearanceStatus = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${API_URL}/graduation/status/${studentId}`);
+      const response = await axios.get(
+        `${API_URL}/graduation/status/${studentId}`,
+      );
       if (response.data.success) {
         setClearanceStatus(response.data);
-        // Fetch clearance comments — view only has request_id, not id
-        const reqId = response.data.request?.request_id || response.data.request?.id;
+
+        const reqId =
+          response.data.request?.request_id || response.data.request?.id;
         await fetchClearanceComments(reqId);
       }
     } catch (error) {
-      console.error('Error fetching clearance status:', error);
-      toast.error('Failed to load clearance status');
+      console.error("Error fetching clearance status:", error);
+      toast.error("Failed to load clearance status");
     } finally {
       setLoading(false);
     }
@@ -505,61 +640,73 @@ export default function StudentDashboardGraduation({ studentId, studentInfo, onS
   const handleApply = async () => {
     setApplying(true);
     try {
-      const response = await axios.post(`${API_URL}/graduation/apply`, { student_id: studentId });
+      const response = await axios.post(`${API_URL}/graduation/apply`, {
+        student_id: studentId,
+      });
       if (response.data.success) {
-        toast.success('Graduation clearance application submitted!');
+        toast.success("Graduation clearance application submitted!");
         fetchClearanceStatus();
       }
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to apply for clearance');
+      toast.error(
+        error.response?.data?.error || "Failed to apply for clearance",
+      );
     } finally {
       setApplying(false);
     }
   };
 
   const handleCancel = async () => {
-    if (!window.confirm('Are you sure you want to cancel your graduation clearance request?')) return;
+    if (
+      !window.confirm(
+        "Are you sure you want to cancel your graduation clearance request?",
+      )
+    )
+      return;
     setCancelling(true);
     try {
-      const response = await axios.delete(`${API_URL}/graduation/cancel/${studentId}`);
+      const response = await axios.delete(
+        `${API_URL}/graduation/cancel/${studentId}`,
+      );
       if (response.data.success) {
-        toast.success('Request cancelled');
+        toast.success("Request cancelled");
         fetchClearanceStatus();
       }
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to cancel clearance');
+      toast.error(error.response?.data?.error || "Failed to cancel clearance");
     } finally {
       setCancelling(false);
     }
   };
 
-  const toggleStage = (key) => setExpandedStages(prev => ({ ...prev, [key]: !prev[key] }));
+  const toggleStage = (key) =>
+    setExpandedStages((prev) => ({ ...prev, [key]: !prev[key] }));
 
-  // Open comment detail panel for a professor
   const openProfessorComments = async (approval) => {
-    const reqId = clearanceStatus?.request?.request_id || clearanceStatus?.request?.id;
-    // Re-fetch comments to ensure fresh data whenever the modal opens
+    const reqId =
+      clearanceStatus?.request?.request_id || clearanceStatus?.request?.id;
+
     await fetchClearanceComments(reqId);
     setCommentTarget({
-      type: 'professor',
+      type: "professor",
       key: `professor-${approval.id}`,
-      title: approval.professor?.full_name || 'Professor',
+      title: approval.professor?.full_name || "Professor",
       requestId: reqId,
-      approval
+      approval,
     });
   };
 
-  // Open comment detail panel for a stage (library, cashier, registrar)
   const openStageComments = async (stage) => {
-    const reqId = clearanceStatus?.request?.request_id || clearanceStatus?.request?.id;
-    // Re-fetch comments to ensure fresh data whenever the modal opens
+    const reqId =
+      clearanceStatus?.request?.request_id || clearanceStatus?.request?.id;
+
     await fetchClearanceComments(reqId);
     setCommentTarget({
-      type: 'stage',
+      type: "stage",
       key: stage.key,
       title: stage.title,
       requestId: reqId,
-      stageComment: stage.comments || null
+      stageComment: stage.comments || null,
     });
   };
 
@@ -569,76 +716,109 @@ export default function StudentDashboardGraduation({ studentId, studentInfo, onS
     if (!clearanceStatus?.request) return [];
     const r = clearanceStatus.request;
     const approvalCount = clearanceStatus.professorApprovals?.length || 0;
-    const approvedCount = clearanceStatus.professorApprovals?.filter(a => a.status === 'approved').length || 0;
+    const approvedCount =
+      clearanceStatus.professorApprovals?.filter((a) => a.status === "approved")
+        .length || 0;
 
-    // Check both approval.comments AND clearance_comments from professors
-    const professorApprovalCommentCount = clearanceStatus.professorApprovals?.filter(a => a.comments && a.comments.trim()).length || 0;
-    const professorIds = (clearanceStatus.professorApprovals || []).map(a => a.professor_id);
-    const professorClearanceComments = clearanceComments.filter(c => professorIds.includes(c.commenter_id));
-    const professorUnresolvedClearanceCount = professorClearanceComments.filter(c => !c.is_resolved).length;
-    const totalProfessorCommentCount = professorApprovalCommentCount + professorClearanceComments.length;
-    const totalProfessorUnresolvedCount = professorApprovalCommentCount + professorUnresolvedClearanceCount;
+    const professorApprovalCommentCount =
+      clearanceStatus.professorApprovals?.filter(
+        (a) => a.comments && a.comments.trim(),
+      ).length || 0;
+    const professorIds = (clearanceStatus.professorApprovals || []).map(
+      (a) => a.professor_id,
+    );
+    const professorClearanceComments = clearanceComments.filter((c) =>
+      professorIds.includes(c.commenter_id),
+    );
+    const professorUnresolvedClearanceCount = professorClearanceComments.filter(
+      (c) => !c.is_resolved,
+    ).length;
+    const totalProfessorCommentCount =
+      professorApprovalCommentCount + professorClearanceComments.length;
+    const totalProfessorUnresolvedCount =
+      professorApprovalCommentCount + professorUnresolvedClearanceCount;
 
     return [
       {
-        key: 'professors', title: 'Professors Approval',
+        key: "professors",
+        title: "Professors Approval",
         description: `${approvedCount} of ${approvalCount} professors approved`,
         iconComponent: <UsersIcon className="w-4 h-4 text-white" />,
-        status: r.professors_status || 'pending', comments: null, hasChildren: true,
+        status: r.professors_status || "pending",
+        comments: null,
+        hasChildren: true,
         hasComments: totalProfessorCommentCount > 0,
-        unresolvedCount: totalProfessorUnresolvedCount
+        unresolvedCount: totalProfessorUnresolvedCount,
       },
       {
-        key: 'library', title: 'Library Clearance',
-        description: 'Check for unsettled books and obligations',
+        key: "library",
+        title: "Library Clearance",
+        description: "Check for unsettled books and obligations",
         iconComponent: <BookOpenIcon className="w-4 h-4 text-white" />,
-        status: r.library_status || 'pending', comments: r.library_comments,
+        status: r.library_status || "pending",
+        comments: r.library_comments,
         hasComments: !!(r.library_comments && r.library_comments.trim()),
-        unresolvedCount: r.library_comments ? 1 : 0
+        unresolvedCount: r.library_comments ? 1 : 0,
       },
       {
-        key: 'cashier', title: 'Cashier Clearance',
-        description: 'Verify financial obligations',
+        key: "cashier",
+        title: "Cashier Clearance",
+        description: "Verify financial obligations",
         iconComponent: <BanknotesIcon className="w-4 h-4 text-white" />,
-        status: r.cashier_status || 'pending', comments: r.cashier_comments,
+        status: r.cashier_status || "pending",
+        comments: r.cashier_comments,
         hasComments: !!(r.cashier_comments && r.cashier_comments.trim()),
-        unresolvedCount: r.cashier_comments ? 1 : 0
+        unresolvedCount: r.cashier_comments ? 1 : 0,
       },
       {
-        key: 'registrar', title: 'Registrar Final Approval',
-        description: 'Final validation and certificate generation',
+        key: "registrar",
+        title: "Registrar Final Approval",
+        description: "Final validation and certificate generation",
         iconComponent: <BuildingLibraryIcon className="w-4 h-4 text-white" />,
-        status: r.registrar_status || 'pending', comments: r.registrar_comments,
+        status: r.registrar_status || "pending",
+        comments: r.registrar_comments,
         hasComments: !!(r.registrar_comments && r.registrar_comments.trim()),
-        unresolvedCount: r.registrar_comments ? 1 : 0
-      }
+        unresolvedCount: r.registrar_comments ? 1 : 0,
+      },
     ];
   };
 
-  // Use the overall unresolved count from backend for a summary badge
   const unresolvedCommentCount = clearanceStatus?.unresolvedCommentCount || 0;
-  const totalCommentCount = clearanceStatus?.totalCommentCount || 0;
 
-  // ── Theme: Green ──
   const theme = {
-    name: 'ISU Clearance', abbrev: 'SC', dashboardTitle: 'Student Dashboard',
-    sidebarGradient: 'bg-gradient-to-b from-green-600 to-emerald-700 border-r border-green-500/20',
-    sidebarActive: 'bg-white text-green-700 shadow-green-900/20',
-    accentGradient: 'bg-gradient-to-br from-green-500 to-emerald-600',
-    accentShadow: 'shadow-green-500/20',
-    dotColor: 'bg-green-300',
-    bg: 'bg-gradient-to-br from-green-50 via-emerald-50/30 to-white',
-    glow1: 'bg-green-400/10', glow2: 'bg-emerald-400/5',
-    topbar: 'bg-white/80 border-b border-green-100',
-    topbarText: 'text-gray-900', topbarSub: 'text-gray-500',
-    topbarBtn: 'hover:bg-green-50', topbarIcon: 'text-gray-500',
-    topbarDivider: 'bg-gray-200',
-    logoutBtn: 'bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500 hover:text-white',
+    name: "ISU Clearance",
+    abbrev: "SC",
+    dashboardTitle: "Student Dashboard",
+    sidebarGradient:
+      "bg-gradient-to-b from-green-600 to-emerald-700 border-r border-green-500/20",
+    sidebarActive: "bg-white text-green-700 shadow-green-900/20",
+    accentGradient: "bg-gradient-to-br from-green-500 to-emerald-600",
+    accentShadow: "shadow-green-500/20",
+    dotColor: "bg-green-300",
+    bg: "bg-gradient-to-br from-green-50 via-emerald-50/30 to-white",
+    glow1: "bg-green-400/10",
+    glow2: "bg-emerald-400/5",
+    topbar: "bg-white/80 border-b border-green-100",
+    topbarText: "text-gray-900",
+    topbarSub: "text-gray-500",
+    topbarBtn: "hover:bg-green-50",
+    topbarIcon: "text-gray-500",
+    topbarDivider: "bg-gray-200",
+    logoutBtn:
+      "bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500 hover:text-white",
   };
 
   const menuItems = [
-    { id: 'status', label: 'Clearance Status', icon: <ChartBarIcon className="w-5 h-5" /> },
-    { id: 'certificate', label: 'Certificate', icon: <AcademicCapIcon className="w-5 h-5" /> },
+    {
+      id: "status",
+      label: "Clearance Status",
+      icon: <ChartBarIcon className="w-5 h-5" />,
+    },
+    {
+      id: "certificate",
+      label: "Certificate",
+      icon: <AcademicCapIcon className="w-5 h-5" />,
+    },
   ];
 
   return (
@@ -647,49 +827,65 @@ export default function StudentDashboardGraduation({ studentId, studentInfo, onS
       menuItems={menuItems}
       activeView={activeView}
       setActiveView={setActiveView}
-      userInfo={{ name: studentInfo?.full_name, subtitle: studentInfo?.student_number }}
+      userInfo={{
+        name: studentInfo?.full_name,
+        subtitle: studentInfo?.student_number,
+      }}
       onSignOut={onSignOut}
       onOpenSettings={onOpenSettings}
     >
-      {activeView === 'status' && (
+      {activeView === "status" && (
         <div className="max-w-4xl mx-auto space-y-6">
           <div>
-            <h2 className="text-3xl font-bold mb-1 text-gray-900">Graduation Clearance</h2>
-            <p className="text-gray-500">Track your graduation clearance progress</p>
+            <h2 className="text-3xl font-bold mb-1 text-gray-900">
+              Graduation Clearance
+            </h2>
+            <p className="text-gray-500">
+              Track your graduation clearance progress
+            </p>
           </div>
 
           {loading ? (
             <GlassCard className="p-8">
               <div className="flex flex-col items-center gap-4">
                 <div className="w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
-                <p className="text-sm text-gray-500">Loading clearance status...</p>
+                <p className="text-sm text-gray-500">
+                  Loading clearance status...
+                </p>
               </div>
             </GlassCard>
           ) : !clearanceStatus?.hasRequest ? (
             <GlassCard className="p-8">
               <div className="text-center">
                 <motion.div
-                  initial={{ scale: 0.8 }} animate={{ scale: 1 }}
+                  initial={{ scale: 0.8 }}
+                  animate={{ scale: 1 }}
                   className="w-20 h-20 rounded-2xl bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center mx-auto mb-5"
                 >
                   <AcademicCapIcon className="w-10 h-10 text-green-600" />
                 </motion.div>
-                <h3 className="text-2xl font-bold mb-2 text-gray-900">Apply for Graduation Clearance</h3>
+                <h3 className="text-2xl font-bold mb-2 text-gray-900">
+                  Apply for Graduation Clearance
+                </h3>
                 <p className="mb-8 max-w-md mx-auto text-gray-500">
-                  Start your graduation clearance process. All professors and offices must approve before you can graduate.
+                  Start your graduation clearance process. All professors and
+                  offices must approve before you can graduate.
                 </p>
                 <motion.button
-                  whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.98 }}
-                  onClick={handleApply} disabled={applying}
+                  whileHover={{ scale: 1.02, y: -1 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleApply}
+                  disabled={applying}
                   className="px-8 py-3.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-green-500/25 disabled:opacity-50 transition-all duration-200"
                 >
-                  {applying ? 'Submitting...' : 'Apply for Graduation Clearance'}
+                  {applying
+                    ? "Submitting..."
+                    : "Apply for Graduation Clearance"}
                 </motion.button>
               </div>
             </GlassCard>
           ) : (
             <>
-              {/* Current Stage Header */}
               <GlassCard className="p-5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -698,10 +894,15 @@ export default function StudentDashboardGraduation({ studentId, studentInfo, onS
                     </div>
                     <div>
                       <p className="text-xs font-medium mb-0.5 text-gray-500">
-                        Applied on {new Date(clearanceStatus.request.created_at).toLocaleDateString()}
+                        Applied on{" "}
+                        {new Date(
+                          clearanceStatus.request.created_at,
+                        ).toLocaleDateString()}
                       </p>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-bold text-gray-900">Current Stage:</h3>
+                        <h3 className="font-bold text-gray-900">
+                          Current Stage:
+                        </h3>
                         <span className="px-3 py-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-full text-xs font-bold shadow-sm">
                           {clearanceStatus.request.current_stage}
                         </span>
@@ -712,85 +913,110 @@ export default function StudentDashboardGraduation({ studentId, studentInfo, onS
                             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-700 border border-orange-200 shadow-sm"
                           >
                             <ChatBubbleIcon className="w-3.5 h-3.5" />
-                            {unresolvedCommentCount} unresolved comment{unresolvedCommentCount !== 1 ? 's' : ''}
+                            {unresolvedCommentCount} unresolved comment
+                            {unresolvedCommentCount !== 1 ? "s" : ""}
                           </motion.span>
                         )}
                       </div>
                     </div>
                   </div>
                   <motion.button
-                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                    onClick={handleCancel} disabled={cancelling}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleCancel}
+                    disabled={cancelling}
                     className="flex items-center gap-1.5 px-4 py-2 bg-red-500/10 text-red-500 border border-red-500/20 rounded-xl hover:bg-red-500 hover:text-white font-medium transition-all duration-200 text-sm disabled:opacity-50"
                   >
                     <XMarkIcon className="w-4 h-4" />
-                    {cancelling ? 'Cancelling...' : 'Cancel'}
+                    {cancelling ? "Cancelling..." : "Cancel"}
                   </motion.button>
                 </div>
               </GlassCard>
 
-              {/* Clearance Tree */}
               <GlassCard className="p-6">
-                <h3 className="text-lg font-bold mb-1 text-gray-900">Clearance Progress Tree</h3>
-                <p className="text-xs mb-4 text-gray-500">Click on each stage to expand details · Click a professor row to view comments</p>
+                <h3 className="text-lg font-bold mb-1 text-gray-900">
+                  Clearance Progress Tree
+                </h3>
+                <p className="text-xs mb-4 text-gray-500">
+                  Click on each stage to expand details · Click a professor row
+                  to view comments
+                </p>
                 <ProgressBar stages={buildStages()} />
                 <div className="mt-2">
                   {buildStages().map((stage, i) => (
                     <StageNode
-                      key={stage.key} stage={stage} index={i} total={buildStages().length}
+                      key={stage.key}
+                      stage={stage}
+                      index={i}
+                      total={buildStages().length}
                       isExpanded={!!expandedStages[stage.key]}
-                      onToggle={() => stage.hasChildren && toggleStage(stage.key)}
+                      onToggle={() =>
+                        stage.hasChildren && toggleStage(stage.key)
+                      }
                       unresolvedCount={stage.unresolvedCount || 0}
                       hasComments={stage.hasComments}
                       onViewComments={() => openStageComments(stage)}
                     >
-                      {stage.key === 'professors' && clearanceStatus.professorApprovals?.length > 0 && (
-                        <div className="space-y-1">
-                          {clearanceStatus.professorApprovals.map((approval, j) => (
-                            <ProfessorCard
-                              key={approval.id}
-                              approval={approval}
-                              index={j}
-                              onViewComments={openProfessorComments}
-                              clearanceComments={clearanceComments}
-                            />
-                          ))}
-                        </div>
-                      )}
+                      {stage.key === "professors" &&
+                        clearanceStatus.professorApprovals?.length > 0 && (
+                          <div className="space-y-1">
+                            {clearanceStatus.professorApprovals.map(
+                              (approval, j) => (
+                                <ProfessorCard
+                                  key={approval.id}
+                                  approval={approval}
+                                  index={j}
+                                  onViewComments={openProfessorComments}
+                                  clearanceComments={clearanceComments}
+                                />
+                              ),
+                            )}
+                          </div>
+                        )}
                     </StageNode>
                   ))}
                 </div>
-
-
               </GlassCard>
             </>
           )}
         </div>
       )}
 
-      {activeView === 'certificate' && (
+      {activeView === "certificate" && (
         <div className="max-w-4xl mx-auto space-y-6">
           <div>
-            <h2 className="text-3xl font-bold mb-1 text-gray-900">Graduation Certificate</h2>
-            <p className="text-gray-500">Download or print your graduation clearance certificate</p>
+            <h2 className="text-3xl font-bold mb-1 text-gray-900">
+              Graduation Certificate
+            </h2>
+            <p className="text-gray-500">
+              Download or print your graduation clearance certificate
+            </p>
           </div>
           {clearanceStatus?.request?.certificate_generated ? (
-            <GraduationCertificate requestId={clearanceStatus.request.request_id} studentId={studentId} />
+            <GraduationCertificate
+              requestId={clearanceStatus.request.request_id}
+              studentId={studentId}
+            />
           ) : (
             <GlassCard className="p-12 text-center">
-              <motion.div initial={{ scale: 0.8 }} animate={{ scale: 1 }}
-                className="w-20 h-20 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-5">
+              <motion.div
+                initial={{ scale: 0.8 }}
+                animate={{ scale: 1 }}
+                className="w-20 h-20 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-5"
+              >
                 <DocumentCheckIcon className="w-10 h-10 text-gray-400" />
               </motion.div>
-              <h3 className="text-xl font-bold mb-2 text-gray-900">Certificate Not Yet Available</h3>
+              <h3 className="text-xl font-bold mb-2 text-gray-900">
+                Certificate Not Yet Available
+              </h3>
               <p className="max-w-md mx-auto text-gray-500">
-                Your certificate will be generated once the Registrar approves your clearance.
+                Your certificate will be generated once the Registrar approves
+                your clearance.
               </p>
             </GlassCard>
           )}
         </div>
       )}
-      {/* Comment Popup Modal (renders as fixed overlay) */}
       <AnimatePresence mode="wait">
         {commentTarget && (
           <CommentPopupModal

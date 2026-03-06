@@ -266,8 +266,6 @@ body {
   animation: gradient 6s ease infinite;
 }
 
-
-/* Custom Scrollbar Styles */
 .custom-scrollbar::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -286,7 +284,6 @@ body {
   background: rgba(0, 0, 0, 0.3);
 }
 
-/* Dark mode scrollbar */
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.2);
 }

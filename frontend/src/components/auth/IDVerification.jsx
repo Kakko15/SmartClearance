@@ -1,17 +1,16 @@
-import { useState } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { verifyStudentID, validateImageQuality } from '../../services/idVerification';
 import { detectFace } from '../../services/faceVerification';
 
-// Resize image to max dimension to speed up OCR and face detection
-// Uses PNG (lossless) to preserve text sharpness for OCR
+
+
 function resizeImage(file, maxDim = 1280) {
   return new Promise((resolve) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(url);
-      // If already small enough, return original
       if (img.width <= maxDim && img.height <= maxDim) {
         resolve(file);
         return;
@@ -23,9 +22,7 @@ function resizeImage(file, maxDim = 1280) {
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       canvas.toBlob((blob) => {
-        const resized = new File([blob], file.name, { type: 'image/png' });
-        console.log(`📐 Resized image: ${img.width}x${img.height} → ${canvas.width}x${canvas.height} (${(file.size / 1024).toFixed(0)}KB → ${(resized.size / 1024).toFixed(0)}KB)`);
-        resolve(resized);
+        resolve(new File([blob], file.name, { type: 'image/png' }));
       }, 'image/png');
     };
     img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
@@ -33,13 +30,42 @@ function resizeImage(file, maxDim = 1280) {
   });
 }
 
-export default function IDVerification({ onVerified, isDark, firstName, lastName }) {
+export default function IDVerification({ onVerified, isDark, firstName, lastName, studentNumber }) {
   const [uploading, setUploading] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);
-  const [processingStage, setProcessingStage] = useState(''); // 'ocr' | 'face_detect'
+  const [processingStage, setProcessingStage] = useState('');
   const [verificationResult, setVerificationResult] = useState(null);
-  const [idPhoto, setIdPhoto] = useState(null);
   const [idPreview, setIdPreview] = useState(null);
+  const [dragging, setDragging] = useState(false);
+  const faceDescriptorRef = useRef(null);
+
+  const handleDrag = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDragIn = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.items?.length > 0) setDragging(true);
+  }, []);
+
+  const handleDragOut = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragging(false);
+    if (uploading) return;
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      handleIDUpload(file);
+    }
+  }, [uploading]);
 
   const handleIDUpload = async (file) => {
     if (!file) return;
@@ -50,28 +76,16 @@ export default function IDVerification({ onVerified, isDark, firstName, lastName
     setProcessingStage('ocr');
 
     try {
-      // Step 0: Resize image for faster processing (1280px with lossless PNG for OCR quality)
-      console.log('📐 Resizing image for faster processing...');
       const processFile = await resizeImage(file, 1280);
-
-      // Yield to let UI update
       await new Promise(r => setTimeout(r, 0));
 
-      // Step 1: Validate image quality
-      console.log('📸 Validating image quality...');
       const qualityCheck = await validateImageQuality(processFile);
-
       if (!qualityCheck.valid) {
-        setVerificationResult({
-          success: false,
-          message: qualityCheck.error
-        });
+        setVerificationResult({ success: false, message: qualityCheck.error });
         setUploading(false);
         return;
       }
 
-      // Step 2: Verify it's a valid ISU student ID using OCR
-      console.log('🔍 Verifying ID format...');
       const idVerification = await verifyStudentID(processFile, (progress) => {
         setOcrProgress(progress);
       });
@@ -85,48 +99,64 @@ export default function IDVerification({ onVerified, isDark, firstName, lastName
         return;
       }
 
-      console.log('✅ Valid ISU ID detected!');
-
-      // Step 2.5: Verify name on ID matches the name entered in the form
       if (firstName && lastName) {
         const ocrText = (idVerification.details?.extractedText || '').toLowerCase();
         const formLastName = lastName.trim().toLowerCase();
         const formFirstName = firstName.trim().toLowerCase();
 
-        console.log(`🔍 Checking name match - Form: "${formFirstName} ${formLastName}" vs OCR text`);
-        console.log(`📝 OCR text for name check: "${ocrText}"`);
-
-        // Check if last name appears in the OCR text (full or partial 3+ chars)
         const lastNameFound = ocrText.includes(formLastName) ||
           (formLastName.length >= 3 && ocrText.includes(formLastName.substring(0, 3)));
-
-        // Check if first name appears in the OCR text (full or partial 3+ chars)
         const firstNameFound = ocrText.includes(formFirstName) ||
           (formFirstName.length >= 3 && ocrText.includes(formFirstName.substring(0, 3)));
 
-        console.log(`  Last name "${formLastName}" found: ${lastNameFound ? '✅' : '❌'}`);
-        console.log(`  First name "${formFirstName}" found: ${firstNameFound ? '✅' : '❌'}`);
-
-        // Reject if NEITHER first nor last name found in the OCR text
-        // This means the ID clearly belongs to someone else
         if (!lastNameFound && !firstNameFound) {
           setVerificationResult({
             success: false,
-            message: `❌ Name mismatch! The name on your ID does not match "${firstName} ${lastName}". Please use your own student ID.`
+            message: `Name mismatch! The name on your ID does not match "${firstName} ${lastName}". Please use your own student ID.`
           });
           setUploading(false);
           return;
         }
       }
 
-      // Yield to let UI update with "Detecting face" message before heavy work
+      if (studentNumber) {
+        const ocrRaw = idVerification.details?.extractedText || '';
+        const normalize = (s) => s.trim().replace(/[\s–—.]+/g, '-').toLowerCase();
+        const formNum = normalize(studentNumber);
+
+        const idNumberPatterns = [
+          /\d{2}[-–—.\s]\d{3,5}([-–—.\s][A-Za-z]{1,3})?/g,
+        ];
+
+        let matchFound = false;
+        for (const pattern of idNumberPatterns) {
+          const matches = ocrRaw.match(pattern);
+          if (matches) {
+            for (const m of matches) {
+              const extracted = normalize(m);
+              if (extracted === formNum) {
+                matchFound = true;
+                break;
+              }
+            }
+          }
+          if (matchFound) break;
+        }
+
+        if (!matchFound) {
+          setVerificationResult({
+            success: false,
+            message: `Student number mismatch! "${studentNumber}" does not match the student number on your ID. Enter your exact student number (e.g., 23-2984-TS if you are a transferee).`
+          });
+          setUploading(false);
+          return;
+        }
+      }
+
       setOcrProgress(100);
       setProcessingStage('face_detect');
-      // requestAnimationFrame ensures the browser paints the new text, then 200ms extra buffer
       await new Promise(r => requestAnimationFrame(() => setTimeout(r, 200)));
 
-      // Step 3: Detect face in ID for later comparison
-      console.log('👤 Detecting face in ID...');
       const faceDetection = await detectFace(processFile);
 
       if (!faceDetection.success) {
@@ -138,19 +168,14 @@ export default function IDVerification({ onVerified, isDark, firstName, lastName
         return;
       }
 
-      console.log('✅ Face detected in ID!');
-
-      // Step 4: Success - both ID format, name, and face verified
-      setIdPhoto(file);
+      
       setIdPreview(URL.createObjectURL(file));
       setVerificationResult({
         success: true,
-        message: `Valid ISU ID verified! (${idVerification.confidence}% confidence)`,
-        confidence: idVerification.confidence
+        message: 'ISU Student ID Verified',
       });
 
-      // Pass face descriptor to parent component
-      onVerified(faceDetection.descriptor);
+      faceDescriptorRef.current = faceDetection.descriptor;
 
     } catch (error) {
       console.error('ID verification error:', error);
@@ -184,52 +209,55 @@ export default function IDVerification({ onVerified, isDark, firstName, lastName
           </p>
         </div>
 
-        {/* Upload Area */}
-        <div className={`border-2 border-dashed rounded-2xl p-8 text-center transition-colors ${isDark
-          ? 'border-slate-600 hover:border-blue-500 bg-slate-900/50'
-          : 'border-gray-300 hover:border-blue-500 bg-gray-50'
-          }`}>
+        <div
+          onDragEnter={handleDragIn}
+          onDragLeave={handleDragOut}
+          onDragOver={handleDrag}
+          onDrop={handleDrop}
+          className={`border-2 border-dashed rounded-2xl p-8 text-center transition-colors ${
+            dragging
+              ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/10'
+              : isDark
+                ? 'border-slate-600 hover:border-blue-500 bg-slate-900/50'
+                : 'border-gray-300 hover:border-blue-500 bg-gray-50'
+          }`}
+        >
           <input
             type="file"
             accept="image/*"
             onChange={(e) => handleIDUpload(e.target.files[0])}
-            disabled={uploading}
             className="hidden"
             id="id-upload"
+            disabled={uploading}
           />
-          <label
-            htmlFor="id-upload"
-            className={`cursor-pointer inline-flex items-center gap-2 px-6 py-3 rounded-full font-semibold transition-all ${uploading
-              ? 'bg-gray-400 cursor-not-allowed'
-              : isDark
-                ? 'bg-blue-500 hover:bg-blue-600 text-white'
-                : 'bg-blue-600 hover:bg-blue-700 text-white'
-              }`}
-          >
+          <label htmlFor="id-upload" className="cursor-pointer block">
             {uploading ? (
-              <>
-                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+              <div className="flex flex-col items-center">
+                <svg className="animate-spin h-10 w-10 text-blue-500 mb-3" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
-                Verifying...
-              </>
-            ) : (
-              <>
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Processing your ID...</p>
+              </div>
+            ) : dragging ? (
+              <div className="flex flex-col items-center">
+                <svg className="w-12 h-12 mb-3 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3-3m0 0l3 3m-3-3v12" />
                 </svg>
-                Choose ID Photo
-              </>
+                <p className={`font-semibold mb-1 text-blue-600`}>Drop your image here</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center">
+                <svg className={`w-12 h-12 mb-3 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <p className={`font-semibold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>Click or drag to upload your Student ID</p>
+                <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>PNG, JPG up to 10MB</p>
+              </div>
             )}
           </label>
-
-          <p className={`text-sm mt-4 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-            Supported formats: JPG, PNG • Max size: 10MB
-          </p>
         </div>
 
-        {/* Progress Bar */}
         {uploading && (ocrProgress > 0 || processingStage === 'face_detect') && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -260,54 +288,73 @@ export default function IDVerification({ onVerified, isDark, firstName, lastName
           </motion.div>
         )}
 
-        {/* Verification Result */}
-        {verificationResult && (
+        {verificationResult && !verificationResult.success && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className={`mt-6 p-4 rounded-xl border ${verificationResult.success
-              ? isDark
-                ? 'bg-green-500/10 border-green-500/30 text-green-400'
-                : 'bg-green-50 border-green-200 text-green-800'
-              : isDark
-                ? 'bg-red-500/10 border-red-500/30 text-red-400'
-                : 'bg-red-50 border-red-200 text-red-800'
-              }`}
+            className={`mt-6 p-4 rounded-xl border ${isDark ? 'bg-red-500/10 border-red-500/30' : 'bg-red-50 border-red-200'}`}
           >
             <div className="flex items-start gap-3">
-              <div className="flex-shrink-0">
-                {verificationResult.success ? (
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                ) : (
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                )}
+              <div className={`flex-shrink-0 ${isDark ? 'text-red-400' : 'text-red-600'}`}>
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
               </div>
               <div className="flex-1">
-                <p className="font-semibold">{verificationResult.message}</p>
+                <p className={`font-semibold ${isDark ? 'text-red-400' : 'text-red-800'}`}>{verificationResult.message}</p>
               </div>
             </div>
           </motion.div>
         )}
 
-        {/* ID Preview */}
         {idPreview && verificationResult?.success && (
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="mt-6"
+            className="mt-6 space-y-4"
           >
             <img
               src={idPreview}
               alt="ID Preview"
               className="w-full rounded-xl border-2 border-green-500/50 shadow-lg"
             />
-            <p className={`text-center text-sm mt-3 font-semibold ${isDark ? 'text-green-400' : 'text-green-600'}`}>
-              ✅ ID verified! Proceed to next step.
-            </p>
+
+            <div className={`p-4 rounded-xl border ${isDark ? 'bg-green-500/10 border-green-500/30' : 'bg-green-50 border-green-200'}`}>
+              <div className="flex items-center gap-2 mb-3">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isDark ? 'bg-green-500/20' : 'bg-green-100'}`}>
+                  <svg className={`w-5 h-5 ${isDark ? 'text-green-400' : 'text-green-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                </div>
+                <h4 className={`font-bold ${isDark ? 'text-green-400' : 'text-green-800'}`}>ID Verification Passed</h4>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: 'Valid ISU ID' },
+                  { label: 'Student No. Matched' },
+                  { label: 'Name Matched' },
+                  { label: 'Face Detected' },
+                ].map((item) => (
+                  <div key={item.label} className="flex items-center gap-2">
+                    <svg className={`w-4 h-4 flex-shrink-0 ${isDark ? 'text-green-400' : 'text-green-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className={`text-sm font-medium ${isDark ? 'text-green-300' : 'text-green-700'}`}>{item.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                if (faceDescriptorRef.current) {
+                  onVerified(faceDescriptorRef.current);
+                }
+              }}
+              className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-full shadow-lg transition-all"
+            >
+              Continue to Face Verification →
+            </button>
           </motion.div>
         )}
       </motion.div>

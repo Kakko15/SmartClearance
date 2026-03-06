@@ -1,10 +1,4 @@
-# ============================================
-# SmartDocs Project .gitignore
-# ============================================
-
-# ============================================
-# ENVIRONMENT VARIABLES (CRITICAL - DO NOT COMMIT)
-# ============================================
+# Environment variables
 .env
 .env.local
 .env.development
@@ -16,9 +10,7 @@
 **/.env.development
 **/.env.production
 
-# ============================================
-# DEPENDENCIES
-# ============================================
+# Dependencies
 node_modules/
 **/node_modules/
 npm-debug.log*
@@ -28,9 +20,7 @@ pnpm-debug.log*
 lerna-debug.log*
 package-lock.json.bak
 
-# ============================================
-# BUILD OUTPUT
-# ============================================
+# Build output
 dist/
 dist-ssr/
 build/
@@ -40,126 +30,75 @@ out/
 .cache/
 *.tsbuildinfo
 
-# ============================================
-# LOGS
-# ============================================
+# Logs
 logs/
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
 
-# ============================================
-# EDITOR & IDE FILES
-# ============================================
-# VSCode
+# Editor & IDE
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json.example
-
-# JetBrains IDEs (WebStorm, IntelliJ, etc.)
 .idea/
 *.iml
 *.iws
 *.ipr
-
-# Sublime Text
 *.sublime-project
 *.sublime-workspace
-
-# Vim
 *.swp
 *.swo
-*~
-
-# Emacs
 *~
 \#*\#
 .\#*
 
-# ============================================
-# OPERATING SYSTEM FILES
-# ============================================
-# macOS
+# OS files
 .DS_Store
 .AppleDouble
 .LSOverride
 ._*
-
-# Windows
 Thumbs.db
 Thumbs.db:encryptable
 ehthumbs.db
 ehthumbs_vista.db
 Desktop.ini
 $RECYCLE.BIN/
-
-# Linux
-*~
 .directory
 .Trash-*
 
-# ============================================
-# TEMPORARY FILES
-# ============================================
+# Temporary files
 *.tmp
 *.temp
 *.bak
-*.swp
-*.swo
 *.cache
 
-# ============================================
-# TESTING
-# ============================================
+# Testing
 coverage/
 *.lcov
 .nyc_output/
 .jest/
 
-# ============================================
-# MISC
-# ============================================
+# Misc
 *.local
 .vercel
 .netlify
 .firebase/
 .serverless/
 
-# ============================================
-# PROJECT SPECIFIC
-# ============================================
-# Supabase local development
+# Project specific
 .supabase/
-
-# Database dumps
 *.sql.backup
 *.dump
-
-# Sensitive documentation (if any)
 PRIVATE_NOTES.md
 CREDENTIALS.md
 
-# ============================================
-# DOCUMENTATION & ACADEMIC FILES (DO NOT COMMIT)
-# ============================================
-# Exclude ALL markdown files in root directory except README.md
+# Documentation & academic files
 /*.md
 !README.md
-
-# Exclude ALL SQL files in root directory
 /*.sql
-
-# Thesis and research documents
 /docs/
 /documentation/
 /thesis/
 /research/
 /chapters/
-
-# Document files
 *.pdf
 *.docx
 *.doc
@@ -167,15 +106,11 @@ CREDENTIALS.md
 *.ppt
 *.xlsx
 *.xls
-
-# Screenshots and mockups
 /screenshots/
 /mockups/
 /designs/
 *.png.bak
 *.jpg.bak
-
-# Personal notes
 NOTES.md
 TODO.md
 CHANGELOG.md
