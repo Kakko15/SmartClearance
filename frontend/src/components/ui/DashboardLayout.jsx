@@ -18,37 +18,42 @@ export default function DashboardLayout({
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
+  // Fallback defaults for a Google Material You style if theme misses them
+  const bgC = theme.bg || "bg-[#f8f9fa]";
+  const sidebarBg = theme.sidebarGradient || "bg-white border-r border-[#dadce0]";
+  const sidebarText = theme.sidebarText || "text-[#3c4043]";
+  const sidebarActive = theme.sidebarActive || "bg-[#e8f0fe] text-[#1a73e8]";
+  const sidebarInactive = theme.sidebarInactive || "text-[#3c4043] hover:bg-[#f1f3f4]";
+  const topbarBg = theme.topbar || "bg-white border-b border-[#dadce0]";
+
   return (
-    <div className={`flex h-screen ${theme.bg}`}>
-      <div className="fixed inset-0 z-0 pointer-events-none">
-        <div
-          className={`absolute top-0 left-1/4 w-[500px] h-[500px] ${theme.glow1 || "bg-green-400/10"} rounded-full blur-[120px] animate-pulse`}
-        />
-        <div
-          className={`absolute bottom-0 right-1/4 w-[600px] h-[600px] ${theme.glow2 || "bg-emerald-400/5"} rounded-full blur-[120px]`}
-        />
+    <div className={`flex h-screen ${bgC} font-sans selection:bg-blue-100 selection:text-blue-900`}>
+      {/* Optional decorative glows, hidable */}
+      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+        <div className={`absolute top-0 left-1/4 w-[500px] h-[500px] ${theme.glow1 || "hidden"} rounded-full blur-[120px]`} />
+        <div className={`absolute bottom-0 right-1/4 w-[600px] h-[600px] ${theme.glow2 || "hidden"} rounded-full blur-[120px]`} />
       </div>
 
       <motion.div
         animate={{ width: sidebarOpen ? 260 : 76 }}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className={`${theme.sidebarGradient} text-white flex flex-col shadow-2xl relative z-10 overflow-hidden flex-shrink-0`}
+        transition={{ type: "spring", stiffness: 400, damping: 40 }}
+        className={`${sidebarBg} ${sidebarText} flex flex-col relative z-20 overflow-hidden flex-shrink-0 transition-colors duration-200`}
       >
-        <div className="h-16 flex items-center justify-between px-4 border-b border-white/10">
+        <div className="h-[64px] flex items-center justify-between px-4 mt-1">
           <AnimatePresence>
             {sidebarOpen && (
               <motion.div
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -10 }}
-                className="flex items-center gap-3 overflow-hidden"
+                className="flex items-center gap-3 overflow-hidden ml-2"
               >
                 <div
-                  className={`w-9 h-9 ${theme.accentGradient} rounded-xl flex items-center justify-center text-white font-bold shadow-lg flex-shrink-0 text-sm`}
+                  className={`w-8 h-8 ${theme.accentGradient || "bg-[#1a73e8]"} rounded-full flex items-center justify-center text-white font-bold text-xs shadow-sm flex-shrink-0`}
                 >
                   {theme.abbrev}
                 </div>
-                <span className="font-bold text-white whitespace-nowrap tracking-tight">
+                <span className="font-medium text-[18px] tracking-tight text-[#202124] whitespace-nowrap" style={{ fontFamily: 'Google Sans, sans-serif' }}>
                   {theme.name}
                 </span>
               </motion.div>
@@ -56,70 +61,72 @@ export default function DashboardLayout({
           </AnimatePresence>
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors flex-shrink-0"
+            className={`p-2.5 rounded-full transition-colors flex-shrink-0 ${theme.topbarBtn || 'hover:bg-[#f1f3f4] text-[#5f6368]'}`}
           >
             <motion.div
               animate={{ rotate: sidebarOpen ? 0 : 180 }}
               transition={{ duration: 0.3 }}
             >
-              <ArrowLeftIcon className="w-4 h-4 text-white/70" />
+              <ArrowLeftIcon className="w-5 h-5" />
             </motion.div>
           </button>
         </div>
 
-        <nav className="flex-1 p-3 space-y-1 mt-1">
-          {menuItems.map((item) => (
-            <motion.button
-              key={item.id}
-              whileHover={{ x: 3 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => setActiveView(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group ${
-                activeView === item.id
-                  ? `${theme.sidebarActive} shadow-lg font-semibold`
-                  : "text-white/70 hover:bg-white/10 hover:text-white"
-              }`}
-            >
-              <span className="flex-shrink-0 w-5 h-5">{item.icon}</span>
-              <AnimatePresence>
-                {sidebarOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, width: 0 }}
-                    animate={{ opacity: 1, width: "auto" }}
-                    exit={{ opacity: 0, width: 0 }}
-                    className="flex-1 flex items-center justify-between overflow-hidden"
-                  >
-                    <span className="font-medium whitespace-nowrap text-sm">
-                      {item.label}
-                    </span>
-                    {item.count != null && item.count > 0 && (
-                      <span
-                        className={`ml-2 px-2 py-0.5 rounded-full text-xs font-bold ${
-                          activeView === item.id ? "bg-white/20" : "bg-white/10"
-                        }`}
-                      >
-                        {item.count}
+        <nav className="flex-1 px-3 space-y-1 mt-3">
+          {menuItems.map((item) => {
+            const isActive = activeView === item.id;
+            return (
+              <motion.button
+                key={item.id}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setActiveView(item.id)}
+                className={`w-full flex items-center gap-4 px-4 py-3 rounded-full transition-all duration-150 group ${
+                  isActive ? sidebarActive : sidebarInactive
+                }`}
+              >
+                <span className={`flex-shrink-0 w-6 h-6 flex items-center justify-center ${isActive ? "text-[#1a73e8]" : "text-[#5f6368] group-hover:text-[#202124]"}`}>
+                  {item.icon}
+                </span>
+                <AnimatePresence>
+                  {sidebarOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, width: 0 }}
+                      animate={{ opacity: 1, width: "auto" }}
+                      exit={{ opacity: 0, width: 0 }}
+                      className="flex-1 flex items-center justify-between overflow-hidden"
+                    >
+                      <span className={`font-medium whitespace-nowrap text-[14px] ${isActive ? "text-[#1a73e8] font-semibold" : "text-[#3c4043]"}`}>
+                        {item.label}
                       </span>
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.button>
-          ))}
+                      {item.count != null && item.count > 0 && (
+                        <span
+                          className={`ml-2 px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                            isActive ? "bg-blue-100 text-[#1a73e8]" : "bg-[#f1f3f4] text-[#3c4043]"
+                          }`}
+                        >
+                          {item.count}
+                        </span>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.button>
+            );
+          })}
         </nav>
 
-        <div className="p-4 border-t border-white/10">
+        <div className="p-5 pb-6">
           <AnimatePresence>
             {sidebarOpen && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="text-xs text-white/50"
+                className="text-xs text-[#5f6368] font-medium ml-3"
               >
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-2 mb-1.5">
                   <span
-                    className={`w-2 h-2 ${theme.dotColor} rounded-full animate-pulse`}
+                    className={`w-2 h-2 ${theme.dotColor || "bg-[#1e8e3e]"} rounded-full animate-pulse`}
                   />
                   <span>System Online</span>
                 </div>
@@ -130,80 +137,62 @@ export default function DashboardLayout({
         </div>
       </motion.div>
 
-      <div className="flex-1 flex flex-col overflow-hidden relative z-10">
+      <div className="flex-1 flex flex-col relative z-20 overflow-hidden">
         <div
-          className={`h-16 ${theme.topbar} backdrop-blur-xl flex items-center justify-between px-6 shadow-sm flex-shrink-0`}
+          className={`h-[64px] ${topbarBg} flex items-center justify-between px-6 sm:px-8 flex-shrink-0 z-30 transition-shadow`}
         >
           <div>
-            <h1
-              className={`text-lg font-bold ${theme.topbarText || "text-gray-900"}`}
-            >
+            <h1 className={`text-[22px] font-normal tracking-tight ${theme.topbarText || "text-[#202124]"}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
               {theme.dashboardTitle}
             </h1>
-            <p className={`text-xs ${theme.topbarSub || "text-gray-500"}`}>
-              Isabela State University Campus
-            </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {onOpenSettings && (
               <button
                 onClick={onOpenSettings}
-                className={`p-2 rounded-xl transition-all duration-200 ${theme.topbarBtn || "hover:bg-green-50"}`}
+                className={`p-2.5 rounded-full transition-colors ${theme.topbarBtn || 'hover:bg-[#f1f3f4] text-[#5f6368]'}`}
                 title="Settings"
               >
-                <CogIcon
-                  className={`w-5 h-5 ${theme.topbarIcon || "text-gray-500"}`}
-                />
+                <CogIcon className="w-5 h-5" />
               </button>
             )}
-            <div
-              className={`h-8 w-px ${theme.topbarDivider || "bg-gray-200"}`}
-            />
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <p
-                  className={`text-sm font-semibold ${theme.topbarText || "text-gray-900"}`}
-                >
+            <div className="flex items-center gap-3 ml-2">
+              <div className="text-right hidden sm:block mr-1">
+                <p className={`text-[14px] font-medium ${theme.topbarText || 'text-[#3c4043]'}`}>
                   {userInfo.name}
                 </p>
                 {userInfo.subtitle && (
-                  <p
-                    className={`text-xs ${theme.topbarSub || "text-gray-500"}`}
-                  >
+                  <p className={`text-[11px] font-medium tracking-wide uppercase mt-0.5 ${theme.topbarSub || 'text-[#5f6368]'}`}>
                     {userInfo.subtitle}
                   </p>
                 )}
               </div>
-              <div
-                className={`w-10 h-10 ${theme.accentGradient} rounded-xl flex items-center justify-center text-white font-bold shadow-lg ${theme.accentShadow || ""}`}
-              >
+              <button className={`flex items-center justify-center w-9 h-9 rounded-full font-medium text-sm shadow-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-offset-2 ${theme.accentGradient || 'bg-[#1a73e8] text-white focus:ring-[#1a73e8]'}`}>
                 {userInfo.name?.charAt(0)}
-              </div>
+              </button>
             </div>
+            <div className={`w-px h-8 mx-3 ${theme.divider || 'bg-[#dadce0]'}`} />
             <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={onSignOut}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all duration-200 text-sm ${
-                theme.logoutBtn ||
-                "bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500 hover:text-white"
-              }`}
+              className={`p-2 rounded-full transition-colors flex items-center justify-center ${theme.logoutBtn || 'text-[#5f6368] hover:text-[#d93025] hover:bg-[#fce8e6]'}`}
+              title="Sign Out"
             >
-              <ArrowRightOnRectangleIcon className="w-4 h-4" />
-              <span>Logout</span>
+              <ArrowRightOnRectangleIcon className="w-5 h-5" />
             </motion.button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 relative z-10 scroll-smooth">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeView}
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.25 }}
-              className="h-full"
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ type: "spring", stiffness: 350, damping: 35 }}
+              className="h-full w-full max-w-[1000px] mx-auto"
             >
               {children}
             </motion.div>
@@ -222,16 +211,15 @@ export function GlassCard({
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 16 }}
+      initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ type: "spring", stiffness: 300, damping: 30, delay }}
-      className={`relative overflow-hidden rounded-2xl backdrop-blur-xl ${
+      transition={{ type: "spring", stiffness: 400, damping: 40, delay }}
+      className={`relative rounded-3xl overflow-hidden ${
         isDark
-          ? "bg-white/[0.06] border border-white/10 shadow-xl shadow-black/20"
-          : "bg-white/70 border border-gray-100/50 shadow-lg"
+          ? "bg-[#202124] border border-[#3c4043] shadow-sm"
+          : "bg-white border border-[#dadce0] shadow-sm hover:shadow-md transition-shadow duration-300"
       } ${className}`}
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
       <div className="relative z-10 h-full">{children}</div>
     </motion.div>
   );
@@ -241,26 +229,32 @@ export function StatusBadge({ status, isDark = false }) {
   const config = {
     pending: {
       bg: isDark
-        ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
-        : "bg-amber-50 text-amber-700 border-amber-200",
+        ? "bg-[#422c00] text-[#fde293]"
+        : "bg-[#fef7e0] text-[#b06000]",
       label: "Pending",
+    },
+    locked: {
+      bg: isDark
+        ? "bg-[#3c4043] text-[#9aa0a6]"
+        : "bg-[#f1f3f4] text-[#5f6368]",
+      label: "Locked",
     },
     approved: {
       bg: isDark
-        ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-        : "bg-emerald-50 text-emerald-700 border-emerald-200",
+        ? "bg-[#0d3b16] text-[#81c995]"
+        : "bg-[#e6f4ea] text-[#137333]",
       label: "Approved",
     },
     rejected: {
       bg: isDark
-        ? "bg-red-500/20 text-red-400 border-red-500/30"
-        : "bg-red-50 text-red-700 border-red-200",
+        ? "bg-[#5c1010] text-[#f28b82]"
+        : "bg-[#fce8e6] text-[#c5221f]",
       label: "Rejected",
     },
     completed: {
       bg: isDark
-        ? "bg-blue-500/20 text-blue-400 border-blue-500/30"
-        : "bg-blue-50 text-blue-700 border-blue-200",
+        ? "bg-[#0f1f42] text-[#8ab4f8]"
+        : "bg-[#e8f0fe] text-[#1a73e8]",
       label: "Completed",
     },
   };
@@ -268,7 +262,7 @@ export function StatusBadge({ status, isDark = false }) {
   const c = config[status] || config.pending;
   return (
     <span
-      className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${c.bg}`}
+      className={`px-3 py-1 rounded-full text-[12px] font-semibold tracking-wide border border-transparent ${c.bg}`}
     >
       {c.label}
     </span>

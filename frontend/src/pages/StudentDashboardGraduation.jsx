@@ -32,13 +32,8 @@ const UnresolvedBadge = ({ count = 0 }) => {
       initial={{ scale: 0, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       transition={{ type: "spring", stiffness: 400, damping: 20 }}
-      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border bg-orange-50 text-orange-700 border-orange-200 shadow-sm"
+      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#fce8e6] text-[#c5221f] border border-transparent"
     >
-      <motion.span
-        animate={{ scale: [1, 1.3, 1] }}
-        transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-        className="w-1.5 h-1.5 rounded-full bg-orange-500"
-      />
       {count === 1 ? "Unresolved" : `${count} Unresolved`}
     </motion.span>
   );
@@ -68,32 +63,41 @@ const StageNode = ({
   hasComments,
   onViewComments,
   children,
+  isDarkMode = false,
 }) => {
   const isLast = index === total - 1;
   const statusConfig = {
     approved: {
-      gradient: "from-emerald-400 to-green-500",
-      ring: "ring-emerald-400/30",
-      bg: "bg-emerald-50",
-      badge: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      color: "bg-[#1e8e3e]",
+      bg: isDarkMode ? "bg-[#303e33] border border-transparent" : "bg-[#e6f4ea] border border-transparent",
+      badge: isDarkMode ? "bg-transparent text-[#81c995]" : "bg-transparent text-[#137333]",
       icon: <CheckIcon className="w-5 h-5 text-white" />,
       label: "Approved",
+      iconBg: isDarkMode ? "bg-[#81c995]" : "bg-[#1e8e3e]",
     },
     rejected: {
-      gradient: "from-red-400 to-rose-500",
-      ring: "ring-red-400/30",
-      bg: "bg-red-50",
-      badge: "bg-red-50 text-red-700 border-red-200",
+      color: isDarkMode ? "bg-[#f28b82]" : "bg-[#d93025]",
+      bg: isDarkMode ? "bg-[#45272a] border border-[#fce8e6]" : "bg-[#fce8e6] border border-[#fce8e6]",
+      badge: isDarkMode ? "bg-transparent text-[#f28b82]" : "bg-transparent text-[#c5221f]",
       icon: <XMarkIcon className="w-5 h-5 text-white" />,
       label: "Rejected",
+      iconBg: isDarkMode ? "bg-[#f28b82]" : "bg-[#d93025]",
     },
     pending: {
-      gradient: "from-amber-400 to-orange-500",
-      ring: "ring-amber-400/30",
-      bg: "bg-amber-50",
-      badge: "bg-amber-50 text-amber-700 border-amber-200",
+      color: isDarkMode ? "bg-[#8ab4f8]" : "bg-[#1a73e8]",
+      bg: isDarkMode ? "bg-[#282a2d] border border-[#5f6368] shadow-sm" : "bg-white border border-[#dadce0] shadow-sm",
+      badge: isDarkMode ? "bg-[#422c00] text-[#fde293] border-transparent" : "bg-[#fef7e0] text-[#b06000] border-transparent",
       icon: <ClockIcon className="w-4.5 h-4.5 text-white" />,
       label: "Pending",
+      iconBg: isDarkMode ? "bg-[#8ab4f8]" : "bg-[#1a73e8]",
+    },
+    locked: {
+      color: isDarkMode ? "bg-[#5f6368]" : "bg-[#dadce0]",
+      bg: isDarkMode ? "bg-[#303134] border border-transparent grayscale opacity-80" : "bg-[#f8f9fa] border border-transparent grayscale opacity-80",
+      badge: isDarkMode ? "bg-[#3c4043] text-[#9aa0a6] border-transparent" : "bg-[#f1f3f4] text-[#5f6368] border-transparent",
+      icon: <ClockIcon className="w-4.5 h-4.5 text-gray-400" />,
+      label: "Locked",
+      iconBg: isDarkMode ? "bg-[#3c4043]" : "bg-[#f1f3f4]",
     },
   };
 
@@ -103,34 +107,22 @@ const StageNode = ({
     <motion.div
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{
-        delay: index * 0.1,
-        type: "spring",
-        stiffness: 200,
-        damping: 25,
-      }}
+      transition={{ delay: index * 0.1, type: "spring", stiffness: 200, damping: 25 }}
       className="relative"
     >
       <div className="flex items-start gap-4">
-      <div className="flex flex-col items-center flex-shrink-0">
+        <div className="flex flex-col items-center flex-shrink-0">
           <motion.div
-            whileHover={{ scale: 1.1 }}
-            className={`relative w-11 h-11 rounded-full bg-gradient-to-br ${config.gradient} ring-4 ${config.ring} flex items-center justify-center shadow-lg z-10 cursor-pointer`}
+            whileHover={{ scale: stage.status === 'locked' ? 1 : 1.05 }}
+            className={`relative w-10 h-10 rounded-full ${config.iconBg} flex items-center justify-center z-10 ${stage.status !== 'locked' ? 'shadow-sm' : ''}`}
             onClick={onToggle}
           >
             {config.icon}
-            {stage.status === "pending" && (
-              <div
-                className={`absolute inset-0 rounded-full bg-gradient-to-br ${config.gradient} animate-ping opacity-20`}
-              />
-            )}
           </motion.div>
           {!isLast && (
             <div
-              className={`w-0.5 flex-1 min-h-[60px] ${
-                stage.status === "approved"
-                  ? "bg-gradient-to-b from-emerald-400 to-emerald-400/30"
-                  : "bg-gray-200"
+              className={`w-0.5 flex-1 min-h-[50px] ${
+                stage.status === "approved" ? "bg-[#1e8e3e]" : "bg-[#dadce0]"
               }`}
             />
           )}
@@ -138,30 +130,32 @@ const StageNode = ({
 
         <div className={`flex-1 ${isLast ? "pb-0" : "pb-6"}`}>
           <div
-            className={`rounded-xl p-4 transition-all duration-300 cursor-pointer ${config.bg} ${
-              isExpanded ? "ring-1 ring-green-200/50" : ""
-            }`}
-            onClick={onToggle}
+            className={`rounded-2xl p-4 transition-all duration-200 ${config.bg} ${
+              isExpanded && stage.status !== 'locked' ? "ring-2 ring-[#e8f0fe]" : ""
+            } ${stage.status !== 'locked' ? 'cursor-pointer hover:shadow-md' : ''}`}
+            onClick={stage.status !== 'locked' ? onToggle : undefined}
           >
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4">
                 <div
-                  className={`w-8 h-8 rounded-lg bg-gradient-to-br ${config.gradient} bg-opacity-20 flex items-center justify-center`}
+                  className={`w-9 h-9 rounded-full ${config.iconBg} bg-opacity-10 flex items-center justify-center`}
                 >
-                  {stage.iconComponent}
+                  <div className={`text-${config.iconBg.replace('bg-', '')}`}>
+                     {stage.iconComponent}
+                  </div>
                 </div>
                 <div>
-                  <h4 className="font-bold text-sm text-gray-900">
+                  <h4 className={`font-medium text-[15px] ${isDarkMode ? (stage.status === 'locked' ? 'text-[#9aa0a6]' : 'text-[#e8eaed]') : (stage.status === 'locked' ? 'text-[#5f6368]' : 'text-[#202124]')}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
                     {stage.title}
                   </h4>
-                  <p className="text-xs mt-0.5 text-gray-500">
+                  <p className={`text-[13px] mt-0.5 ${isDarkMode ? 'text-[#9aa0a6]' : 'text-[#5f6368]'}`}>
                     {stage.description}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <span
-                  className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${config.badge}`}
+                  className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${config.badge}`}
                 >
                   {config.label}
                 </span>
@@ -213,9 +207,9 @@ const StageNode = ({
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="mt-2 px-4 py-2.5 rounded-lg text-xs bg-gray-50 text-gray-600"
+              className={`mt-2 px-5 py-3 rounded-xl text-sm border ${isDarkMode ? 'bg-[#303134] border-[#5f6368] text-[#e8eaed]' : 'bg-[#f8f9fa] border-[#dadce0] text-[#3c4043]'}`}
             >
-              <span className="font-semibold">Note:</span> {stage.comments}
+              <span className={`font-semibold ${isDarkMode ? 'text-[#ffffff]' : 'text-[#202124]'}`}>Note:</span> {stage.comments}
             </motion.div>
           )}
         </div>
@@ -229,14 +223,21 @@ const ProfessorCard = ({
   index,
   onViewComments,
   clearanceComments = [],
+  isDarkMode = false,
 }) => {
   const statusColors = {
     approved: {
-      dot: "bg-emerald-500",
-      badge: "bg-emerald-50 text-emerald-700",
+      dot: isDarkMode ? "bg-emerald-400" : "bg-emerald-500",
+      badge: isDarkMode ? "bg-emerald-400 bg-opacity-[0.15] text-emerald-400 border border-emerald-400/20" : "bg-emerald-50 text-emerald-700 border border-transparent",
     },
-    rejected: { dot: "bg-red-500", badge: "bg-red-50 text-red-700" },
-    pending: { dot: "bg-amber-500", badge: "bg-amber-50 text-amber-700" },
+    rejected: { 
+      dot: isDarkMode ? "bg-red-400" : "bg-red-500", 
+      badge: isDarkMode ? "bg-red-400 bg-opacity-[0.15] text-red-400 border border-red-400/20" : "bg-red-50 text-red-700 border border-transparent" 
+    },
+    pending: { 
+      dot: isDarkMode ? "bg-[#fde293]" : "bg-amber-500", 
+      badge: isDarkMode ? "bg-[#422c00] text-[#fde293] border border-[#fde293]/20" : "bg-amber-50 text-amber-700 border border-transparent" 
+    },
   };
   const colors = statusColors[approval.status] || statusColors.pending;
 
@@ -258,24 +259,24 @@ const ProfessorCard = ({
         e.stopPropagation();
         onViewComments(approval);
       }}
-      className="group flex items-center justify-between p-3 rounded-xl transition-all duration-200 hover:bg-white/80 hover:shadow-md hover:shadow-green-500/5 cursor-pointer border border-transparent hover:border-green-100"
+      className={`group flex items-center justify-between p-3 rounded-xl transition-all duration-200 cursor-pointer border ${isDarkMode ? 'hover:bg-[#3c4043] hover:border-[#5f6368] border-transparent' : 'hover:bg-white/80 hover:shadow-md hover:shadow-green-500/5 border-transparent hover:border-green-100'}`}
     >
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2">
-          <div className="w-5 h-px bg-gray-300 group-hover:bg-green-300 transition-colors" />
+          <div className={`w-5 h-px transition-colors ${isDarkMode ? 'bg-[#5f6368] group-hover:bg-[#9aa0a6]' : 'bg-gray-300 group-hover:bg-green-300'}`} />
           <div
-            className={`w-3 h-3 rounded-full ${colors.dot} shadow-sm ring-2 ring-offset-1 ring-offset-white ring-gray-200 ${approval.status === "pending" ? "animate-pulse" : ""}`}
+            className={`w-3 h-3 rounded-full ${colors.dot} shadow-sm ring-2 ring-offset-1 ${isDarkMode ? 'ring-offset-[#202124] ring-[#3c4043]' : 'ring-offset-white ring-gray-200'} ${approval.status === "pending" ? "animate-pulse" : ""}`}
           />
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <p className="font-medium text-sm text-gray-800 group-hover:text-gray-900 transition-colors">
+            <p className={`font-medium text-sm transition-colors ${isDarkMode ? 'text-[#e8eaed] group-hover:text-white' : 'text-gray-800 group-hover:text-gray-900'}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
               {approval.professor?.full_name || "Unknown Professor"}
             </p>
             <CommentIndicator hasComment={hasComment} />
           </div>
           {hasComment && (
-            <p className="text-xs mt-0.5 text-gray-400 italic truncate max-w-[250px]">
+            <p className={`text-xs mt-0.5 italic truncate max-w-[250px] ${isDarkMode ? 'text-[#9aa0a6]' : 'text-gray-400'}`}>
               "{approval.comments}"
             </p>
           )}
@@ -293,17 +294,17 @@ const ProfessorCard = ({
           />
         )}
         <motion.div
-          initial={{ opacity: 0, x: -4 }}
-          animate={{ opacity: 0 }}
-          whileHover={{ opacity: 1, x: 0 }}
-          className="text-green-400 opacity-0 group-hover:opacity-100 transition-opacity"
-        >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
+           initial={{ opacity: 0, x: -4 }}
+           animate={{ opacity: 0 }}
+           whileHover={{ opacity: 1, x: 0 }}
+           className={`opacity-0 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'text-[#8ab4f8]' : 'text-green-400'}`}
+         >
+           <svg
+             className="w-4 h-4"
+             fill="none"
+             stroke="currentColor"
+             viewBox="0 0 24 24"
+           >
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -556,21 +557,21 @@ const ProgressBar = ({ stages }) => {
   const pct = total > 0 ? (approved / total) * 100 : 0;
 
   return (
-    <div className="mb-6">
+    <div className="mb-8">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold text-gray-500">
+        <span className="text-[14px] font-medium text-[#5f6368]">
           Overall Progress
         </span>
-        <span className="text-xs font-bold text-emerald-600">
+        <span className="text-[13px] font-bold text-[#1a73e8]">
           {approved}/{total} stages complete
         </span>
       </div>
-      <div className="h-2 rounded-full overflow-hidden bg-gray-100">
+      <div className="h-1.5 rounded-full overflow-hidden bg-[#f1f3f4]">
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${pct}%` }}
           transition={{ duration: 1, ease: "easeOut", delay: 0.5 }}
-          className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-green-500 to-emerald-600 shadow-sm shadow-emerald-500/30"
+          className="h-full rounded-full bg-[#1a73e8]"
         />
       </div>
     </div>
@@ -582,7 +583,7 @@ export default function StudentDashboardGraduation({
   studentInfo,
   onSignOut,
   onOpenSettings,
-  _isDarkMode = false,
+  isDarkMode = false,
 }) {
   const [clearanceStatus, setClearanceStatus] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -715,72 +716,98 @@ export default function StudentDashboardGraduation({
   const buildStages = () => {
     if (!clearanceStatus?.request) return [];
     const r = clearanceStatus.request;
-    const approvalCount = clearanceStatus.professorApprovals?.length || 0;
-    const approvedCount =
-      clearanceStatus.professorApprovals?.filter((a) => a.status === "approved")
-        .length || 0;
 
-    const professorApprovalCommentCount =
-      clearanceStatus.professorApprovals?.filter(
-        (a) => a.comments && a.comments.trim(),
-      ).length || 0;
-    const professorIds = (clearanceStatus.professorApprovals || []).map(
-      (a) => a.professor_id,
-    );
-    const professorClearanceComments = clearanceComments.filter((c) =>
-      professorIds.includes(c.commenter_id),
-    );
-    const professorUnresolvedClearanceCount = professorClearanceComments.filter(
-      (c) => !c.is_resolved,
-    ).length;
-    const totalProfessorCommentCount =
-      professorApprovalCommentCount + professorClearanceComments.length;
-    const totalProfessorUnresolvedCount =
-      professorApprovalCommentCount + professorUnresolvedClearanceCount;
+    const PROF_ORDER = [
+      "Department Chairman",
+      "College Dean",
+      "Director Student Affairs",
+      "NSTP Director",
+      "Executive Officer",
+      "Dean Graduate School",
+    ];
 
-    return [
-      {
-        key: "professors",
-        title: "Professors Approval",
-        description: `${approvedCount} of ${approvalCount} professors approved`,
+    const profApprovals = (clearanceStatus.professorApprovals || [])
+      .slice()
+      .sort((a, b) => {
+        const idxA = PROF_ORDER.indexOf(a.professor?.full_name);
+        const idxB = PROF_ORDER.indexOf(b.professor?.full_name);
+        return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99);
+      });
+
+    let isLocked = false;
+
+    const profStages = profApprovals.map((approval) => {
+      const name = approval.professor?.full_name || "Unknown Professor";
+      const profClearanceComments = clearanceComments.filter(
+        (c) => c.commenter_id === approval.professor_id
+      );
+      const unresolvedCount =
+        profClearanceComments.filter((c) => !c.is_resolved).length +
+        (approval.comments && approval.comments.trim() && approval.status !== "approved" ? 1 : 0);
+
+      const hasComments =
+        profClearanceComments.length > 0 || !!(approval.comments && approval.comments.trim());
+
+      let status = approval.status;
+      if (isLocked && status === "pending") {
+        status = "locked";
+      }
+      if (approval.status !== "approved") {
+        isLocked = true;
+      }
+
+      return {
+        key: `prof-${approval.id}`,
+        title: name,
+        description: "Professor Approval",
         iconComponent: <UsersIcon className="w-4 h-4 text-white" />,
-        status: r.professors_status || "pending",
-        comments: null,
-        hasChildren: true,
-        hasComments: totalProfessorCommentCount > 0,
-        unresolvedCount: totalProfessorUnresolvedCount,
-      },
+        status,
+        comments: approval.comments,
+        hasChildren: false,
+        hasComments,
+        unresolvedCount,
+        approval,
+        type: "professor",
+      };
+    });
+
+    const adminStages = [
       {
         key: "library",
         title: "Library Clearance",
         description: "Check for unsettled books and obligations",
         iconComponent: <BookOpenIcon className="w-4 h-4 text-white" />,
-        status: r.library_status || "pending",
+        status: isLocked && r.library_status === "pending" ? "locked" : r.library_status || "pending",
         comments: r.library_comments,
         hasComments: !!(r.library_comments && r.library_comments.trim()),
         unresolvedCount: r.library_comments ? 1 : 0,
+        type: "stage"
       },
       {
         key: "cashier",
         title: "Cashier Clearance",
         description: "Verify financial obligations",
         iconComponent: <BanknotesIcon className="w-4 h-4 text-white" />,
-        status: r.cashier_status || "pending",
+        status: (isLocked || r.library_status !== "approved") && r.cashier_status === "pending" ? "locked" : r.cashier_status || "pending",
         comments: r.cashier_comments,
         hasComments: !!(r.cashier_comments && r.cashier_comments.trim()),
         unresolvedCount: r.cashier_comments ? 1 : 0,
+        type: "stage"
       },
       {
         key: "registrar",
         title: "Registrar Final Approval",
         description: "Final validation and certificate generation",
         iconComponent: <BuildingLibraryIcon className="w-4 h-4 text-white" />,
-        status: r.registrar_status || "pending",
+        status: (isLocked || r.library_status !== "approved" || r.cashier_status !== "approved") && r.registrar_status === "pending" ? "locked" : r.registrar_status || "pending",
         comments: r.registrar_comments,
         hasComments: !!(r.registrar_comments && r.registrar_comments.trim()),
         unresolvedCount: r.registrar_comments ? 1 : 0,
+        type: "stage"
       },
     ];
+
+    return [...profStages, ...adminStages];
   };
 
   const unresolvedCommentCount = clearanceStatus?.unresolvedCommentCount || 0;
@@ -789,23 +816,16 @@ export default function StudentDashboardGraduation({
     name: "ISU Clearance",
     abbrev: "SC",
     dashboardTitle: "Student Dashboard",
-    sidebarGradient:
-      "bg-gradient-to-b from-green-600 to-emerald-700 border-r border-green-500/20",
-    sidebarActive: "bg-white text-green-700 shadow-green-900/20",
-    accentGradient: "bg-gradient-to-br from-green-500 to-emerald-600",
-    accentShadow: "shadow-green-500/20",
-    dotColor: "bg-green-300",
-    bg: "bg-gradient-to-br from-green-50 via-emerald-50/30 to-white",
-    glow1: "bg-green-400/10",
-    glow2: "bg-emerald-400/5",
-    topbar: "bg-white/80 border-b border-green-100",
-    topbarText: "text-gray-900",
-    topbarSub: "text-gray-500",
-    topbarBtn: "hover:bg-green-50",
-    topbarIcon: "text-gray-500",
-    topbarDivider: "bg-gray-200",
-    logoutBtn:
-      "bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500 hover:text-white",
+    sidebarGradient: isDarkMode ? "bg-[#202124] border-r border-[#3c4043]" : "bg-white border-r border-[#dadce0]",
+    sidebarActive: isDarkMode ? "bg-[#4285f4] bg-opacity-[0.15] text-[#8ab4f8]" : "bg-[#e8f0fe] text-[#1a73e8]",
+    sidebarInactive: isDarkMode ? "text-[#e8eaed] hover:bg-[#3c4043]" : "text-[#3c4043] hover:bg-[#f1f3f4]",
+    accentGradient: isDarkMode ? "bg-[#8ab4f8] text-[#202124]" : "bg-[#1a73e8]",
+    dotColor: "bg-[#1e8e3e]",
+    bg: isDarkMode ? "bg-[#202124]" : "bg-[#f8f9fa]",
+    topbar: isDarkMode ? "bg-[#202124] border-b border-[#3c4043]" : "bg-white border-b border-[#dadce0]",
+    topbarText: isDarkMode ? "text-[#e8eaed]" : "text-[#202124]",
+    topbarSub: isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]",
+    topbarBtn: isDarkMode ? "hover:bg-[#3c4043]" : "hover:bg-[#f1f3f4]",
   };
 
   const menuItems = [
@@ -836,81 +856,81 @@ export default function StudentDashboardGraduation({
     >
       {activeView === "status" && (
         <div className="max-w-4xl mx-auto space-y-6">
-          <div>
-            <h2 className="text-3xl font-bold mb-1 text-gray-900">
+          <div className="mb-2">
+            <h2 className={`text-[28px] font-normal tracking-tight ${isDarkMode ? 'text-[#e8eaed]' : 'text-[#202124]'}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
               Graduation Clearance
             </h2>
-            <p className="text-gray-500">
+            <p className={`text-sm mt-1 ${isDarkMode ? 'text-[#9aa0a6]' : 'text-[#5f6368]'}`}>
               Track your graduation clearance progress
             </p>
           </div>
 
           {loading ? (
-            <GlassCard className="p-8">
+            <GlassCard isDark={isDarkMode} className="p-12 border-none shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] rounded-3xl">
               <div className="flex flex-col items-center gap-4">
-                <div className="w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
-                <p className="text-sm text-gray-500">
+                <div className="w-10 h-10 border-4 border-[#1a73e8] border-t-transparent rounded-full animate-spin" />
+                <p className="text-[14px] font-medium text-[#5f6368]">
                   Loading clearance status...
                 </p>
               </div>
             </GlassCard>
           ) : !clearanceStatus?.hasRequest ? (
-            <GlassCard className="p-8">
+            <GlassCard isDark={isDarkMode} className="p-12 text-center border-none shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] rounded-3xl">
               <div className="text-center">
                 <motion.div
                   initial={{ scale: 0.8 }}
                   animate={{ scale: 1 }}
-                  className="w-20 h-20 rounded-2xl bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center mx-auto mb-5"
+                  className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ${isDarkMode ? 'bg-[#303134]' : 'bg-[#e8f0fe]'}`}
                 >
-                  <AcademicCapIcon className="w-10 h-10 text-green-600" />
+                  <AcademicCapIcon className={`w-10 h-10 ${isDarkMode ? 'text-[#8ab4f8]' : 'text-[#1a73e8]'}`} />
                 </motion.div>
-                <h3 className="text-2xl font-bold mb-2 text-gray-900">
+                <h3 className={`text-[22px] font-normal mb-3 ${isDarkMode ? 'text-[#e8eaed]' : 'text-[#202124]'}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
                   Apply for Graduation Clearance
                 </h3>
-                <p className="mb-8 max-w-md mx-auto text-gray-500">
+                <p className={`mb-8 max-w-md mx-auto text-[14px] leading-relaxed ${isDarkMode ? 'text-[#9aa0a6]' : 'text-[#5f6368]'}`}>
                   Start your graduation clearance process. All professors and
                   offices must approve before you can graduate.
                 </p>
                 <motion.button
-                  whileHover={{ scale: 1.02, y: -1 }}
+                  whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleApply}
                   disabled={applying}
-                  className="px-8 py-3.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-green-500/25 disabled:opacity-50 transition-all duration-200"
+                  className="px-6 py-2.5 bg-[#1a73e8] text-white rounded-full font-medium text-sm hover:shadow-md hover:bg-[#1557b0] disabled:opacity-50 transition-all duration-200"
                 >
                   {applying
                     ? "Submitting..."
-                    : "Apply for Graduation Clearance"}
+                    : "Apply for Clearance"}
                 </motion.button>
               </div>
             </GlassCard>
           ) : (
             <>
-              <GlassCard className="p-5">
+              <GlassCard isDark={isDarkMode} className="p-6 border-none shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] rounded-3xl">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center">
-                      <AcademicCapIcon className="w-7 h-7 text-green-600" />
+                  <div className="flex items-center gap-5">
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isDarkMode ? 'bg-[#303134]' : 'bg-[#f1f3f4]'}`}>
+                      <AcademicCapIcon className={`w-6 h-6 ${isDarkMode ? 'text-[#8ab4f8]' : 'text-[#1a73e8]'}`} />
                     </div>
                     <div>
-                      <p className="text-xs font-medium mb-0.5 text-gray-500">
+                      <p className={`text-[12px] font-medium mb-1 uppercase tracking-wider ${isDarkMode ? 'text-[#9aa0a6]' : 'text-[#5f6368]'}`}>
                         Applied on{" "}
                         {new Date(
                           clearanceStatus.request.created_at,
                         ).toLocaleDateString()}
                       </p>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-bold text-gray-900">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <h3 className={`font-medium text-[15px] ${isDarkMode ? 'text-[#e8eaed]' : 'text-[#202124]'}`}>
                           Current Stage:
                         </h3>
-                        <span className="px-3 py-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-full text-xs font-bold shadow-sm">
+                        <span className={`px-3.5 py-1 rounded-full text-[13px] font-semibold border border-transparent ${isDarkMode ? 'bg-[#4285f4] bg-opacity-[0.15] text-[#8ab4f8]' : 'bg-[#e8f0fe] text-[#1a73e8]'}`}>
                           {clearanceStatus.request.current_stage}
                         </span>
                         {unresolvedCommentCount > 0 && (
                           <motion.span
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-700 border border-orange-200 shadow-sm"
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#fce8e6] text-[#c5221f] border border-transparent"
                           >
                             <ChatBubbleIcon className="w-3.5 h-3.5" />
                             {unresolvedCommentCount} unresolved comment
@@ -921,11 +941,11 @@ export default function StudentDashboardGraduation({
                     </div>
                   </div>
                   <motion.button
-                    whileHover={{ scale: 1.02 }}
+                    whileHover={{ scale: 1.02, backgroundColor: '#fce8e6' }}
                     whileTap={{ scale: 0.98 }}
                     onClick={handleCancel}
                     disabled={cancelling}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-red-500/10 text-red-500 border border-red-500/20 rounded-xl hover:bg-red-500 hover:text-white font-medium transition-all duration-200 text-sm disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-4 py-2 text-[#d93025] hover:text-[#c5221f] rounded-full font-medium transition-all duration-200 text-sm disabled:opacity-50"
                   >
                     <XMarkIcon className="w-4 h-4" />
                     {cancelling ? "Cancelling..." : "Cancel"}
@@ -933,47 +953,40 @@ export default function StudentDashboardGraduation({
                 </div>
               </GlassCard>
 
-              <GlassCard className="p-6">
-                <h3 className="text-lg font-bold mb-1 text-gray-900">
+              <GlassCard isDark={isDarkMode} className="p-8 border-none shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] rounded-3xl">
+                <h3 className={`text-[20px] font-normal mb-1 ${isDarkMode ? 'text-[#e8eaed]' : 'text-[#202124]'}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
                   Clearance Progress Tree
                 </h3>
-                <p className="text-xs mb-4 text-gray-500">
+                <p className={`text-[14px] mb-6 ${isDarkMode ? 'text-[#9aa0a6]' : 'text-[#5f6368]'}`}>
                   Click on each stage to expand details · Click a professor row
                   to view comments
                 </p>
                 <ProgressBar stages={buildStages()} />
-                <div className="mt-2">
+                <div className="mt-4">
                   {buildStages().map((stage, i) => (
                     <StageNode
                       key={stage.key}
                       stage={stage}
                       index={i}
                       total={buildStages().length}
-                      isExpanded={!!expandedStages[stage.key]}
+                      isExpanded={expandedStages[stage.key]}
                       onToggle={() =>
-                        stage.hasChildren && toggleStage(stage.key)
+                        setExpandedStages((prev) => ({
+                          ...prev,
+                          [stage.key]: !prev[stage.key],
+                        }))
                       }
-                      unresolvedCount={stage.unresolvedCount || 0}
+                      unresolvedCount={stage.unresolvedCount}
                       hasComments={stage.hasComments}
-                      onViewComments={() => openStageComments(stage)}
-                    >
-                      {stage.key === "professors" &&
-                        clearanceStatus.professorApprovals?.length > 0 && (
-                          <div className="space-y-1">
-                            {clearanceStatus.professorApprovals.map(
-                              (approval, j) => (
-                                <ProfessorCard
-                                  key={approval.id}
-                                  approval={approval}
-                                  index={j}
-                                  onViewComments={openProfessorComments}
-                                  clearanceComments={clearanceComments}
-                                />
-                              ),
-                            )}
-                          </div>
-                        )}
-                    </StageNode>
+                      onViewComments={() => {
+                        if (stage.type === "professor") {
+                          openProfessorComments(stage.approval);
+                        } else {
+                          openStageComments(stage);
+                        }
+                      }}
+                      isDarkMode={isDarkMode}
+                    />
                   ))}
                 </div>
               </GlassCard>
