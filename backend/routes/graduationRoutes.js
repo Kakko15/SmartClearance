@@ -287,7 +287,7 @@ router.get("/professor/students/:professorId", async (req, res) => {
   try {
     const { professorId } = req.params;
 
-    const { data: approvals, error } = await supabase
+    const { data: rawApprovals, error } = await supabase
       .from("professor_approvals")
       .select(
         `
@@ -296,6 +296,7 @@ router.get("/professor/students/:professorId", async (req, res) => {
         status,
         comments,
         approved_at,
+        professor:professor_id(full_name),
         request:request_id (
           id,
           created_at,
@@ -306,7 +307,8 @@ router.get("/professor/students/:professorId", async (req, res) => {
             student_number,
             course_year,
             email
-          )
+          ),
+          professor_approvals(id, status, professor:professor_id(full_name))
         )
       `,
       )
@@ -315,9 +317,39 @@ router.get("/professor/students/:professorId", async (req, res) => {
 
     if (error) throw error;
 
+    const PROF_ORDER = [
+      "Department Chairman",
+      "College Dean",
+      "Director Student Affairs",
+      "NSTP Director",
+      "Executive Officer",
+      "Dean Graduate School",
+    ];
+
+    const approvals = (rawApprovals || []).map((app) => {
+      let is_locked = false;
+      const myName = app.professor?.full_name;
+      const myIdx = PROF_ORDER.indexOf(myName);
+
+      if (myIdx > 0 && app.request && app.request.professor_approvals) {
+        const otherApps = app.request.professor_approvals;
+        for (let i = 0; i < myIdx; i++) {
+          const prevName = PROF_ORDER[i];
+          const prevApp = otherApps.find((oa) => oa.professor?.full_name === prevName);
+          if (prevApp && prevApp.status !== "approved") {
+            is_locked = true;
+            break;
+          }
+        }
+      }
+
+      if (app.request) delete app.request.professor_approvals;
+      return { ...app, is_locked };
+    });
+
     res.json({
       success: true,
-      approvals: approvals || [],
+      approvals,
     });
   } catch (error) {
     console.error("Error getting professor students:", error);

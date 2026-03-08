@@ -1,9 +1,13 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeftIcon,
   ArrowRightOnRectangleIcon,
   CogIcon,
+  Bars3Icon,
+  PencilSquareIcon,
+  MoonIcon,
+  SunIcon,
 } from "./Icons";
 
 export default function DashboardLayout({
@@ -14,17 +18,41 @@ export default function DashboardLayout({
   userInfo,
   onSignOut,
   onOpenSettings,
+  onManageAccount,
+  isDarkMode,
+  toggleTheme,
   children,
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [dropdownView, setDropdownView] = useState("main");
+  const profileDropdownRef = useRef(null);
+
+  const currentThemePref = typeof window !== "undefined" ? (localStorage.getItem("theme") || "system") : "system";
+
+  useEffect(() => {
+    if (!profileDropdownOpen) {
+      setTimeout(() => setDropdownView("main"), 200);
+    }
+  }, [profileDropdownOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target)) {
+        setProfileDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Fallback defaults for a Google Material You style if theme misses them
-  const bgC = theme.bg || "bg-[#f8f9fa]";
-  const sidebarBg = theme.sidebarGradient || "bg-white border-r border-[#dadce0]";
-  const sidebarText = theme.sidebarText || "text-[#3c4043]";
-  const sidebarActive = theme.sidebarActive || "bg-[#e8f0fe] text-[#1a73e8]";
-  const sidebarInactive = theme.sidebarInactive || "text-[#3c4043] hover:bg-[#f1f3f4]";
-  const topbarBg = theme.topbar || "bg-white border-b border-[#dadce0]";
+  const bgC = theme.bg || "bg-[#FAFAFA]";
+  const sidebarBg = theme.sidebarGradient || "bg-white border-r border-slate-200";
+  const sidebarText = theme.sidebarText || "text-slate-600";
+  const sidebarActive = theme.sidebarActive || "bg-primary-50 text-primary-600";
+  const sidebarInactive = theme.sidebarInactive || "text-slate-600 hover:bg-slate-50";
+  const topbarBg = theme.topbar || "bg-white border-b border-slate-200";
 
   return (
     <div className={`flex h-screen ${bgC} font-sans selection:bg-blue-100 selection:text-blue-900`}>
@@ -35,41 +63,67 @@ export default function DashboardLayout({
       </div>
 
       <motion.div
-        animate={{ width: sidebarOpen ? 260 : 76 }}
-        transition={{ type: "spring", stiffness: 400, damping: 40 }}
-        className={`${sidebarBg} ${sidebarText} flex flex-col relative z-20 overflow-hidden flex-shrink-0 transition-colors duration-200`}
+        layout
+        initial={false}
+        animate={{ width: sidebarOpen ? 260 : 68 }}
+        transition={{ type: "spring", bounce: 0, duration: 0.4 }}
+        className={`${sidebarBg} ${sidebarText} flex flex-col relative z-20 flex-shrink-0 transition-colors duration-200`}
       >
-        <div className="h-[64px] flex items-center justify-between px-4 mt-1">
-          <AnimatePresence>
-            {sidebarOpen && (
-              <motion.div
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                className="flex items-center gap-3 overflow-hidden ml-2"
-              >
-                <div
-                  className={`w-8 h-8 ${theme.accentGradient || "bg-[#1a73e8]"} rounded-full flex items-center justify-center text-white font-bold text-xs shadow-sm flex-shrink-0`}
-                >
-                  {theme.abbrev}
-                </div>
-                <span className="font-medium text-[18px] tracking-tight text-[#202124] whitespace-nowrap" style={{ fontFamily: 'Google Sans, sans-serif' }}>
-                  {theme.name}
-                </span>
-              </motion.div>
-            )}
-          </AnimatePresence>
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className={`p-2.5 rounded-full transition-colors flex-shrink-0 ${theme.topbarBtn || 'hover:bg-[#f1f3f4] text-[#5f6368]'}`}
-          >
-            <motion.div
-              animate={{ rotate: sidebarOpen ? 0 : 180 }}
-              transition={{ duration: 0.3 }}
+        <div className="flex flex-col gap-4 mt-3 px-3">
+          <div className="flex items-center">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className={`p-2.5 rounded-full transition-colors flex-shrink-0 ${theme.topbarBtn || 'hover:bg-slate-50 text-slate-500'}`}
             >
-              <ArrowLeftIcon className="w-5 h-5" />
-            </motion.div>
-          </button>
+              <Bars3Icon className="w-6 h-6" />
+            </button>
+            <AnimatePresence>
+              {sidebarOpen && (
+                <motion.div
+                  layout
+                  initial={{ opacity: 0, width: 0 }}
+                  animate={{ opacity: 1, width: "auto" }}
+                  exit={{ opacity: 0, width: 0 }}
+                  transition={{ opacity: { duration: 0.15 }, width: { type: "spring", bounce: 0, duration: 0.3 } }}
+                  className="overflow-hidden flex items-center"
+                >
+                  <span className={`font-medium text-[18px] tracking-tight whitespace-nowrap ml-3 ${theme.topbarText || 'text-slate-900'}`}
+                        style={{ fontFamily: 'Google Sans, sans-serif' }}>
+                    {theme.name}
+                  </span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <div className="flex items-center mt-2">
+             <button
+                className={`w-full flex items-center relative group transition-colors rounded-[16px] h-[44px] ${theme.bg === 'bg-[#030712]' ? 'bg-primary-500/10 text-primary-400 hover:bg-primary-500/20' : 'bg-primary-100 text-primary-900 hover:bg-primary-200'}`}
+             >
+                <div className="flex items-center justify-center w-[44px] h-[44px] flex-shrink-0">
+                  <PencilSquareIcon className="w-5 h-5 flex-shrink-0" />
+                </div>
+                {!sidebarOpen && (
+                  <div className={`pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md border px-3 py-1.5 text-sm font-medium opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 ${theme.bg === 'bg-[#030712]' ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-900'}`}>
+                    New Request
+                  </div>
+                )}
+                <AnimatePresence>
+                  {sidebarOpen && (
+                    <motion.div
+                      layout
+                      initial={{ opacity: 0, width: 0 }}
+                      animate={{ opacity: 1, width: "auto" }}
+                      exit={{ opacity: 0, width: 0 }}
+                      transition={{ opacity: { duration: 0.15 }, width: { type: "spring", bounce: 0, duration: 0.3 } }}
+                      className="overflow-hidden whitespace-nowrap pr-4"
+                    >
+                       <span className="text-[14px] font-medium">New Request</span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+             </button>
+          </div>
         </div>
 
         <nav className="flex-1 px-3 space-y-1 mt-3">
@@ -80,28 +134,37 @@ export default function DashboardLayout({
                 key={item.id}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setActiveView(item.id)}
-                className={`w-full flex items-center gap-4 px-4 py-3 rounded-full transition-all duration-150 group ${
+                className={`w-full flex items-center relative rounded-full transition-colors duration-150 group h-[44px] mb-0.5 ${
                   isActive ? sidebarActive : sidebarInactive
                 }`}
               >
-                <span className={`flex-shrink-0 w-6 h-6 flex items-center justify-center ${isActive ? "text-[#1a73e8]" : "text-[#5f6368] group-hover:text-[#202124]"}`}>
-                  {item.icon}
-                </span>
+                <div className="flex items-center justify-center w-[44px] h-[44px] flex-shrink-0">
+                  <span className={`w-6 h-6 flex items-center justify-center ${isActive ? "text-primary-600" : "text-slate-500 group-hover:text-slate-900"}`}>
+                    {item.icon}
+                  </span>
+                </div>
+                {!sidebarOpen && (
+                  <div className={`pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md border px-3 py-1.5 text-sm font-medium opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 ${theme.bg === 'bg-[#030712]' ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-900'}`}>
+                    {item.label}
+                  </div>
+                )}
                 <AnimatePresence>
                   {sidebarOpen && (
                     <motion.div
+                      layout
                       initial={{ opacity: 0, width: 0 }}
                       animate={{ opacity: 1, width: "auto" }}
                       exit={{ opacity: 0, width: 0 }}
-                      className="flex-1 flex items-center justify-between overflow-hidden"
+                      transition={{ opacity: { duration: 0.15 }, width: { type: "spring", bounce: 0, duration: 0.3 } }}
+                      className="flex-1 flex items-center justify-between overflow-hidden pr-4"
                     >
-                      <span className={`font-medium whitespace-nowrap text-[14px] ${isActive ? "text-[#1a73e8] font-semibold" : "text-[#3c4043]"}`}>
+                      <span className={`font-medium whitespace-nowrap text-[14px] ${isActive ? "text-primary-600 font-semibold" : "text-slate-600"}`}>
                         {item.label}
                       </span>
                       {item.count != null && item.count > 0 && (
                         <span
                           className={`ml-2 px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                            isActive ? "bg-blue-100 text-[#1a73e8]" : "bg-[#f1f3f4] text-[#3c4043]"
+                            isActive ? "bg-primary-100 text-primary-600" : "bg-slate-100 text-slate-600"
                           }`}
                         >
                           {item.count}
@@ -115,25 +178,38 @@ export default function DashboardLayout({
           })}
         </nav>
 
-        <div className="p-5 pb-6">
-          <AnimatePresence>
-            {sidebarOpen && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="text-xs text-[#5f6368] font-medium ml-3"
-              >
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span
-                    className={`w-2 h-2 ${theme.dotColor || "bg-[#1e8e3e]"} rounded-full animate-pulse`}
-                  />
-                  <span>System Online</span>
+        <div className="mt-auto px-3 pb-6 flex flex-col gap-2">
+          {onOpenSettings && (
+            <button
+              onClick={onOpenSettings}
+              className={`w-full flex items-center relative group rounded-full transition-colors h-[44px] ${theme.topbarBtn || 'hover:bg-slate-50 text-slate-500'}`}
+            >
+              <div className="flex items-center justify-center w-[44px] h-[44px] flex-shrink-0">
+                <CogIcon className="w-[22px] h-[22px]" />
+              </div>
+              {!sidebarOpen && (
+                <div className={`pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md border px-3 py-1.5 text-sm font-medium opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 ${theme.bg === 'bg-[#030712]' ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-900'}`}>
+                  Settings
                 </div>
-                <div>ISU Clearance v2.0</div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              )}
+              <AnimatePresence>
+                {sidebarOpen && (
+                  <motion.div
+                    layout
+                    initial={{ opacity: 0, width: 0 }}
+                    animate={{ opacity: 1, width: "auto" }}
+                    exit={{ opacity: 0, width: 0 }}
+                    transition={{ opacity: { duration: 0.15 }, width: { type: "spring", bounce: 0, duration: 0.3 } }}
+                    className="overflow-hidden whitespace-nowrap pr-4"
+                  >
+                    <span className={`font-medium text-[14px] ${theme.topbarText || 'text-slate-600'}`}>
+                      Settings
+                    </span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </button>
+          )}
         </div>
       </motion.div>
 
@@ -142,45 +218,201 @@ export default function DashboardLayout({
           className={`h-[64px] ${topbarBg} flex items-center justify-between px-6 sm:px-8 flex-shrink-0 z-30 transition-shadow`}
         >
           <div>
-            <h1 className={`text-[22px] font-normal tracking-tight ${theme.topbarText || "text-[#202124]"}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
+            <h1 className={`text-[22px] font-normal tracking-tight ${theme.topbarText || "text-slate-900"}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
               {theme.dashboardTitle}
             </h1>
           </div>
-          <div className="flex items-center gap-2">
-            {onOpenSettings && (
-              <button
-                onClick={onOpenSettings}
-                className={`p-2.5 rounded-full transition-colors ${theme.topbarBtn || 'hover:bg-[#f1f3f4] text-[#5f6368]'}`}
-                title="Settings"
-              >
-                <CogIcon className="w-5 h-5" />
-              </button>
-            )}
-            <div className="flex items-center gap-3 ml-2">
-              <div className="text-right hidden sm:block mr-1">
-                <p className={`text-[14px] font-medium ${theme.topbarText || 'text-[#3c4043]'}`}>
+          <div className="flex items-center mr-2 relative" ref={profileDropdownRef}>
+            <button 
+              onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+              className="flex items-center gap-3 text-left focus:outline-none group"
+            >
+              <div className="hidden md:block text-right">
+                <p className={`text-[14px] font-medium leading-tight ${theme.topbarText || 'text-slate-900'}`}>
                   {userInfo.name}
                 </p>
-                {userInfo.subtitle && (
-                  <p className={`text-[11px] font-medium tracking-wide uppercase mt-0.5 ${theme.topbarSub || 'text-[#5f6368]'}`}>
-                    {userInfo.subtitle}
-                  </p>
-                )}
+                <p className={`text-[12px] leading-tight mt-0.5 ${theme.topbarSub || 'text-slate-500'}`}>
+                  {userInfo.subtitle}
+                </p>
               </div>
-              <button className={`flex items-center justify-center w-9 h-9 rounded-full font-medium text-sm shadow-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-offset-2 ${theme.accentGradient || 'bg-[#1a73e8] text-white focus:ring-[#1a73e8]'}`}>
+              <div className={`flex items-center justify-center w-10 h-10 rounded-full font-medium text-[15px] shadow-sm transition-all focus:outline-none group-hover:ring-4 ring-black/5 dark:ring-white/10 ${theme.accentGradient || 'bg-primary-600 text-white'}`}>
                 {userInfo.name?.charAt(0)}
-              </button>
-            </div>
-            <div className={`w-px h-8 mx-3 ${theme.divider || 'bg-[#dadce0]'}`} />
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={onSignOut}
-              className={`p-2 rounded-full transition-colors flex items-center justify-center ${theme.logoutBtn || 'text-[#5f6368] hover:text-[#d93025] hover:bg-[#fce8e6]'}`}
-              title="Sign Out"
-            >
-              <ArrowRightOnRectangleIcon className="w-5 h-5" />
-            </motion.button>
+              </div>
+            </button>
+            
+            <AnimatePresence>
+              {profileDropdownOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  transition={{ duration: 0.15 }}
+                  className={`absolute right-1 top-full mt-2 ${dropdownView === "main" ? "w-64" : "w-[340px]"} transition-[width] duration-200 ease-out origin-top-right rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.12)] border z-50 overflow-hidden ${
+                    theme.dropdownMenu || (isDarkMode ? 'bg-[#282a2d] border-[#3c4043]' : 'bg-white border-[#dadce0]')
+                  }`}
+                >
+                  <AnimatePresence mode="wait" initial={false}>
+                    {dropdownView === "main" ? (
+                      <motion.div
+                        key="main"
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0, transition: { duration: 0.15, ease: "easeOut" } }}
+                        exit={{ opacity: 0, x: -10, transition: { duration: 0.08, ease: "easeIn" } }}
+                        className="p-2 flex flex-col gap-1 w-full"
+                      >
+                        {(onManageAccount || onOpenSettings) && (
+                          <button
+                            onClick={() => {
+                              setProfileDropdownOpen(false);
+                              (onManageAccount || onOpenSettings)();
+                            }}
+                            className={`w-full text-left px-4 py-3 rounded-xl flex items-center gap-4 text-[15px] font-medium transition-all duration-200 active:scale-[0.98] group ${
+                              isDarkMode ? 'text-[#e8eaed] hover:bg-[#3c4043] hover:text-white' : 'text-[#3c4043] hover:bg-[#f1f3f4] hover:text-[#202124]'
+                            }`}
+                          >
+                            <CogIcon className={`w-5 h-5 flex-shrink-0 transition-colors ${
+                              isDarkMode ? 'text-[#9aa0a6] group-hover:text-white' : 'text-[#5f6368] group-hover:text-[#202124]'
+                            }`} />
+                            Manage Account
+                          </button>
+                        )}
+                        {toggleTheme && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDropdownView("appearance");
+                            }}
+                            className={`w-full text-left px-4 py-3 rounded-xl flex items-center justify-between gap-3 text-[15px] font-medium transition-all duration-200 active:scale-[0.98] group ${
+                              isDarkMode ? 'text-[#e8eaed] hover:bg-[#3c4043] hover:text-white' : 'text-[#3c4043] hover:bg-[#f1f3f4] hover:text-[#202124]'
+                            }`}
+                          >
+                            <div className="flex items-center gap-4">
+                              <MoonIcon className={`w-5 h-5 flex-shrink-0 transition-colors ${
+                                isDarkMode ? 'text-[#9aa0a6] group-hover:text-white' : 'text-[#5f6368] group-hover:text-[#202124]'
+                              }`} />
+                              Display & accessibility
+                            </div>
+                            <ArrowLeftIcon className={`w-4 h-4 rotate-180 flex-shrink-0 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all ${
+                              isDarkMode ? 'text-white' : 'text-[#202124]'
+                            }`} />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => {
+                            setProfileDropdownOpen(false);
+                            onSignOut();
+                          }}
+                          className={`w-full text-left px-4 py-3 rounded-xl flex items-center gap-4 text-[15px] font-medium transition-all duration-200 active:scale-[0.98] group ${
+                            isDarkMode ? 'text-[#e8eaed] hover:bg-red-900/20 hover:text-red-400' : 'text-[#3c4043] hover:bg-red-50 hover:text-red-700'
+                          }`}
+                        >
+                          <ArrowRightOnRectangleIcon className={`w-5 h-5 flex-shrink-0 transition-colors ${
+                            isDarkMode ? 'text-[#9aa0a6] group-hover:text-red-400' : 'text-[#5f6368] group-hover:text-red-600'
+                          }`} />
+                          Sign Out
+                        </button>
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="appearance"
+                        initial={{ opacity: 0, x: 10 }}
+                        animate={{ opacity: 1, x: 0, transition: { duration: 0.15, ease: "easeOut" } }}
+                        exit={{ opacity: 0, x: 10, transition: { duration: 0.08, ease: "easeIn" } }}
+                        className="p-2 flex flex-col w-full"
+                      >
+                        <div className="flex items-center gap-3 px-2 py-2 mb-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDropdownView("main");
+                            }}
+                            className={`p-1.5 rounded-full transition-all duration-200 active:scale-90 ${
+                              isDarkMode ? 'hover:bg-[#3c4043] text-[#e8eaed]' : 'hover:bg-[#f1f3f4] text-[#3c4043]'
+                            }`}
+                          >
+                            <ArrowLeftIcon className="w-5 h-5" />
+                          </button>
+                          <h3 className={`text-[18px] font-medium ${isDarkMode ? 'text-[#e8eaed]' : 'text-[#202124]'}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>Display & accessibility</h3>
+                        </div>
+                        
+                        <div className="px-4 pb-3 flex gap-4">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isDarkMode ? 'bg-[#3c4043]' : 'bg-[#f1f3f4]'}`}>
+                            <MoonIcon className={`w-5 h-5 ${isDarkMode ? 'text-[#e8eaed]' : 'text-[#202124]'}`} />
+                          </div>
+                          <div>
+                            <p className={`font-medium text-[15px] ${isDarkMode ? 'text-[#e8eaed]' : 'text-[#202124]'}`}>Dark mode</p>
+                            <p className={`text-[13px] leading-[1.4] mt-1 ${isDarkMode ? 'text-[#9aa0a6]' : 'text-[#5f6368]'}`}>
+                              Adjust the appearance to reduce glare and give your eyes a break.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col gap-1 mt-1 pb-1">
+                          {[
+                            { id: "light", label: "Off" },
+                            { id: "dark", label: "On" },
+                            { id: "system", label: "Automatic", sub: "We'll automatically adjust the display based on your device's system settings." }
+                          ].map((opt) => (
+                            <label
+                              key={opt.id}
+                              className={`group flex flex-col px-4 py-3 rounded-xl cursor-pointer transition-all duration-200 active:scale-[0.98] ${
+                                currentThemePref === opt.id
+                                  ? isDarkMode ? 'bg-primary-900/20' : 'bg-primary-50/70'
+                                  : isDarkMode ? 'hover:bg-[#3c4043]' : 'hover:bg-[#f1f3f4]'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between w-full">
+                                <span
+                                  className={`text-[15px] font-medium transition-colors duration-200 ${
+                                    currentThemePref === opt.id
+                                      ? isDarkMode ? 'text-primary-400' : 'text-primary-700'
+                                      : isDarkMode ? 'text-[#e8eaed]' : 'text-[#3c4043]'
+                                  }`}
+                                >
+                                  {opt.label}
+                                </span>
+                                <div
+                                  className={`relative w-[22px] h-[22px] rounded-full border-[2.5px] transition-all duration-300 ${
+                                    currentThemePref === opt.id
+                                      ? isDarkMode ? 'border-primary-400 scale-105' : 'border-primary-600 scale-105'
+                                      : isDarkMode ? 'border-[#9aa0a6]' : 'border-[#5f6368]'
+                                  }`}
+                                >
+                                  {currentThemePref === opt.id && (
+                                    <motion.div
+                                      layoutId="radio-active"
+                                      transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                                      className={`absolute inset-0 m-auto w-[11px] h-[11px] rounded-full ${isDarkMode ? 'bg-primary-400' : 'bg-primary-600'}`}
+                                    />
+                                  )}
+                                </div>
+                              </div>
+                              {opt.sub && (
+                                <p className={`text-[13px] mt-1 leading-[1.4] pr-8 transition-colors duration-200 ${
+                                  currentThemePref === opt.id 
+                                    ? isDarkMode ? 'text-primary-400/80' : 'text-primary-700/80'
+                                    : isDarkMode ? 'text-[#9aa0a6]' : 'text-[#5f6368]'
+                                }`}>
+                                  {opt.sub}
+                                </p>
+                              )}
+                              <input
+                                type="radio"
+                                name="theme_mode"
+                                value={opt.id}
+                                checked={currentThemePref === opt.id}
+                                onChange={() => toggleTheme(opt.id)}
+                                className="sr-only"
+                              />
+                            </label>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
 
@@ -216,7 +448,7 @@ export function GlassCard({
       transition={{ type: "spring", stiffness: 400, damping: 40, delay }}
       className={`relative rounded-3xl overflow-hidden ${
         isDark
-          ? "bg-[#202124] border border-[#3c4043] shadow-sm"
+          ? "bg-[#282a2d] shadow-sm"
           : "bg-white border border-[#dadce0] shadow-sm hover:shadow-md transition-shadow duration-300"
       } ${className}`}
     >

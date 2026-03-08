@@ -9,14 +9,21 @@ export default function PasswordInput({
   label,
   showStrength: _showStrength = false,
   className = "",
+  isDark = false,
 }) {
   const [showPassword, setShowPassword] = useState(false);
+
+  const baseInputClass = `w-full px-4 py-3 bg-transparent border rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600 pr-12 ${
+    isDark
+      ? "border-[#5f6368] text-[#e8eaed] placeholder-[#9aa0a6] hover:border-[#9aa0a6]"
+      : "border-[#dadce0] text-[#202124] placeholder-[#5f6368] hover:border-[#80868b]"
+  }`;
 
   return (
     <div>
       {label && (
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          {label} {required && <span className="text-red-500">*</span>}
+        <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-[#9aa0a6]' : 'text-[#5f6368]'}`}>
+          {label} {required && <span className={isDark ? "text-red-400" : "text-red-500"}>*</span>}
         </label>
       )}
       <div className="relative">
@@ -26,7 +33,7 @@ export default function PasswordInput({
           onChange={onChange}
           required={required}
           minLength={minLength}
-          className={`input-field pr-12 ${className}`}
+          className={`${baseInputClass} ${className}`}
           placeholder={placeholder}
         />
         <button

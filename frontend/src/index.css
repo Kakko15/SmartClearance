@@ -15,11 +15,13 @@ html {
 
 body {
   margin: 0;
-  background-color: #021205;
-  color: #fff;
-  font-family: "Inter", sans-serif;
+  background-color: #f8f9fa;
+  color: #202124;
+  font-family: "Google Sans", "Product Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   overflow-x: hidden;
   overflow-y: auto;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .spatial-glass {

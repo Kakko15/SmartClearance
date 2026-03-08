@@ -40,12 +40,21 @@ function App() {
   const [profile, setProfile] = useState(null);
   const [initializing, setInitializing] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsMode, setSettingsMode] = useState("full");
   const roleMismatchRef = useRef(false);
   const sessionValidationPromiseRef = useRef(null);
 
   const [appMode, setAppMode] = useState(() => {
     const savedMode = sessionStorage.getItem("currentAppMode");
     if (savedMode) return savedMode;
+
+    // If a Supabase session exists in localStorage, the user is already logged in.
+    // Skip the loader/landing entirely and go straight to "app".
+    const hasSession = Object.keys(localStorage).some(
+      (key) => key.startsWith("sb-") && key.endsWith("-auth-token"),
+    );
+    if (hasSession) return "app";
+
     return sessionStorage.getItem("hasSeenLoader") ? "landing" : "loader";
   });
 
@@ -64,29 +73,53 @@ function App() {
     return sessionStorage.getItem("selectedRole") || null;
   });
 
+  const [themePreference, setThemePreference] = useState(() => {
+    return localStorage.getItem("theme") || "system";
+  });
+
   const [isDarkMode, setIsDarkMode] = useState(() => {
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme === "dark") return true;
+    if (savedTheme === "light") return false;
     if (typeof window !== "undefined") {
-      return localStorage.getItem("theme") === "dark";
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
     }
     return false;
   });
 
-  const toggleTheme = () => {
-    setIsDarkMode((prev) => {
-      const newMode = !prev;
-      localStorage.setItem("theme", newMode ? "dark" : "light");
-      document.documentElement.classList.toggle("dark", newMode);
-      return newMode;
-    });
-  };
+  useEffect(() => {
+    let activeDark = false;
+    if (themePreference === "dark") activeDark = true;
+    else if (themePreference === "light") activeDark = false;
+    else if (typeof window !== "undefined") activeDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    setIsDarkMode(activeDark);
+    document.documentElement.classList.toggle("dark", activeDark);
+  }, [themePreference]);
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem("theme");
-    if (savedTheme) {
-      setIsDarkMode(savedTheme === "dark");
-      document.documentElement.classList.toggle("dark", savedTheme === "dark");
+    if (typeof window === "undefined") return;
+    const watcher = window.matchMedia('(prefers-color-scheme: dark)');
+    const listener = (e) => {
+      if (themePreference === "system") {
+        setIsDarkMode(e.matches);
+        document.documentElement.classList.toggle("dark", e.matches);
+      }
+    };
+    watcher.addEventListener("change", listener);
+    return () => watcher.removeEventListener("change", listener);
+  }, [themePreference]);
+
+  const toggleTheme = (newPref) => {
+    if (typeof newPref === "string") {
+      setThemePreference(newPref);
+      localStorage.setItem("theme", newPref);
+    } else {
+      const p = isDarkMode ? "light" : "dark";
+      setThemePreference(p);
+      localStorage.setItem("theme", p);
     }
-  }, []);
+  };
 
   useEffect(() => {
     showPasswordResetRef.current = showPasswordReset;
@@ -351,9 +384,7 @@ function App() {
     }
   };
 
-  if (initializing && appMode === "app") {
-    return <Loader />;
-  }
+
 
   if (twoFactorPending && pendingUser) {
     return (
@@ -580,7 +611,7 @@ function App() {
       duration={400}
     >
       <div
-        className={`min-h-screen w-full font-sans transition-colors duration-500 ${appMode === "app" && user ? "bg-[#021205] text-white" : isDarkMode ? "bg-slate-950 text-slate-100" : "bg-[#f8fafc] text-slate-800"}`}
+        className={`min-h-screen w-full font-sans transition-colors duration-500 ${appMode === "app" && user ? (isDarkMode ? "bg-[#030712] text-white" : "bg-[#FAFAFA] text-slate-800") : isDarkMode ? "bg-[#030712] text-slate-100" : "bg-[#FAFAFA] text-slate-800"}`}
       >
         {appMode === "app" && user && (
           <div className="fixed inset-0 z-0 grid-bg opacity-20 pointer-events-none"></div>
@@ -639,42 +670,58 @@ function App() {
               className="relative z-10 min-h-screen"
             >
               {!user || !profile ? (
-                <AuthPage
-                  isDark={isDarkMode}
-                  selectedRole={selectedRole}
-                  onLoginSuccess={handleLoginSuccess}
-                  onBackToHome={backToRoleSelection}
-                />
+                // If we're still initializing and have a stored session, show a clean loading state
+                // instead of flashing the AuthPage
+                initializing && Object.keys(localStorage).some(k => k.startsWith("sb-") && k.endsWith("-auth-token")) ? (
+                  <div className="min-h-screen flex items-center justify-center">
+                    <div className="w-8 h-8 border-3 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : (
+                  <AuthPage
+                    isDark={isDarkMode}
+                    selectedRole={selectedRole}
+                    onLoginSuccess={handleLoginSuccess}
+                    onBackToHome={backToRoleSelection}
+                  />
+                )
               ) : (
                 <div className="min-h-screen relative">
                   {profile.role === "library_admin" ? (
                     <LibraryAdminDashboard
                       adminId={user.id}
                       onSignOut={handleSignOut}
-                      onOpenSettings={() => setShowSettings(true)}
+                      onOpenSettings={(tab) => { setSettingsMode(tab === 'appearance' ? 'appearance' : 'full'); setShowSettings(true); }}
+                      onManageAccount={() => { setSettingsMode("account"); setShowSettings(true); }}
                       isDarkMode={isDarkMode}
+                      toggleTheme={toggleTheme}
                     />
                   ) : profile.role === "cashier_admin" ? (
                     <CashierAdminDashboard
                       adminId={user.id}
                       onSignOut={handleSignOut}
-                      onOpenSettings={() => setShowSettings(true)}
+                      onOpenSettings={(tab) => { setSettingsMode(tab === 'appearance' ? 'appearance' : 'full'); setShowSettings(true); }}
+                      onManageAccount={() => { setSettingsMode("account"); setShowSettings(true); }}
                       isDarkMode={isDarkMode}
+                      toggleTheme={toggleTheme}
                     />
                   ) : profile.role === "registrar_admin" ? (
                     <RegistrarAdminDashboard
                       adminId={user.id}
                       onSignOut={handleSignOut}
-                      onOpenSettings={() => setShowSettings(true)}
+                      onOpenSettings={(tab) => { setSettingsMode(tab === 'appearance' ? 'appearance' : 'full'); setShowSettings(true); }}
+                      onManageAccount={() => { setSettingsMode("account"); setShowSettings(true); }}
                       isDarkMode={isDarkMode}
+                      toggleTheme={toggleTheme}
                     />
                   ) : profile.role === "professor" ? (
                     <ProfessorDashboard
                       professorId={user.id}
                       professorInfo={profile}
                       onSignOut={handleSignOut}
-                      onOpenSettings={() => setShowSettings(true)}
+                      onOpenSettings={(tab) => { setSettingsMode(tab === 'appearance' ? 'appearance' : 'full'); setShowSettings(true); }}
+                      onManageAccount={() => { setSettingsMode("account"); setShowSettings(true); }}
                       isDarkMode={isDarkMode}
+                      toggleTheme={toggleTheme}
                     />
                   ) : (
                     <>
@@ -683,8 +730,10 @@ function App() {
                           studentId={user.id}
                           studentInfo={profile}
                           onSignOut={handleSignOut}
-                          onOpenSettings={() => setShowSettings(true)}
+                          onOpenSettings={(tab) => { setSettingsMode(tab === 'appearance' ? 'appearance' : 'full'); setShowSettings(true); }}
+                          onManageAccount={() => { setSettingsMode("account"); setShowSettings(true); }}
                           isDarkMode={isDarkMode}
+                          toggleTheme={toggleTheme}
                         />
                       ) : (
                         <>
@@ -796,24 +845,16 @@ function App() {
         </AnimatePresence>
 
         {showSettings && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-            <div className="glass-card p-1">
-              <Settings
-                user={user}
-                profile={profile}
-                onClose={() => setShowSettings(false)}
-                theme={isDarkMode ? "dark" : "light"}
-                setTheme={(newTheme) => {
-                  setIsDarkMode(newTheme === "dark");
-                  localStorage.setItem("theme", newTheme);
-                  document.documentElement.classList.toggle(
-                    "dark",
-                    newTheme === "dark",
-                  );
-                }}
-              />
-            </div>
-          </div>
+          <Settings
+            user={user}
+            profile={profile}
+            mode={settingsMode}
+            onClose={() => setShowSettings(false)}
+            theme={themePreference}
+            setTheme={(newTheme) => {
+              toggleTheme(newTheme);
+            }}
+          />
         )}
       </div>
     </ClickSpark>

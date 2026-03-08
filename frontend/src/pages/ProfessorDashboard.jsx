@@ -24,7 +24,9 @@ export default function ProfessorDashboard({
   professorInfo,
   onSignOut,
   onOpenSettings,
-  _isDarkMode = false,
+  onManageAccount,
+  isDarkMode = false,
+  toggleTheme,
 }) {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -118,23 +120,16 @@ export default function ProfessorDashboard({
     name: "Professor Panel",
     abbrev: "PP",
     dashboardTitle: "Professor Dashboard",
-    sidebarGradient:
-      "bg-gradient-to-b from-sky-800 to-blue-900 border-r border-sky-700/20",
-    sidebarActive: "bg-white text-sky-800 shadow-sky-900/20",
-    accentGradient: "bg-gradient-to-br from-sky-600 to-blue-700",
-    accentShadow: "shadow-sky-600/20",
-    dotColor: "bg-sky-300",
-    bg: "bg-gradient-to-br from-sky-50 via-blue-50/30 to-slate-50",
-    glow1: "bg-sky-400/8",
-    glow2: "bg-blue-400/5",
-    topbar: "bg-white/80 border-b border-sky-100",
-    topbarText: "text-gray-900",
-    topbarSub: "text-gray-500",
-    topbarBtn: "hover:bg-sky-50",
-    topbarIcon: "text-gray-500",
-    topbarDivider: "bg-gray-200",
-    logoutBtn:
-      "bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500 hover:text-white",
+    sidebarGradient: isDarkMode ? "bg-slate-900 border-r border-slate-800" : "bg-white border-r border-slate-200",
+    sidebarActive: isDarkMode ? "bg-primary-900/40 text-primary-400" : "bg-primary-50 text-primary-600",
+    sidebarInactive: isDarkMode ? "text-slate-400 hover:bg-slate-800 hover:text-slate-200" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
+    accentGradient: isDarkMode ? "bg-primary-500 text-white" : "bg-primary-600 text-white",
+    dotColor: "bg-primary-500",
+    bg: isDarkMode ? "bg-[#030712]" : "bg-[#FAFAFA]",
+    topbar: isDarkMode ? "bg-slate-900/80 border-b border-slate-800" : "bg-white/80 border-b border-slate-200",
+    topbarText: isDarkMode ? "text-slate-100" : "text-slate-900",
+    topbarSub: isDarkMode ? "text-slate-400" : "text-slate-500",
+    topbarBtn: isDarkMode ? "hover:bg-slate-800" : "hover:bg-slate-50",
   };
 
   const menuItems = [
@@ -167,6 +162,9 @@ export default function ProfessorDashboard({
       userInfo={{ name: professorInfo?.full_name, subtitle: "Professor" }}
       onSignOut={onSignOut}
       onOpenSettings={onOpenSettings}
+      onManageAccount={onManageAccount}
+      toggleTheme={toggleTheme}
+      isDarkMode={isDarkMode}
     >
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
@@ -346,65 +344,72 @@ export default function ProfessorDashboard({
                               <p className="text-xs text-gray-500 mb-3 font-medium uppercase tracking-wide">
                                 Decision
                               </p>
-                              <div className="flex items-center gap-3">
-                                <motion.button
-                                  whileHover={{ scale: 1.02 }}
-                                  whileTap={{ scale: 0.98 }}
-                                  onClick={() => handleApprove(student.id)}
-                                  disabled={actionLoading}
-                                  className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl font-medium shadow-lg shadow-green-500/20 hover:shadow-green-500/30 disabled:opacity-50 transition-all text-sm"
-                                >
-                                  <CheckIcon className="w-4 h-4" />
-                                  Approve
-                                </motion.button>
-
-                                {selectedRejectId === student.id ? (
-                                  <div className="flex-1 flex gap-3 items-start">
-                                    <textarea
-                                      placeholder="Reason for rejection (required)..."
-                                      value={rejectReason}
-                                      onChange={(e) =>
-                                        setRejectReason(e.target.value)
-                                      }
-                                      rows={2}
-                                      className="flex-1 px-4 py-2.5 rounded-xl border border-red-200 bg-red-50/30 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all resize-none"
-                                    />
-                                    <div className="flex flex-col gap-2">
-                                      <motion.button
-                                        whileHover={{ scale: 1.02 }}
-                                        whileTap={{ scale: 0.98 }}
-                                        onClick={() => handleReject(student.id)}
-                                        disabled={actionLoading}
-                                        className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-xl font-medium shadow-lg shadow-red-500/20 disabled:opacity-50 transition-all text-sm"
-                                      >
-                                        <XMarkIcon className="w-4 h-4" />
-                                        Confirm
-                                      </motion.button>
-                                      <button
-                                        onClick={() => {
-                                          setSelectedRejectId(null);
-                                          setRejectReason("");
-                                        }}
-                                        className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
-                                      >
-                                        Cancel
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
+                              {student.is_locked ? (
+                                <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 text-gray-500 rounded-xl border border-gray-200 text-sm font-medium">
+                                  <ClockIcon className="w-5 h-5" />
+                                  <span>Waiting for previous clearance approvals...</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-3">
                                   <motion.button
-                                    whileHover={{ scale: 1.01 }}
+                                    whileHover={{ scale: 1.02 }}
                                     whileTap={{ scale: 0.98 }}
-                                    onClick={() =>
-                                      setSelectedRejectId(student.id)
-                                    }
-                                    className="flex items-center gap-2 px-5 py-2.5 text-red-500 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 transition-all text-sm font-medium"
+                                    onClick={() => handleApprove(student.id)}
+                                    disabled={actionLoading}
+                                    className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl font-medium shadow-lg shadow-green-500/20 hover:shadow-green-500/30 disabled:opacity-50 transition-all text-sm"
                                   >
-                                    <XMarkIcon className="w-4 h-4" />
-                                    Reject
+                                    <CheckIcon className="w-4 h-4" />
+                                    Approve
                                   </motion.button>
-                                )}
-                              </div>
+
+                                  {selectedRejectId === student.id ? (
+                                    <div className="flex-1 flex gap-3 items-start">
+                                      <textarea
+                                        placeholder="Reason for rejection (required)..."
+                                        value={rejectReason}
+                                        onChange={(e) =>
+                                          setRejectReason(e.target.value)
+                                        }
+                                        rows={2}
+                                        className="flex-1 px-4 py-2.5 rounded-xl border border-red-200 bg-red-50/30 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all resize-none"
+                                      />
+                                      <div className="flex flex-col gap-2">
+                                        <motion.button
+                                          whileHover={{ scale: 1.02 }}
+                                          whileTap={{ scale: 0.98 }}
+                                          onClick={() => handleReject(student.id)}
+                                          disabled={actionLoading}
+                                          className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-xl font-medium shadow-lg shadow-red-500/20 disabled:opacity-50 transition-all text-sm"
+                                        >
+                                          <XMarkIcon className="w-4 h-4" />
+                                          Confirm
+                                        </motion.button>
+                                        <button
+                                          onClick={() => {
+                                            setSelectedRejectId(null);
+                                            setRejectReason("");
+                                          }}
+                                          className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <motion.button
+                                      whileHover={{ scale: 1.01 }}
+                                      whileTap={{ scale: 0.98 }}
+                                      onClick={() =>
+                                        setSelectedRejectId(student.id)
+                                      }
+                                      className="flex items-center gap-2 px-5 py-2.5 text-red-500 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 transition-all text-sm font-medium"
+                                    >
+                                      <XMarkIcon className="w-4 h-4" />
+                                      Reject
+                                    </motion.button>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           )}
 

@@ -84,12 +84,12 @@ const StageNode = ({
       iconBg: isDarkMode ? "bg-[#f28b82]" : "bg-[#d93025]",
     },
     pending: {
-      color: isDarkMode ? "bg-[#8ab4f8]" : "bg-[#1a73e8]",
+      color: isDarkMode ? "bg-primary-400" : "bg-primary-600",
       bg: isDarkMode ? "bg-[#282a2d] border border-[#5f6368] shadow-sm" : "bg-white border border-[#dadce0] shadow-sm",
       badge: isDarkMode ? "bg-[#422c00] text-[#fde293] border-transparent" : "bg-[#fef7e0] text-[#b06000] border-transparent",
       icon: <ClockIcon className="w-4.5 h-4.5 text-white" />,
       label: "Pending",
-      iconBg: isDarkMode ? "bg-[#8ab4f8]" : "bg-[#1a73e8]",
+      iconBg: isDarkMode ? "bg-primary-400" : "bg-primary-600",
     },
     locked: {
       color: isDarkMode ? "bg-[#5f6368]" : "bg-[#dadce0]",
@@ -122,7 +122,7 @@ const StageNode = ({
           {!isLast && (
             <div
               className={`w-0.5 flex-1 min-h-[50px] ${
-                stage.status === "approved" ? "bg-[#1e8e3e]" : "bg-[#dadce0]"
+                stage.status === "approved" ? "bg-[#1e8e3e]" : (isDarkMode ? "bg-[#5f6368]" : "bg-[#dadce0]")
               }`}
             />
           )}
@@ -551,7 +551,7 @@ const CommentPopupModal = ({
   );
 };
 
-const ProgressBar = ({ stages }) => {
+const ProgressBar = ({ stages, isDarkMode }) => {
   const approved = stages.filter((s) => s.status === "approved").length;
   const total = stages.length;
   const pct = total > 0 ? (approved / total) * 100 : 0;
@@ -559,19 +559,19 @@ const ProgressBar = ({ stages }) => {
   return (
     <div className="mb-8">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[14px] font-medium text-[#5f6368]">
+        <span className={`text-[14px] font-medium ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>
           Overall Progress
         </span>
-        <span className="text-[13px] font-bold text-[#1a73e8]">
+        <span className={`text-[13px] font-bold ${isDarkMode ? "text-[#8ab4f8]" : "text-[#1a73e8]"}`}>
           {approved}/{total} stages complete
         </span>
       </div>
-      <div className="h-1.5 rounded-full overflow-hidden bg-[#f1f3f4]">
+      <div className={`h-1.5 rounded-full overflow-hidden ${isDarkMode ? "bg-[#3c4043]" : "bg-[#f1f3f4]"}`}>
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${pct}%` }}
           transition={{ duration: 1, ease: "easeOut", delay: 0.5 }}
-          className="h-full rounded-full bg-[#1a73e8]"
+          className={`h-full rounded-full ${isDarkMode ? "bg-[#8ab4f8]" : "bg-[#1a73e8]"}`}
         />
       </div>
     </div>
@@ -583,7 +583,9 @@ export default function StudentDashboardGraduation({
   studentInfo,
   onSignOut,
   onOpenSettings,
+  onManageAccount,
   isDarkMode = false,
+  toggleTheme,
 }) {
   const [clearanceStatus, setClearanceStatus] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -817,9 +819,9 @@ export default function StudentDashboardGraduation({
     abbrev: "SC",
     dashboardTitle: "Student Dashboard",
     sidebarGradient: isDarkMode ? "bg-[#202124] border-r border-[#3c4043]" : "bg-white border-r border-[#dadce0]",
-    sidebarActive: isDarkMode ? "bg-[#4285f4] bg-opacity-[0.15] text-[#8ab4f8]" : "bg-[#e8f0fe] text-[#1a73e8]",
+    sidebarActive: isDarkMode ? "bg-primary-900/30 text-primary-400" : "bg-primary-50 text-primary-600",
     sidebarInactive: isDarkMode ? "text-[#e8eaed] hover:bg-[#3c4043]" : "text-[#3c4043] hover:bg-[#f1f3f4]",
-    accentGradient: isDarkMode ? "bg-[#8ab4f8] text-[#202124]" : "bg-[#1a73e8]",
+    accentGradient: isDarkMode ? "bg-primary-400 text-[#202124]" : "bg-primary-600",
     dotColor: "bg-[#1e8e3e]",
     bg: isDarkMode ? "bg-[#202124]" : "bg-[#f8f9fa]",
     topbar: isDarkMode ? "bg-[#202124] border-b border-[#3c4043]" : "bg-white border-b border-[#dadce0]",
@@ -853,6 +855,9 @@ export default function StudentDashboardGraduation({
       }}
       onSignOut={onSignOut}
       onOpenSettings={onOpenSettings}
+      onManageAccount={onManageAccount}
+      toggleTheme={toggleTheme}
+      isDarkMode={isDarkMode}
     >
       {activeView === "status" && (
         <div className="max-w-4xl mx-auto space-y-6">
@@ -866,14 +871,53 @@ export default function StudentDashboardGraduation({
           </div>
 
           {loading ? (
-            <GlassCard isDark={isDarkMode} className="p-12 border-none shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] rounded-3xl">
-              <div className="flex flex-col items-center gap-4">
-                <div className="w-10 h-10 border-4 border-[#1a73e8] border-t-transparent rounded-full animate-spin" />
-                <p className="text-[14px] font-medium text-[#5f6368]">
-                  Loading clearance status...
-                </p>
-              </div>
-            </GlassCard>
+            <div className="space-y-6">
+              {/* Skeleton Header Card */}
+              <GlassCard isDark={isDarkMode} className="p-8 border-none shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] rounded-3xl">
+                <div className="flex justify-between items-start mb-6 w-full">
+                  <div className="flex gap-4">
+                    <div className={`p-3 rounded-2xl w-12 h-12 flex-shrink-0 animate-pulse ${isDarkMode ? 'bg-slate-800' : 'bg-slate-200'}`} />
+                    <div>
+                      <div className={`h-6 w-32 rounded mb-2 animate-pulse ${isDarkMode ? 'bg-slate-800' : 'bg-slate-200'}`} />
+                      <div className={`h-4 w-48 rounded animate-pulse ${isDarkMode ? 'bg-slate-800' : 'bg-slate-200'}`} />
+                    </div>
+                  </div>
+                  <div className={`h-8 w-24 rounded-full animate-pulse ${isDarkMode ? 'bg-slate-800' : 'bg-slate-200'}`} />
+                </div>
+              </GlassCard>
+
+              {/* Skeleton Progress Tree Card */}
+              <GlassCard isDark={isDarkMode} className="p-8 border-none shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] rounded-3xl">
+                <div className={`h-6 w-48 rounded mb-2 animate-pulse ${isDarkMode ? 'bg-slate-800' : 'bg-slate-200'}`} />
+                <div className={`h-4 w-64 rounded mb-8 animate-pulse ${isDarkMode ? 'bg-slate-800' : 'bg-slate-200'}`} />
+                
+                <div className="space-y-6">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="flex items-start gap-4">
+                      {/* Node Icon */}
+                      <div className="flex flex-col items-center flex-shrink-0">
+                        <div className={`w-10 h-10 rounded-full animate-pulse ${isDarkMode ? 'bg-slate-800' : 'bg-slate-200'}`} />
+                        {i !== 4 && <div className={`w-0.5 h-[50px] animate-pulse ${isDarkMode ? 'bg-slate-800' : 'bg-slate-200'}`} />}
+                      </div>
+                      
+                      {/* Node Content */}
+                      <div className="flex-1 pb-6 w-full">
+                        <div className={`rounded-2xl p-4 flex items-center justify-between w-full h-[72px] animate-pulse ${isDarkMode ? 'bg-slate-800/50' : 'bg-slate-50'}`}>
+                          <div className="flex items-center gap-4">
+                            <div className={`w-9 h-9 rounded-full ${isDarkMode ? 'bg-slate-700' : 'bg-slate-200'}`} />
+                            <div>
+                              <div className={`h-4 w-32 rounded mb-1.5 ${isDarkMode ? 'bg-slate-700' : 'bg-slate-200'}`} />
+                              <div className={`h-3 w-48 rounded ${isDarkMode ? 'bg-slate-700' : 'bg-slate-200'}`} />
+                            </div>
+                          </div>
+                          <div className={`h-6 w-16 rounded-full ${isDarkMode ? 'bg-slate-700' : 'bg-slate-200'}`} />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </GlassCard>
+            </div>
           ) : !clearanceStatus?.hasRequest ? (
             <GlassCard isDark={isDarkMode} className="p-12 text-center border-none shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] rounded-3xl">
               <div className="text-center">
@@ -940,16 +984,18 @@ export default function StudentDashboardGraduation({
                       </div>
                     </div>
                   </div>
-                  <motion.button
-                    whileHover={{ scale: 1.02, backgroundColor: '#fce8e6' }}
-                    whileTap={{ scale: 0.98 }}
+                  <button
                     onClick={handleCancel}
                     disabled={cancelling}
-                    className="flex items-center gap-1.5 px-4 py-2 text-[#d93025] hover:text-[#c5221f] rounded-full font-medium transition-all duration-200 text-sm disabled:opacity-50"
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-full font-medium transition-all duration-75 ease-out active:scale-[0.96] text-[14px] disabled:opacity-50 ${
+                      isDarkMode 
+                        ? 'text-[#f28b82] hover:bg-red-400/10' 
+                        : 'text-[#d93025] hover:bg-[#fce8e6]'
+                    }`}
                   >
                     <XMarkIcon className="w-4 h-4" />
                     {cancelling ? "Cancelling..." : "Cancel"}
-                  </motion.button>
+                  </button>
                 </div>
               </GlassCard>
 
@@ -961,7 +1007,7 @@ export default function StudentDashboardGraduation({
                   Click on each stage to expand details · Click a professor row
                   to view comments
                 </p>
-                <ProgressBar stages={buildStages()} />
+                <ProgressBar stages={buildStages()} isDarkMode={isDarkMode} />
                 <div className="mt-4">
                   {buildStages().map((stage, i) => (
                     <StageNode
