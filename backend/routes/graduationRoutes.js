@@ -9,7 +9,7 @@ const supabase = createClient(
 
 router.post("/apply", async (req, res) => {
   try {
-    const { student_id } = req.body;
+    const { student_id, portion } = req.body;
 
     const { data: existing, error: checkError } = await supabase
       .from("requests")
@@ -57,11 +57,29 @@ router.post("/apply", async (req, res) => {
 
     if (error) throw error;
 
-    const { data: professors } = await supabase
+    let { data: professors } = await supabase
       .from("profiles")
       .select("id, full_name")
       .eq("role", "professor")
       .eq("account_enabled", true);
+
+    if (professors && portion) {
+      if (portion === "undergraduate") {
+        const undergradNames = [
+          "Department Chairman",
+          "College Dean",
+          "Director Student Affairs",
+          "NSTP Director",
+          "Executive Officer"
+        ];
+        professors = professors.filter(p => undergradNames.includes(p.full_name));
+      } else if (portion === "graduate") {
+        const gradNames = [
+          "Dean Graduate School"
+        ];
+        professors = professors.filter(p => gradNames.includes(p.full_name));
+      }
+    }
 
     if (professors && professors.length > 0) {
       const studentProfLinks = professors.map((p) => ({

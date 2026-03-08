@@ -1093,5 +1093,3 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
     </form>
   );
 }
-
-// force hmr

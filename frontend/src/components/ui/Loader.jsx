@@ -15,14 +15,14 @@ const Loader = () => {
   ];
 
   useEffect(() => {
-    // Fast realistic loading: ~0.9 seconds to complete
+
     const interval = setInterval(() => {
       setLoadingProgress((prev) => {
         if (prev >= 100) {
           clearInterval(interval);
           return 100;
         }
-        // Ease out curve for realistic loading feel
+
         const increment = prev < 70 ? 3 : prev < 90 ? 2 : 1;
         return Math.min(prev + increment, 100);
       });
@@ -32,7 +32,7 @@ const Loader = () => {
   }, []);
 
   useEffect(() => {
-    // Faster step transitions
+
     const stepInterval = setInterval(() => {
       setCurrentStep((prev) => (prev + 1) % loadingSteps.length);
     }, 180);
@@ -40,7 +40,7 @@ const Loader = () => {
     return () => clearInterval(stepInterval);
   }, []);
 
-  // Advanced floating particles with connecting lines
+
   const particles = Array.from({ length: 30 }, (_, i) => ({
     id: i,
     x: Math.random() * 100,
@@ -50,7 +50,7 @@ const Loader = () => {
     delay: Math.random() * 5,
   }));
 
-  // Ring configurations
+
   const rings = [
     { radius: 140, duration: 15, delay: 0, direction: 1 },
     { radius: 180, duration: 20, delay: 2, direction: -1 },
@@ -84,7 +84,7 @@ const Loader = () => {
 
   return (
     <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#010a02] overflow-hidden">
-      {/* Animated gradient background */}
+
       <div className="absolute inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-[#010a02] via-[#051a08] to-[#010a02]" />
         <motion.div
@@ -111,7 +111,7 @@ const Loader = () => {
         />
       </div>
 
-      {/* Particle system */}
+
       <div className="absolute inset-0 z-[1] overflow-hidden">
         {particles.map((particle) => (
           <motion.div
@@ -151,7 +151,7 @@ const Loader = () => {
         ))}
       </div>
 
-      {/* Animated grid lines */}
+
       <div className="absolute inset-0 z-[2] opacity-20">
         <motion.div
           animate={{
@@ -171,9 +171,9 @@ const Loader = () => {
         />
       </div>
 
-      {/* Main content container */}
+
       <div className="relative z-10 flex flex-col items-center">
-        {/* Orbital rings */}
+
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           {rings.map((ring, index) => (
             <motion.div
@@ -198,7 +198,7 @@ const Loader = () => {
                 delay: ring.delay,
               }}
             >
-              {/* Orbital dots */}
+
               <motion.div
                 className="absolute w-2 h-2 rounded-full"
                 style={{
@@ -228,9 +228,9 @@ const Loader = () => {
           ))}
         </div>
 
-        {/* Central logo container */}
+
         <div className="relative w-48 h-48 mb-12 flex items-center justify-center" style={{ perspective: "1000px" }}>
-          {/* Outer glow rings */}
+
           {[1, 2, 3].map((ring) => (
             <motion.div
               key={ring}
@@ -245,14 +245,14 @@ const Loader = () => {
             />
           ))}
 
-          {/* Glow effect */}
+
           <motion.div
             variants={glowVariants}
             animate="animate"
             className="absolute w-40 h-40 rounded-full bg-gradient-to-r from-primary-500/20 via-secondary-500/20 to-primary-500/20 blur-2xl"
           />
 
-          {/* Multiple colored glow layers */}
+
           <motion.div
             animate={{
               scale: [1, 1.1, 1],
@@ -262,7 +262,7 @@ const Loader = () => {
             className="absolute w-36 h-36 rounded-full bg-gradient-to-br from-primary-500/30 to-secondary-500/30 blur-3xl"
           />
 
-          {/* Shadow base */}
+
           <motion.div
             animate={{
               scale: [1, 0.85, 1],
@@ -272,7 +272,7 @@ const Loader = () => {
             className="absolute bottom-2 w-28 h-10 bg-black/80 blur-2xl rounded-[100%]"
           />
 
-          {/* Logo container with 3D float animation */}
+
           <motion.div
             animate={{
               y: [0, -15, 0],
@@ -286,10 +286,10 @@ const Loader = () => {
             }}
             className="relative z-30"
           >
-            {/* Logo glow behind */}
+
             <div className="absolute inset-0 bg-gradient-to-r from-primary-500/40 via-secondary-500/40 to-primary-500/40 blur-2xl scale-110" />
             
-            {/* Actual Logo */}
+
             <motion.img
               src={logo}
               alt="SmartClearance"
@@ -307,7 +307,7 @@ const Loader = () => {
               }}
             />
 
-            {/* Shimmer overlay on logo */}
+
             <motion.div
               animate={{ x: ["-100%", "200%"] }}
               transition={{
@@ -320,7 +320,7 @@ const Loader = () => {
             />
           </motion.div>
 
-          {/* Floating particles around logo */}
+
           {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
             <motion.div
               key={i}
@@ -345,7 +345,7 @@ const Loader = () => {
           ))}
         </div>
 
-        {/* Brand text */}
+
         <div className="flex flex-col items-center space-y-4">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -359,7 +359,7 @@ const Loader = () => {
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 via-primary-300 to-secondary-400 drop-shadow-[0_0_30px_rgba(34,197,94,0.6)]">
                   Clearance
                 </span>
-                {/* Shimmer effect */}
+
                 <motion.div
                   animate={{ x: ["-100%", "200%"] }}
                   transition={{
@@ -374,9 +374,9 @@ const Loader = () => {
             </h1>
           </motion.div>
 
-          {/* Clean progress section */}
+
           <div className="flex flex-col items-center space-y-3">
-            {/* Status text above */}
+
             <div className="flex items-center gap-3">
               <motion.span 
                 className="h-[1px] w-8 bg-gradient-to-r from-transparent to-primary-500/50"
@@ -402,7 +402,7 @@ const Loader = () => {
               />
             </div>
 
-            {/* Progress bar - clean minimal design */}
+
             <div className="w-56 h-1 bg-white/10 rounded-full overflow-hidden">
               <motion.div
                 className="h-full rounded-full bg-gradient-to-r from-primary-500 to-secondary-400"
@@ -415,7 +415,7 @@ const Loader = () => {
               />
             </div>
 
-            {/* Percentage below */}
+
             <motion.span 
               className="text-xs font-mono text-primary-400/70"
               key={loadingProgress}
@@ -425,7 +425,7 @@ const Loader = () => {
           </div>
         </div>
 
-        {/* Bottom decorative elements */}
+
         <div className="absolute bottom-10 flex items-center gap-4">
           {[0, 1, 2].map((i) => (
             <motion.div
@@ -449,7 +449,7 @@ const Loader = () => {
         </div>
       </div>
 
-      {/* Corner accents */}
+
       <div className="absolute top-8 left-8 w-20 h-20 border-l-2 border-t-2 border-primary-500/20 rounded-tl-3xl" />
       <div className="absolute top-8 right-8 w-20 h-20 border-r-2 border-t-2 border-primary-500/20 rounded-tr-3xl" />
       <div className="absolute bottom-8 left-8 w-20 h-20 border-l-2 border-b-2 border-primary-500/20 rounded-bl-3xl" />

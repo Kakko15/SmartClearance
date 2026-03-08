@@ -46,7 +46,7 @@ export default function DashboardLayout({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Fallback defaults for a Google Material You style if theme misses them
+
   const bgC = theme.bg || "bg-[#FAFAFA]";
   const sidebarBg = theme.sidebarGradient || "bg-white border-r border-slate-200";
   const sidebarText = theme.sidebarText || "text-slate-600";
@@ -56,7 +56,7 @@ export default function DashboardLayout({
 
   return (
     <div className={`flex h-screen ${bgC} font-sans selection:bg-blue-100 selection:text-blue-900`}>
-      {/* Optional decorative glows, hidable */}
+
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <div className={`absolute top-0 left-1/4 w-[500px] h-[500px] ${theme.glow1 || "hidden"} rounded-full blur-[120px]`} />
         <div className={`absolute bottom-0 right-1/4 w-[600px] h-[600px] ${theme.glow2 || "hidden"} rounded-full blur-[120px]`} />
@@ -235,8 +235,12 @@ export default function DashboardLayout({
                   {userInfo.subtitle}
                 </p>
               </div>
-              <div className={`flex items-center justify-center w-10 h-10 rounded-full font-medium text-[15px] shadow-sm transition-all focus:outline-none group-hover:ring-4 ring-black/5 dark:ring-white/10 ${theme.accentGradient || 'bg-primary-600 text-white'}`}>
-                {userInfo.name?.charAt(0)}
+              <div className={`flex items-center justify-center w-10 h-10 rounded-full font-medium text-[15px] shadow-sm transition-all focus:outline-none group-hover:ring-4 ring-black/5 dark:ring-white/10 ${theme.accentGradient || 'bg-primary-600 text-white'} overflow-hidden shrink-0`}>
+                {userInfo?.avatar ? (
+                  <img src={userInfo.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  userInfo.name?.charAt(0) || "U"
+                )}
               </div>
             </button>
             

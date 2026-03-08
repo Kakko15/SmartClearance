@@ -48,8 +48,7 @@ function App() {
     const savedMode = sessionStorage.getItem("currentAppMode");
     if (savedMode) return savedMode;
 
-    // If a Supabase session exists in localStorage, the user is already logged in.
-    // Skip the loader/landing entirely and go straight to "app".
+
     const hasSession = Object.keys(localStorage).some(
       (key) => key.startsWith("sb-") && key.endsWith("-auth-token"),
     );
@@ -131,7 +130,7 @@ function App() {
         setAppMode("landing");
         sessionStorage.setItem("hasSeenLoader", "true");
         sessionStorage.setItem("currentAppMode", "landing");
-      }, 1200); // Realistic loading time: ~1.2 seconds
+      }, 1200);
       return () => clearTimeout(timer);
     }
   }, [appMode]);
@@ -670,8 +669,7 @@ function App() {
               className="relative z-10 min-h-screen"
             >
               {!user || !profile ? (
-                // If we're still initializing and have a stored session, show a clean loading state
-                // instead of flashing the AuthPage
+
                 initializing && Object.keys(localStorage).some(k => k.startsWith("sb-") && k.endsWith("-auth-token")) ? (
                   <div className="min-h-screen flex items-center justify-center">
                     <div className="w-8 h-8 border-3 border-primary-500 border-t-transparent rounded-full animate-spin" />
@@ -717,6 +715,7 @@ function App() {
                     <ProfessorDashboard
                       professorId={user.id}
                       professorInfo={profile}
+                      user={user}
                       onSignOut={handleSignOut}
                       onOpenSettings={(tab) => { setSettingsMode(tab === 'appearance' ? 'appearance' : 'full'); setShowSettings(true); }}
                       onManageAccount={() => { setSettingsMode("account"); setShowSettings(true); }}
@@ -729,6 +728,7 @@ function App() {
                         <StudentDashboardGraduation
                           studentId={user.id}
                           studentInfo={profile}
+                          user={user}
                           onSignOut={handleSignOut}
                           onOpenSettings={(tab) => { setSettingsMode(tab === 'appearance' ? 'appearance' : 'full'); setShowSettings(true); }}
                           onManageAccount={() => { setSettingsMode("account"); setShowSettings(true); }}

@@ -14,22 +14,23 @@ import {
   SunIcon,
   ComputerDesktopIcon
 } from "../ui/Icons";
+import AvatarManager from "./AvatarManager";
 
 export default function Settings({ user, profile, onClose, theme, setTheme, mode = "full" }) {
   const [activeTab, setActiveTab] = useState(mode === "account" ? "account" : "account");
   const [loading, setLoading] = useState(false);
 
-  // Account
+
   const [fullName, setFullName] = useState(profile?.full_name || "");
   const [newEmail, setNewEmail] = useState("");
 
-  // Security
+
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-  // Notifications (New Functionality)
+
   const [emailNotifs, setEmailNotifs] = useState(true);
   const [smsNotifs, setSmsNotifs] = useState(false);
   const [marketingNotifs, setMarketingNotifs] = useState(false);
@@ -129,7 +130,7 @@ export default function Settings({ user, profile, onClose, theme, setTheme, mode
 
   const isDark = theme === "dark";
 
-  // Google Material You Styles
+
   const bgMain = isDark ? "bg-[#202124]" : "bg-[#f8f9fa]";
   const bgCard = isDark ? "bg-[#303134] border-[#5f6368]" : "bg-white border-[#dadce0]";
   const textPrimary = isDark ? "text-[#e8eaed]" : "text-[#202124]";
@@ -155,12 +156,16 @@ export default function Settings({ user, profile, onClose, theme, setTheme, mode
         className={`fixed inset-0 z-[100] flex flex-col md:flex-row overflow-hidden shadow-2xl ${bgMain}`}
         style={{ fontFamily: 'Google Sans, sans-serif' }}
       >
-          {/* Sidebar */}
+
           <div className={`w-full md:w-[320px] lg:w-[360px] flex-shrink-0 flex flex-col py-6 md:py-10 border-b md:border-b-0 md:border-r z-10 ${isDark ? 'border-[#3c4043] bg-[#202124]' : 'border-[#dadce0] bg-[#f8f9fa]'}`}>
             <div className="px-6 md:px-10 mb-6 md:mb-12 flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-primary-600 flex items-center justify-center font-bold text-2xl text-white shadow-sm shrink-0">
-                  {profile?.full_name?.charAt(0) || "U"}
+                <div className="w-14 h-14 rounded-full bg-primary-600 flex items-center justify-center font-bold text-2xl text-white shadow-sm shrink-0 overflow-hidden">
+                  {user?.user_metadata?.avatar_url ? (
+                    <img src={user.user_metadata.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    profile?.full_name?.charAt(0) || "U"
+                  )}
                 </div>
                 <div className="overflow-hidden">
                   <h2 className={`text-[22px] font-medium tracking-tight truncate ${textPrimary}`}>{mode === "account" ? "Manage Account" : "Settings"}</h2>
@@ -190,7 +195,7 @@ export default function Settings({ user, profile, onClose, theme, setTheme, mode
             </nav>
           </div>
 
-          {/* Main Content */}
+
           <div className={`flex-1 flex flex-col min-w-0 relative ${isDark ? 'bg-[#202124]' : 'bg-white'}`}>
              <div className="hidden md:flex h-[88px] w-full items-center justify-end px-8 shrink-0 absolute top-0 right-0 z-20 pointer-events-none">
               <button
@@ -213,6 +218,9 @@ export default function Settings({ user, profile, onClose, theme, setTheme, mode
                     className="max-w-3xl mx-auto"
                   >
                     <h3 className={`text-[28px] font-normal mb-8 ${textPrimary}`}>Account Information</h3>
+                    
+                    <AvatarManager user={user} profile={profile} isDark={isDark} />
+
                     <div className={`p-6 rounded-2xl border ${bgCard} mb-8`}>
                       <form onSubmit={handleUpdateProfile} className="space-y-6">
                         <div>
@@ -459,7 +467,7 @@ export default function Settings({ user, profile, onClose, theme, setTheme, mode
           </div>
         </motion.div>
 
-      {/* Delete Modal */}
+
       {showDeleteModal && (
         <motion.div
            initial={{ opacity: 0 }}

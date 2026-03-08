@@ -297,7 +297,7 @@ const ProfessorCard = ({
            initial={{ opacity: 0, x: -4 }}
            animate={{ opacity: 0 }}
            whileHover={{ opacity: 1, x: 0 }}
-           className={`opacity-0 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'text-[#8ab4f8]' : 'text-green-400'}`}
+           className={`opacity-0 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'text-primary-400' : 'text-primary-500'}`}
          >
            <svg
              className="w-4 h-4"
@@ -562,7 +562,7 @@ const ProgressBar = ({ stages, isDarkMode }) => {
         <span className={`text-[14px] font-medium ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>
           Overall Progress
         </span>
-        <span className={`text-[13px] font-bold ${isDarkMode ? "text-[#8ab4f8]" : "text-[#1a73e8]"}`}>
+        <span className={`text-[13px] font-bold ${isDarkMode ? "text-primary-400" : "text-primary-600"}`}>
           {approved}/{total} stages complete
         </span>
       </div>
@@ -571,7 +571,7 @@ const ProgressBar = ({ stages, isDarkMode }) => {
           initial={{ width: 0 }}
           animate={{ width: `${pct}%` }}
           transition={{ duration: 1, ease: "easeOut", delay: 0.5 }}
-          className={`h-full rounded-full ${isDarkMode ? "bg-[#8ab4f8]" : "bg-[#1a73e8]"}`}
+          className={`h-full rounded-full ${isDarkMode ? "bg-primary-400" : "bg-primary-600"}`}
         />
       </div>
     </div>
@@ -581,6 +581,7 @@ const ProgressBar = ({ stages, isDarkMode }) => {
 export default function StudentDashboardGraduation({
   studentId,
   studentInfo,
+  user,
   onSignOut,
   onOpenSettings,
   onManageAccount,
@@ -640,11 +641,12 @@ export default function StudentDashboardGraduation({
     }
   };
 
-  const handleApply = async () => {
-    setApplying(true);
+  const handleApply = async (portion) => {
+    setApplying(portion);
     try {
       const response = await axios.post(`${API_URL}/graduation/apply`, {
         student_id: studentId,
+        portion,
       });
       if (response.data.success) {
         toast.success("Graduation clearance application submitted!");
@@ -852,6 +854,7 @@ export default function StudentDashboardGraduation({
       userInfo={{
         name: studentInfo?.full_name,
         subtitle: studentInfo?.student_number,
+        avatar: user?.user_metadata?.avatar_url,
       }}
       onSignOut={onSignOut}
       onOpenSettings={onOpenSettings}
@@ -863,16 +866,16 @@ export default function StudentDashboardGraduation({
         <div className="max-w-4xl mx-auto space-y-6">
           <div className="mb-2">
             <h2 className={`text-[28px] font-normal tracking-tight ${isDarkMode ? 'text-[#e8eaed]' : 'text-[#202124]'}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
-              Graduation Clearance
+              Student Clearance
             </h2>
             <p className={`text-sm mt-1 ${isDarkMode ? 'text-[#9aa0a6]' : 'text-[#5f6368]'}`}>
-              Track your graduation clearance progress
+              Track your student clearance progress
             </p>
           </div>
 
           {loading ? (
             <div className="space-y-6">
-              {/* Skeleton Header Card */}
+
               <GlassCard isDark={isDarkMode} className="p-8 border-none shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] rounded-3xl">
                 <div className="flex justify-between items-start mb-6 w-full">
                   <div className="flex gap-4">
@@ -886,7 +889,7 @@ export default function StudentDashboardGraduation({
                 </div>
               </GlassCard>
 
-              {/* Skeleton Progress Tree Card */}
+
               <GlassCard isDark={isDarkMode} className="p-8 border-none shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] rounded-3xl">
                 <div className={`h-6 w-48 rounded mb-2 animate-pulse ${isDarkMode ? 'bg-slate-800' : 'bg-slate-200'}`} />
                 <div className={`h-4 w-64 rounded mb-8 animate-pulse ${isDarkMode ? 'bg-slate-800' : 'bg-slate-200'}`} />
@@ -894,13 +897,13 @@ export default function StudentDashboardGraduation({
                 <div className="space-y-6">
                   {[1, 2, 3, 4].map((i) => (
                     <div key={i} className="flex items-start gap-4">
-                      {/* Node Icon */}
+
                       <div className="flex flex-col items-center flex-shrink-0">
                         <div className={`w-10 h-10 rounded-full animate-pulse ${isDarkMode ? 'bg-slate-800' : 'bg-slate-200'}`} />
                         {i !== 4 && <div className={`w-0.5 h-[50px] animate-pulse ${isDarkMode ? 'bg-slate-800' : 'bg-slate-200'}`} />}
                       </div>
                       
-                      {/* Node Content */}
+
                       <div className="flex-1 pb-6 w-full">
                         <div className={`rounded-2xl p-4 flex items-center justify-between w-full h-[72px] animate-pulse ${isDarkMode ? 'bg-slate-800/50' : 'bg-slate-50'}`}>
                           <div className="flex items-center gap-4">
@@ -919,42 +922,111 @@ export default function StudentDashboardGraduation({
               </GlassCard>
             </div>
           ) : !clearanceStatus?.hasRequest ? (
-            <GlassCard isDark={isDarkMode} className="p-12 text-center border-none shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] rounded-3xl">
-              <div className="text-center">
-                <motion.div
-                  initial={{ scale: 0.8 }}
-                  animate={{ scale: 1 }}
-                  className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ${isDarkMode ? 'bg-[#303134]' : 'bg-[#e8f0fe]'}`}
-                >
-                  <AcademicCapIcon className={`w-10 h-10 ${isDarkMode ? 'text-[#8ab4f8]' : 'text-[#1a73e8]'}`} />
-                </motion.div>
-                <h3 className={`text-[22px] font-normal mb-3 ${isDarkMode ? 'text-[#e8eaed]' : 'text-[#202124]'}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
-                  Apply for Graduation Clearance
-                </h3>
-                <p className={`mb-8 max-w-md mx-auto text-[14px] leading-relaxed ${isDarkMode ? 'text-[#9aa0a6]' : 'text-[#5f6368]'}`}>
-                  Start your graduation clearance process. All professors and
-                  offices must approve before you can graduate.
-                </p>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleApply}
-                  disabled={applying}
-                  className="px-6 py-2.5 bg-[#1a73e8] text-white rounded-full font-medium text-sm hover:shadow-md hover:bg-[#1557b0] disabled:opacity-50 transition-all duration-200"
-                >
-                  {applying
-                    ? "Submitting..."
-                    : "Apply for Clearance"}
-                </motion.button>
-              </div>
-            </GlassCard>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ staggerChildren: 0.1 }}
+              className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl mx-auto"
+            >
+              {/* Undergraduate Card */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, ease: [0.2, 0, 0, 1] }}
+                whileHover={{ y: -4, transition: { duration: 0.2 } }}
+                className="h-full relative group"
+              >
+                <GlassCard isDark={isDarkMode} className={`p-8 md:p-10 text-center flex flex-col justify-between h-full rounded-[24px] border ${isDarkMode ? 'border-[#3c4043] bg-[#202124]' : 'border-[#dadce0] bg-white'} shadow-[0_1px_2px_0_rgba(60,64,67,0.3)] hover:shadow-[0_4px_10px_0_rgba(60,64,67,0.15)] transition-all duration-300`}>
+                  <div className={`absolute top-0 left-0 right-0 h-1 ${isDarkMode ? 'bg-primary-400' : 'bg-primary-600'} rounded-t-[24px] opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
+                  
+                  <div className="flex-1 flex flex-col items-center">
+                    <motion.div
+                      whileHover={{ scale: 1.05, rotate: -5 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                      className={`w-16 h-16 rounded-full flex items-center justify-center mb-6 mt-2 ${isDarkMode ? 'bg-primary-400/10' : 'bg-primary-50'}`}
+                    >
+                      <AcademicCapIcon className={`w-8 h-8 ${isDarkMode ? 'text-primary-400' : 'text-primary-600'}`} />
+                    </motion.div>
+                    
+                    <h3 className={`text-[20px] font-medium mb-3 tracking-tight ${isDarkMode ? 'text-[#e8eaed]' : 'text-[#202124]'}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
+                      Undergraduate Portion
+                    </h3>
+                    <p className={`mb-8 text-[14px] leading-relaxed max-w-[280px] mx-auto ${isDarkMode ? 'text-[#9aa0a6]' : 'text-[#5f6368]'}`}>
+                      Standard clearance process including Department Chairman, College Dean, and Executive Officer approvals.
+                    </p>
+                  </div>
+                  
+                  <motion.button
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => handleApply("undergraduate")}
+                    disabled={applying !== false}
+                    className={`w-full py-2.5 rounded-full font-medium text-[14px] transition-all duration-200 border border-transparent ${
+                      applying !== false 
+                        ? 'opacity-50 cursor-not-allowed' 
+                        : isDarkMode
+                          ? 'hover:shadow-[0_1px_3px_1px_rgba(0,0,0,0.15)] bg-primary-400 text-dark-bg hover:bg-primary-300'
+                          : 'hover:shadow-[0_1px_3px_1px_rgba(60,64,67,0.15)] bg-primary-600 text-white hover:bg-primary-700'
+                    }`}
+                    style={{ fontFamily: 'Google Sans, sans-serif' }}
+                  >
+                    {applying === "undergraduate" ? "Applying..." : "Select Undergraduate"}
+                  </motion.button>
+                </GlassCard>
+              </motion.div>
+
+              {/* Graduate Card */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, ease: [0.2, 0, 0, 1], delay: 0.05 }}
+                whileHover={{ y: -4, transition: { duration: 0.2 } }}
+                className="h-full relative group"
+              >
+                <GlassCard isDark={isDarkMode} className={`p-8 md:p-10 text-center flex flex-col justify-between h-full rounded-[24px] border ${isDarkMode ? 'border-[#3c4043] bg-[#202124]' : 'border-[#dadce0] bg-white'} shadow-[0_1px_2px_0_rgba(60,64,67,0.3)] hover:shadow-[0_4px_10px_0_rgba(60,64,67,0.15)] transition-all duration-300`}>
+                  <div className={`absolute top-0 left-0 right-0 h-1 ${isDarkMode ? 'bg-secondary-400' : 'bg-secondary-600'} rounded-t-[24px] opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
+                  
+                  <div className="flex-1 flex flex-col items-center">
+                    <motion.div
+                      whileHover={{ scale: 1.05, rotate: 5 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                      className={`w-16 h-16 rounded-full flex items-center justify-center mb-6 mt-2 ${isDarkMode ? 'bg-secondary-400/10' : 'bg-secondary-50'}`}
+                    >
+                      <BookOpenIcon className={`w-8 h-8 ${isDarkMode ? 'text-secondary-400' : 'text-secondary-600'}`} />
+                    </motion.div>
+                    
+                    <h3 className={`text-[20px] font-medium mb-3 tracking-tight ${isDarkMode ? 'text-[#e8eaed]' : 'text-[#202124]'}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
+                      Graduate Portion
+                    </h3>
+                    <p className={`mb-8 text-[14px] leading-relaxed max-w-[280px] mx-auto ${isDarkMode ? 'text-[#9aa0a6]' : 'text-[#5f6368]'}`}>
+                      Specialized clearance process for Master's and Doctoral students requiring Graduate School approval.
+                    </p>
+                  </div>
+                  
+                  <motion.button
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => handleApply("graduate")}
+                    disabled={applying !== false}
+                    className={`w-full py-2.5 rounded-full font-medium text-[14px] transition-all duration-200 border border-transparent ${
+                      applying !== false 
+                        ? 'opacity-50 cursor-not-allowed' 
+                        : isDarkMode
+                          ? 'hover:shadow-[0_1px_3px_1px_rgba(0,0,0,0.15)] bg-secondary-400 text-dark-bg hover:bg-secondary-300'
+                          : 'hover:shadow-[0_1px_3px_1px_rgba(60,64,67,0.15)] bg-secondary-600 text-white hover:bg-secondary-700'
+                    }`}
+                    style={{ fontFamily: 'Google Sans, sans-serif' }}
+                  >
+                    {applying === "graduate" ? "Applying..." : "Select Graduate"}
+                  </motion.button>
+                </GlassCard>
+              </motion.div>
+            </motion.div>
           ) : (
             <>
               <GlassCard isDark={isDarkMode} className="p-6 border-none shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] rounded-3xl">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-5">
                     <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isDarkMode ? 'bg-[#303134]' : 'bg-[#f1f3f4]'}`}>
-                      <AcademicCapIcon className={`w-6 h-6 ${isDarkMode ? 'text-[#8ab4f8]' : 'text-[#1a73e8]'}`} />
+                      <AcademicCapIcon className={`w-6 h-6 ${isDarkMode ? 'text-primary-400' : 'text-primary-600'}`} />
                     </div>
                     <div>
                       <p className={`text-[12px] font-medium mb-1 uppercase tracking-wider ${isDarkMode ? 'text-[#9aa0a6]' : 'text-[#5f6368]'}`}>
@@ -967,7 +1039,7 @@ export default function StudentDashboardGraduation({
                         <h3 className={`font-medium text-[15px] ${isDarkMode ? 'text-[#e8eaed]' : 'text-[#202124]'}`}>
                           Current Stage:
                         </h3>
-                        <span className={`px-3.5 py-1 rounded-full text-[13px] font-semibold border border-transparent ${isDarkMode ? 'bg-[#4285f4] bg-opacity-[0.15] text-[#8ab4f8]' : 'bg-[#e8f0fe] text-[#1a73e8]'}`}>
+                        <span className={`px-3.5 py-1 rounded-full text-[13px] font-semibold border border-transparent ${isDarkMode ? 'bg-primary-900 bg-opacity-[0.3] text-primary-400' : 'bg-primary-50 text-primary-600'}`}>
                           {clearanceStatus.request.current_stage}
                         </span>
                         {unresolvedCommentCount > 0 && (
