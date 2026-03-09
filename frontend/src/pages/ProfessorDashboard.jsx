@@ -167,16 +167,25 @@ export default function ProfessorDashboard({
       isDarkMode={isDarkMode}
     >
       <div className="max-w-5xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
           <div>
-            <h2 className="text-3xl font-bold text-gray-900">
+            <h2
+              className={`text-[28px] leading-tight font-medium tracking-tight ${
+                isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"
+              }`}
+              style={{ fontFamily: 'Google Sans, sans-serif' }}
+            >
               {activeView === "pending"
                 ? "Pending Approvals"
                 : activeView === "approved"
-                  ? "Approved Students"
-                  : "Rejected Students"}
+                  ? "Approved Requests"
+                  : "Rejected Requests"}
             </h2>
-            <p className="text-gray-500 mt-1">
+            <p
+              className={`text-[15px] mt-1 ${
+                isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"
+              }`}
+            >
               Review and manage student graduation clearance requests
             </p>
           </div>
@@ -185,50 +194,67 @@ export default function ProfessorDashboard({
               {
                 label: "Pending",
                 value: pendingStudents.length,
-                color: "text-amber-600 bg-amber-50 border-amber-200",
+                color: isDarkMode
+                  ? "text-[#fde293] bg-[#422c00]/30 border-[#422c00]"
+                  : "text-[#b06000] bg-[#fef7e0]/70 border-[#fef7e0]",
               },
               {
                 label: "Approved",
                 value: approvedStudents.length,
-                color: "text-emerald-600 bg-emerald-50 border-emerald-200",
+                color: isDarkMode
+                  ? "text-[#81c995] bg-[#0d3b16]/30 border-[#0d3b16]"
+                  : "text-[#137333] bg-[#e6f4ea]/70 border-[#e6f4ea]",
               },
               {
                 label: "Rejected",
                 value: rejectedStudents.length,
-                color: "text-red-600 bg-red-50 border-red-200",
+                color: isDarkMode
+                  ? "text-[#f28b82] bg-[#5c1010]/30 border-[#5c1010]"
+                  : "text-[#c5221f] bg-[#fce8e6]/70 border-[#fce8e6]",
               },
             ].map((stat) => (
-              <div
+              <motion.div
+                whileHover={{ y: -2 }}
                 key={stat.label}
-                className={`px-3 py-2 rounded-xl border text-center ${stat.color}`}
+                className={`min-w-[90px] px-4 py-3 rounded-[16px] border text-center flex flex-col items-center justify-center transition-all duration-300 ${stat.color}`}
               >
-                <div className="text-xl font-bold">{stat.value}</div>
-                <div className="text-xs font-medium">{stat.label}</div>
-              </div>
+                <div className="text-[22px] font-medium leading-none mb-1" style={{ fontFamily: 'Google Sans, sans-serif' }}>
+                  {stat.value}
+                </div>
+                <div className="text-[12px] font-medium tracking-wide">
+                  {stat.label}
+                </div>
+              </motion.div>
             ))}
           </div>
         </div>
 
         {loading ? (
-          <GlassCard className="p-12">
+          <GlassCard className="p-12 text-center" isDark={isDarkMode}>
             <div className="flex flex-col items-center gap-4">
-              <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-              <p className="text-sm text-gray-500">Loading student data...</p>
+              <div className={`w-12 h-12 border-[3px] rounded-full animate-spin ${
+                isDarkMode ? "border-[#8ab4f8] border-t-transparent" : "border-[#1a73e8] border-t-transparent"
+              }`} />
+              <p className={`text-[14px] font-medium ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>
+                Loading student data...
+              </p>
             </div>
           </GlassCard>
         ) : displayStudents.length === 0 ? (
-          <GlassCard className="p-12 text-center">
+          <GlassCard className="p-12 text-center" isDark={isDarkMode}>
             <motion.div
               initial={{ scale: 0.8 }}
               animate={{ scale: 1 }}
-              className="w-20 h-20 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-5"
+              className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5 ${
+                isDarkMode ? "bg-[#3c4043]/40" : "bg-[#f1f3f4]"
+              }`}
             >
-              <InboxStackIcon className="w-10 h-10 text-blue-400" />
+              <InboxStackIcon className={`w-10 h-10 ${isDarkMode ? "text-[#8ab4f8]" : "text-[#1a73e8]"}`} />
             </motion.div>
-            <h3 className="text-xl font-bold mb-2 text-gray-900">
+            <h3 className={`text-[20px] font-medium mb-2 ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
               No {activeView} requests
             </h3>
-            <p className="text-gray-500">
+            <p className={`text-[15px] ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>
               {activeView === "pending"
                 ? "All student requests have been processed."
                 : `No ${activeView} students at this time.`}
@@ -248,9 +274,11 @@ export default function ProfessorDashboard({
                   damping: 25,
                 }}
               >
-                <GlassCard className="overflow-hidden">
+                <GlassCard className="overflow-hidden border-none shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] hover:shadow-[0_1px_3px_0_rgba(60,64,67,0.3),0_4px_8px_3px_rgba(60,64,67,0.15)] transition-shadow duration-300 rounded-[20px] mb-2" isDark={isDarkMode}>
                   <div
-                    className="p-5 cursor-pointer hover:bg-blue-50/30 transition-colors"
+                    className={`p-4 sm:p-5 cursor-pointer transition-colors duration-200 ${
+                      isDarkMode ? "hover:bg-[#3c4043]/40" : "hover:bg-[#f8f9fa]"
+                    }`}
                     onClick={() =>
                       setExpandedStudent(
                         expandedStudent === student.id ? null : student.id,
@@ -259,41 +287,35 @@ export default function ProfessorDashboard({
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-blue-500/20">
-                          {student.request?.student?.full_name?.charAt(0) ||
-                            "?"}
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center font-medium text-[18px] flex-shrink-0 ${
+                          isDarkMode ? "bg-[#8ab4f8]/20 text-[#8ab4f8]" : "bg-[#e8f0fe] text-[#1a73e8]"
+                        }`}>
+                          {student.request?.student?.full_name?.charAt(0) || "?"}
                         </div>
                         <div>
-                          <h3 className="font-bold text-gray-900">
-                            {student.request?.student?.full_name ||
-                              "Unknown Student"}
+                          <h3 className={`font-medium text-[16px] leading-tight ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
+                            {student.request?.student?.full_name || "Unknown Student"}
                           </h3>
-                          <p className="text-sm text-gray-500">
+                          <p className={`text-[13px] mt-0.5 ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>
                             {student.request?.student?.student_number || ""}
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <StatusBadge status={student.status} />
+                      <div className="flex items-center gap-4">
+                        <div className="hidden sm:block">
+                          <StatusBadge status={student.status} isDark={isDarkMode} />
+                        </div>
                         <motion.div
                           animate={{
                             rotate: expandedStudent === student.id ? 180 : 0,
                           }}
-                          transition={{ duration: 0.2 }}
-                          className="text-gray-400"
+                          transition={{ duration: 0.2, ease: "easeInOut" }}
+                          className={`flex items-center justify-center w-8 h-8 rounded-full ${
+                            isDarkMode ? "text-[#9aa0a6] hover:bg-[#3c4043] hover:text-[#e8eaed]" : "text-[#5f6368] hover:bg-[#f1f3f4] hover:text-[#202124]"
+                          }`}
                         >
-                          <svg
-                            className="w-5 h-5"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            strokeWidth={2}
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M19.5 8.25l-7.5 7.5-7.5-7.5"
-                            />
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="transition-colors">
+                            <path d="M7 10l5 5 5-5H7z" fill="currentColor"/>
                           </svg>
                         </motion.div>
                       </div>
@@ -309,121 +331,139 @@ export default function ProfessorDashboard({
                         transition={{ duration: 0.3, ease: "easeInOut" }}
                         className="overflow-hidden"
                       >
-                        <div className="px-5 pb-5 border-t border-gray-100">
-                          <div className="mt-4 grid grid-cols-2 gap-3">
-                            <div className="p-3 rounded-lg bg-blue-50/50">
-                              <p className="text-xs text-gray-500 font-medium">
+                        <div className={`px-4 sm:px-5 pb-5 border-t ${isDarkMode ? "border-[#3c4043]" : "border-[#dadce0]"}`}>
+                          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className={`p-4 rounded-[16px] ${isDarkMode ? "bg-[#3c4043]/30" : "bg-[#f8f9fa]"}`}>
+                              <p className={`text-[12px] font-medium tracking-wide ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>
                                 Course & Year
                               </p>
-                              <p className="text-sm font-semibold text-gray-900">
+                              <p className={`text-[15px] font-medium mt-1 ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}>
                                 {student.request?.student?.course_year || "N/A"}
                               </p>
                             </div>
-                            <div className="p-3 rounded-lg bg-blue-50/50">
-                              <p className="text-xs text-gray-500 font-medium">
+                            <div className={`p-4 rounded-[16px] ${isDarkMode ? "bg-[#3c4043]/30" : "bg-[#f8f9fa]"}`}>
+                              <p className={`text-[12px] font-medium tracking-wide ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>
                                 Email
                               </p>
-                              <p className="text-sm font-semibold text-gray-900 truncate">
+                              <p className={`text-[15px] font-medium mt-1 truncate ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}>
                                 {student.request?.student?.email || "N/A"}
                               </p>
                             </div>
                           </div>
 
                           {student.request_id && (
-                            <div className="mt-4">
+                            <div className="mt-5">
                               <RequestComments
                                 requestId={student.request_id}
                                 userRole="professor"
                                 userId={professorId}
+                                isDarkMode={isDarkMode}
                               />
                             </div>
                           )}
 
-                          {student.status === "pending" && (
-                            <div className="mt-4 pt-4 border-t border-gray-100">
-                              <p className="text-xs text-gray-500 mb-3 font-medium uppercase tracking-wide">
-                                Decision
-                              </p>
-                              {student.is_locked ? (
-                                <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 text-gray-500 rounded-xl border border-gray-200 text-sm font-medium">
-                                  <ClockIcon className="w-5 h-5" />
-                                  <span>Waiting for previous clearance approvals...</span>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-3">
-                                  <motion.button
-                                    whileHover={{ scale: 1.02 }}
-                                    whileTap={{ scale: 0.98 }}
-                                    onClick={() => handleApprove(student.id)}
-                                    disabled={actionLoading}
-                                    className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl font-medium shadow-lg shadow-green-500/20 hover:shadow-green-500/30 disabled:opacity-50 transition-all text-sm"
-                                  >
-                                    <CheckIcon className="w-4 h-4" />
-                                    Approve
-                                  </motion.button>
-
-                                  {selectedRejectId === student.id ? (
-                                    <div className="flex-1 flex gap-3 items-start">
-                                      <textarea
-                                        placeholder="Reason for rejection (required)..."
-                                        value={rejectReason}
-                                        onChange={(e) =>
-                                          setRejectReason(e.target.value)
-                                        }
-                                        rows={2}
-                                        className="flex-1 px-4 py-2.5 rounded-xl border border-red-200 bg-red-50/30 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all resize-none"
-                                      />
-                                      <div className="flex flex-col gap-2">
-                                        <motion.button
-                                          whileHover={{ scale: 1.02 }}
-                                          whileTap={{ scale: 0.98 }}
-                                          onClick={() => handleReject(student.id)}
-                                          disabled={actionLoading}
-                                          className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-xl font-medium shadow-lg shadow-red-500/20 disabled:opacity-50 transition-all text-sm"
-                                        >
-                                          <XMarkIcon className="w-4 h-4" />
-                                          Confirm
-                                        </motion.button>
-                                        <button
-                                          onClick={() => {
-                                            setSelectedRejectId(null);
-                                            setRejectReason("");
-                                          }}
-                                          className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
-                                        >
-                                          Cancel
-                                        </button>
-                                      </div>
+                              {student.status === "pending" && (
+                                <div className={`mt-5 pt-5 border-t ${isDarkMode ? "border-[#3c4043]" : "border-[#dadce0]"}`}>
+                                  <p className={`text-[11px] mb-3 font-semibold uppercase tracking-wider ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>
+                                    Decision
+                                  </p>
+                                  {student.is_locked ? (
+                                    <div className={`flex items-center gap-3 px-4 py-3.5 rounded-[12px] border text-[14px] font-medium ${
+                                      isDarkMode ? "bg-[#3c4043]/50 text-[#9aa0a6] border-[#3c4043]" : "bg-[#f8f9fa] text-[#5f6368] border-[#dadce0]"
+                                    }`}>
+                                      <ClockIcon className="w-5 h-5 flex-shrink-0" />
+                                      <span>Waiting for previous clearance approvals...</span>
                                     </div>
                                   ) : (
-                                    <motion.button
-                                      whileHover={{ scale: 1.01 }}
-                                      whileTap={{ scale: 0.98 }}
-                                      onClick={() =>
-                                        setSelectedRejectId(student.id)
-                                      }
-                                      className="flex items-center gap-2 px-5 py-2.5 text-red-500 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 transition-all text-sm font-medium"
-                                    >
-                                      <XMarkIcon className="w-4 h-4" />
-                                      Reject
-                                    </motion.button>
+                                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                                      <motion.button
+                                        whileHover={{ scale: 1.01 }}
+                                        whileTap={{ scale: 0.99 }}
+                                        onClick={() => handleApprove(student.id)}
+                                        disabled={actionLoading}
+                                        className={`flex items-center justify-center gap-2 px-6 py-2.5 rounded-full font-medium transition-colors disabled:opacity-50 text-[14px] ${
+                                          isDarkMode ? "bg-[#81c995] text-[#0d3b16] hover:bg-[#81c995]/90" : "bg-[#137333] text-white hover:bg-[#137333]/90"
+                                        }`}
+                                      >
+                                        <CheckIcon className="w-4 h-4" />
+                                        Approve
+                                      </motion.button>
+
+                                      <div className="flex-1">
+                                        {selectedRejectId === student.id ? (
+                                          <div className="flex flex-col sm:flex-row gap-3 w-full items-start sm:items-center">
+                                            <textarea
+                                              placeholder="Reason for rejection (required)..."
+                                              value={rejectReason}
+                                              onChange={(e) =>
+                                                setRejectReason(e.target.value)
+                                              }
+                                              rows={1}
+                                              className={`flex-1 w-full px-4 py-2.5 rounded-[12px] border text-[14px] focus:outline-none transition-shadow resize-none ${
+                                                isDarkMode 
+                                                  ? "bg-[#202124] border-[#d93025] text-[#e8eaed] focus:shadow-[inset_0_0_0_1px_#f28b82] border-opacity-50" 
+                                                  : "bg-white border-[#d93025] text-[#202124] focus:shadow-[inset_0_0_0_1px_#c5221f]"
+                                              }`}
+                                            />
+                                            <div className="flex gap-2 flex-shrink-0 w-full sm:w-auto">
+                                              <motion.button
+                                                whileHover={{ scale: 1.01 }}
+                                                whileTap={{ scale: 0.99 }}
+                                                onClick={() => handleReject(student.id)}
+                                                disabled={actionLoading}
+                                                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-full font-medium transition-colors disabled:opacity-50 text-[14px] ${
+                                                  isDarkMode ? "bg-[#f28b82] text-[#5c1010] hover:bg-[#f28b82]/90" : "bg-[#c5221f] text-white hover:bg-[#c5221f]/90"
+                                                }`}
+                                              >
+                                                Confirm
+                                              </motion.button>
+                                              <button
+                                                onClick={() => {
+                                                  setSelectedRejectId(null);
+                                                  setRejectReason("");
+                                                }}
+                                                className={`flex items-center justify-center px-4 py-2 rounded-full text-[14px] font-medium transition-colors ${
+                                                  isDarkMode ? "text-[#9aa0a6] hover:bg-[#3c4043]" : "text-[#5f6368] hover:bg-[#f1f3f4]"
+                                                }`}
+                                              >
+                                                Cancel
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <motion.button
+                                            whileHover={{ scale: 1.01 }}
+                                            whileTap={{ scale: 0.99 }}
+                                            onClick={() =>
+                                              setSelectedRejectId(student.id)
+                                            }
+                                            className={`flex items-center justify-center gap-2 px-6 py-2.5 rounded-full border transition-colors text-[14px] font-medium ${
+                                              isDarkMode ? "border-[#f28b82] text-[#f28b82] hover:bg-[#f28b82]/10" : "border-[#c5221f] text-[#c5221f] hover:bg-[#c5221f]/5"
+                                            }`}
+                                          >
+                                            <XMarkIcon className="w-4 h-4" />
+                                            Reject
+                                          </motion.button>
+                                        )}
+                                      </div>
+                                    </div>
                                   )}
                                 </div>
                               )}
-                            </div>
-                          )}
 
-                          {student.status !== "pending" && student.comments && (
-                            <div className="mt-4 p-3 rounded-lg bg-gray-50 text-sm text-gray-600">
-                              <div className="flex items-center gap-2 mb-1">
-                                <ChatBubbleIcon className="w-4 h-4 text-gray-400" />
-                                <span className="font-semibold text-gray-700">
-                                  Your decision comment:
-                                </span>
+                            {student.status !== "pending" && student.comments && (
+                              <div className={`mt-5 p-4 rounded-[16px] text-[14px] ${
+                                isDarkMode ? "bg-[#3c4043]/30 text-[#e8eaed]" : "bg-[#f8f9fa] text-[#202124]"
+                              }`}>
+                                <div className="flex items-center gap-2 mb-2">
+                                  <ChatBubbleIcon className={`w-4 h-4 ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`} />
+                                  <span className="font-semibold" style={{ fontFamily: 'Google Sans, sans-serif' }}>
+                                    Your decision comment:
+                                  </span>
+                                </div>
+                                <p className="leading-relaxed whitespace-pre-wrap">{student.comments}</p>
                               </div>
-                              {student.comments}
-                            </div>
-                          )}
+                            )}
                         </div>
                       </motion.div>
                     )}

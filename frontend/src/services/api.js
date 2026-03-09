@@ -152,23 +152,20 @@ export const getClearanceComments = async (clearanceId, userId) => {
   return response.json();
 };
 
-export const resolveClearanceComment = async (commentId, userId) => {
-  const response = await fetch(
-    `${API_URL}/clearance/comments/${commentId}/resolve`,
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: userId }),
-    },
-  );
-  return response.json();
-};
-
 export const deleteClearanceComment = async (commentId, userId) => {
   const response = await fetch(`${API_URL}/clearance/comments/${commentId}`, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ user_id: userId }),
+  });
+  return response.json();
+};
+
+export const updateClearanceComment = async (commentId, userId, commentText) => {
+  const response = await fetch(`${API_URL}/clearance/comments/${commentId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId, comment_text: commentText }),
   });
   return response.json();
 };

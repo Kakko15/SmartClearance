@@ -3,8 +3,8 @@ import toast from "react-hot-toast";
 import {
   getClearanceComments,
   createClearanceComment,
-  resolveClearanceComment,
   deleteClearanceComment,
+  updateClearanceComment,
 } from "../../services/api";
 import CommentCard from "./CommentCard";
 import AddCommentForm from "./AddCommentForm";
@@ -20,7 +20,6 @@ export default function RequestComments({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
-  const [filter, setFilter] = useState("all");
   const [deleteConfirm, setDeleteConfirm] = useState({
     show: false,
     commentId: null,
@@ -70,17 +69,17 @@ export default function RequestComments({
     }
   };
 
-  const handleResolve = async (commentId) => {
+  const handleEdit = async (commentId, newText) => {
     try {
-      const response = await resolveClearanceComment(commentId, userId);
+      const response = await updateClearanceComment(commentId, userId, newText);
       if (response.success) {
-        toast.success(response.message);
+        toast.success("Comment updated!");
         fetchComments();
       } else {
         toast.error(response.error || "Failed to update comment");
       }
     } catch (error) {
-      toast.error("Error: " + error.message);
+      toast.error("Error updating comment: " + error.message);
     }
   };
 
@@ -105,46 +104,36 @@ export default function RequestComments({
     }
   };
 
-  const filteredComments = comments.filter((c) => {
-    if (filter === "unresolved") return !c.is_resolved;
-    if (filter === "resolved") return c.is_resolved;
-    return true;
-  });
-
-  const unresolvedCount = comments.filter((c) => !c.is_resolved).length;
-  const resolvedCount = comments.filter((c) => c.is_resolved).length;
-
   const getBadgeColor = () => {
     if (comments.length === 0)
       return isDarkMode
         ? "bg-slate-600 text-slate-300"
         : "bg-gray-200 text-gray-600";
-    if (unresolvedCount > 0) return "bg-red-500 text-white";
-    return "bg-green-500 text-white";
+    return "bg-blue-500 text-white";
   };
 
   return (
     <div
-      className={`rounded-xl border overflow-hidden ${
+      className={`rounded-[16px] border transition-all ${
         isDarkMode
-          ? "bg-slate-800/50 border-slate-600"
-          : "bg-white border-gray-200"
+          ? "bg-[#282a2d] border-[#3c4043]"
+          : "bg-white border-[#dadce0]"
       }`}
     >
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className={`w-full flex items-center justify-between p-4 transition-colors ${
-          isDarkMode ? "hover:bg-slate-700/50" : "hover:bg-gray-50"
+        className={`w-full flex items-center justify-between p-4 rounded-[16px] transition-colors ${
+          isDarkMode ? "hover:bg-[#3c4043]/50" : "hover:bg-[#f8f9fa]"
         }`}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 w-full">
           <div
-            className={`w-9 h-9 rounded-lg flex items-center justify-center ${
-              isDarkMode ? "bg-blue-900/40" : "bg-blue-100"
+            className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+              isDarkMode ? "bg-[#8ab4f8]/20" : "bg-[#e8f0fe]"
             }`}
           >
             <svg
-              className={`w-5 h-5 ${isDarkMode ? "text-blue-400" : "text-blue-600"}`}
+              className={`w-5 h-5 ${isDarkMode ? "text-[#8ab4f8]" : "text-[#1a73e8]"}`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -157,34 +146,34 @@ export default function RequestComments({
               />
             </svg>
           </div>
-          <div className="text-left">
+          <div className="text-left flex-1">
             <h4
-              className={`font-semibold text-sm ${isDarkMode ? "text-white" : "text-gray-900"}`}
+              className={`font-medium text-[16px] leading-tight ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}
+              style={{ fontFamily: 'Google Sans, sans-serif' }}
             >
               Comments & Discussion
             </h4>
             <p
-              className={`text-xs ${isDarkMode ? "text-slate-400" : "text-gray-500"}`}
+              className={`text-[13px] mt-0.5 ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}
             >
               {comments.length} comment{comments.length !== 1 ? "s" : ""}
-              {unresolvedCount > 0 && ` · ${unresolvedCount} unresolved`}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3 flex-shrink-0">
           <span
-            className={`text-xs font-bold px-2 py-0.5 rounded-full ${getBadgeColor()}`}
+            className={`text-[12px] font-medium px-2.5 py-0.5 rounded-full ${
+              comments.length === 0 
+                ? (isDarkMode ? "bg-[#3c4043] text-[#9aa0a6]" : "bg-[#f1f3f4] text-[#5f6368]") 
+                : (isDarkMode ? "bg-[#8ab4f8] text-[#202124]" : "bg-[#1a73e8] text-white")
+            }`}
           >
-            {comments.length === 0
-              ? "💬"
-              : unresolvedCount > 0
-                ? `🔴 ${unresolvedCount}`
-                : "✅"}
+            {comments.length === 0 ? "0" : comments.length}
           </span>
 
           <svg
-            className={`w-5 h-5 transition-transform ${isExpanded ? "rotate-180" : ""} ${isDarkMode ? "text-slate-400" : "text-gray-400"}`}
+            className={`w-5 h-5 transition-transform duration-300 ${isExpanded ? "rotate-180" : ""} ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -201,7 +190,7 @@ export default function RequestComments({
 
       {isExpanded && (
         <div
-          className={`border-t p-4 ${isDarkMode ? "border-slate-600" : "border-gray-200"}`}
+          className={`border-t px-4 pt-4 pb-5 rounded-b-[16px] ${isDarkMode ? "border-[#3c4043] bg-[#282a2d]" : "border-[#dadce0] bg-white"}`}
         >
           {!isStudent && (
             <div className="mb-4">
@@ -213,35 +202,7 @@ export default function RequestComments({
             </div>
           )}
 
-          {comments.length > 0 && (
-            <div className="flex gap-1 mb-4">
-              {[
-                { key: "all", label: "All", count: comments.length },
-                {
-                  key: "unresolved",
-                  label: "Unresolved",
-                  count: unresolvedCount,
-                },
-                { key: "resolved", label: "Resolved", count: resolvedCount },
-              ].map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => setFilter(tab.key)}
-                  className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-all ${
-                    filter === tab.key
-                      ? isDarkMode
-                        ? "bg-blue-600 text-white shadow-md"
-                        : "bg-blue-500 text-white shadow-md"
-                      : isDarkMode
-                        ? "text-slate-400 hover:bg-slate-700 hover:text-slate-200"
-                        : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-                  }`}
-                >
-                  {tab.label} ({tab.count})
-                </button>
-              ))}
-            </div>
-          )}
+
 
           {loading ? (
             <div className="text-center py-8">
@@ -252,7 +213,7 @@ export default function RequestComments({
                 Loading comments...
               </p>
             </div>
-          ) : filteredComments.length === 0 ? (
+          ) : comments.length === 0 ? (
             <div
               className={`text-center py-8 rounded-lg ${isDarkMode ? "bg-slate-700/30" : "bg-gray-50"}`}
             >
@@ -272,9 +233,9 @@ export default function RequestComments({
               <p
                 className={`text-sm ${isDarkMode ? "text-slate-400" : "text-gray-500"}`}
               >
-                {filter !== "all" ? `No ${filter} comments` : "No comments yet"}
+                No comments yet
               </p>
-              {filter === "all" && !isStudent && (
+              {!isStudent && (
                 <p
                   className={`text-xs mt-1 ${isDarkMode ? "text-slate-500" : "text-gray-400"}`}
                 >
@@ -284,13 +245,13 @@ export default function RequestComments({
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredComments.map((comment) => (
+              {comments.map((comment) => (
                 <CommentCard
                   key={comment.id}
                   comment={comment}
                   userId={userId}
                   userRole={userRole}
-                  onResolve={handleResolve}
+                  onEdit={handleEdit}
                   onDelete={handleDelete}
                   isDarkMode={isDarkMode}
                 />

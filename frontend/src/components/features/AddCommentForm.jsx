@@ -47,13 +47,16 @@ export default function AddCommentForm({
     return (
       <button
         onClick={() => setIsExpanded(true)}
-        className={`w-full py-3 px-4 rounded-xl border-2 border-dashed text-sm font-medium transition-all ${
+        className={`w-full py-3.5 px-5 rounded-full border transition-all duration-200 flex items-center gap-3 ${
           isDarkMode
-            ? "border-slate-600 text-slate-400 hover:border-blue-500 hover:text-blue-400 hover:bg-blue-900/10"
-            : "border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50"
+            ? "border-[#3c4043] text-[#9aa0a6] hover:bg-[#3c4043]/30 hover:border-[#8ab4f8] hover:text-[#8ab4f8]"
+            : "border-[#dadce0] text-[#5f6368] hover:bg-[#f1f3f4] hover:border-[#1a73e8] hover:text-[#1a73e8]"
         }`}
       >
-        💬 Add Comment
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="transition-colors">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z" fill="currentColor"/>
+        </svg>
+        <span className="font-medium text-[14px]">Add a comment...</span>
       </button>
     );
   }
@@ -61,16 +64,17 @@ export default function AddCommentForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className={`rounded-xl border p-4 ${
+      className={`rounded-[16px] border p-4 sm:p-5 transition-all ${
         isDarkMode
-          ? "bg-slate-800/50 border-slate-600"
-          : "bg-white border-gray-200 shadow-sm"
+          ? "bg-[#282a2d] border-[#3c4043]"
+          : "bg-white border-[#dadce0] shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)]"
       }`}
     >
       <h4
-        className={`text-sm font-semibold mb-3 ${isDarkMode ? "text-white" : "text-gray-900"}`}
+        className={`text-[15px] font-medium mb-3 ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}
+        style={{ fontFamily: 'Google Sans, sans-serif' }}
       >
-        Add Comment
+        Write a comment
       </h4>
 
       <textarea
@@ -78,18 +82,18 @@ export default function AddCommentForm({
         onChange={(e) => setCommentText(e.target.value)}
         placeholder="Enter your comment..."
         rows={3}
-        className={`w-full px-3 py-2 rounded-lg resize-none text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+        className={`w-full px-4 py-3 rounded-[16px] resize-none text-[14px] focus:outline-none transition-shadow ${
           isDarkMode
-            ? "bg-slate-700 border border-slate-500 text-white placeholder-slate-400"
-            : "bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400"
+            ? "bg-[#202124] border-[#3c4043] text-[#e8eaed] placeholder-[#9aa0a6] focus:shadow-[inset_0_0_0_1px_#8ab4f8]"
+            : "bg-[#f1f3f4] border-transparent text-[#202124] placeholder-[#5f6368] focus:bg-white focus:shadow-[inset_0_0_0_1px_#1a73e8]"
         }`}
         disabled={isSubmitting}
         autoFocus
       />
 
-      <div className="mt-3">
+      <div className="mt-4">
         <label
-          className={`block text-xs font-medium mb-1.5 ${isDarkMode ? "text-slate-300" : "text-gray-600"}`}
+          className={`block text-[12px] font-semibold tracking-wide uppercase mb-2 ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}
         >
           Visibility
         </label>
@@ -99,38 +103,39 @@ export default function AddCommentForm({
               key={opt.value}
               type="button"
               onClick={() => setVisibility(opt.value)}
-              className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${
+              className={`text-[13px] px-4 py-1.5 rounded-full border transition-all font-medium ${
                 visibility === opt.value
                   ? isDarkMode
-                    ? "bg-blue-600 text-white border-blue-500 shadow-md"
-                    : "bg-blue-500 text-white border-blue-500 shadow-md"
+                    ? "bg-[#8ab4f8]/20 text-[#8ab4f8] border-transparent"
+                    : "bg-[#e8f0fe] text-[#1a73e8] border-[#e8f0fe]"
                   : isDarkMode
-                    ? "bg-slate-700 text-slate-300 border-slate-500 hover:border-blue-500"
-                    : "bg-white text-gray-600 border-gray-300 hover:border-blue-400"
+                    ? "bg-transparent text-[#9aa0a6] border-[#3c4043] hover:bg-[#3c4043]/50 hover:text-[#e8eaed]"
+                    : "bg-transparent text-[#5f6368] border-[#dadce0] hover:bg-[#f8f9fa] hover:text-[#202124]"
               }`}
-              title={opt.desc}
             >
-              {opt.label}
+              <div className="flex items-center gap-1.5">
+                {opt.label}
+              </div>
             </button>
           ))}
         </div>
       </div>
 
-      <div className="flex items-center justify-between mt-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mt-5 pt-4 border-t border-[#dadce0] dark:border-[#3c4043]">
         <p
-          className={`text-xs ${isDarkMode ? "text-slate-500" : "text-gray-400"}`}
+          className={`text-[12px] leading-tight max-w-[200px] ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}
         >
           {visibilityOptions.find((v) => v.value === visibility)?.desc}
         </p>
-        <div className="flex gap-2">
+        <div className="flex w-full sm:w-auto gap-2">
           <button
             type="button"
             onClick={handleCancel}
             disabled={isSubmitting}
-            className={`text-xs px-4 py-2 rounded-lg transition-colors ${
+            className={`flex-1 sm:flex-none text-[14px] px-5 py-2.5 rounded-full font-medium transition-colors ${
               isDarkMode
-                ? "text-slate-300 hover:bg-slate-600"
-                : "text-gray-600 hover:bg-gray-100"
+                ? "text-[#9aa0a6] hover:bg-[#3c4043] hover:text-[#e8eaed]"
+                : "text-[#5f6368] hover:bg-[#f1f3f4] hover:text-[#202124]"
             }`}
           >
             Cancel
@@ -138,9 +143,13 @@ export default function AddCommentForm({
           <button
             type="submit"
             disabled={isSubmitting || !commentText.trim()}
-            className="text-xs px-4 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+            className={`flex-1 sm:flex-none text-[14px] px-6 py-2.5 rounded-full font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+              isDarkMode
+                ? "bg-[#8ab4f8] text-[#202124] hover:bg-[#8ab4f8]/90"
+                : "bg-[#1a73e8] text-white hover:bg-[#1a73e8]/90"
+            }`}
           >
-            {isSubmitting ? "Posting..." : "Post Comment"}
+            {isSubmitting ? "Posting..." : "Post"}
           </button>
         </div>
       </div>

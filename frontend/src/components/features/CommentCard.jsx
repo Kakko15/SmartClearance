@@ -1,52 +1,22 @@
 import { useState, useEffect } from "react";
+import { TrashIcon, EditIcon } from "../ui/Icons";
 
 export default function CommentCard({
   comment,
   userId,
   userRole,
-  onResolve,
+  onEdit,
   onDelete,
   isDarkMode = false,
 }) {
-  const [deleteTimeLeft, setDeleteTimeLeft] = useState(null);
-
-  useEffect(() => {
-    if (comment.commenter_id !== userId) return;
-
-    const updateTimer = () => {
-      const created = new Date(comment.created_at);
-      const now = new Date();
-      const diffMs = 5 * 60 * 1000 - (now - created);
-
-      if (diffMs <= 0) {
-        setDeleteTimeLeft(null);
-      } else {
-        const mins = Math.floor(diffMs / 60000);
-        const secs = Math.floor((diffMs % 60000) / 1000);
-        setDeleteTimeLeft(`${mins}:${secs.toString().padStart(2, "0")}`);
-      }
-    };
-
-    updateTimer();
-    const interval = setInterval(updateTimer, 1000);
-    return () => clearInterval(interval);
-  }, [comment.created_at, comment.commenter_id, userId]);
-
-  const canResolve = () => {
-    if (userRole === "student") return false;
-    const isAuthor = comment.commenter_id === userId;
-    const isSuperAdmin = userRole === "super_admin";
-    const isRegistrar = userRole === "registrar_admin";
-    return isAuthor || isSuperAdmin || isRegistrar;
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(comment.comment_text);
+  const canDelete = () => {
+    return comment.commenter_id === userId;
   };
 
-  const canDelete = () => {
-    if (userRole === "student") return false;
-    const isSuperAdmin = userRole === "super_admin";
-    if (isSuperAdmin) return true;
-
-    const isAuthor = comment.commenter_id === userId;
-    return isAuthor;
+  const canEdit = () => {
+    return comment.commenter_id === userId;
   };
 
   const getRoleBadge = (role) => {
@@ -120,29 +90,19 @@ export default function CommentCard({
     );
   };
 
-  const isResolved = comment.is_resolved;
-
   return (
     <div
-      className={`border-l-4 pl-4 py-3 rounded-r-lg transition-all ${
-        isResolved
-          ? isDarkMode
-            ? "border-green-600 bg-slate-800/30 opacity-70"
-            : "border-green-400 bg-green-50/50 opacity-70"
-          : isDarkMode
-            ? "border-blue-500 bg-slate-700/50"
-            : "border-blue-500 bg-gray-50"
+      className={`border-l-2 pl-4 py-3 transition-all ${
+        isDarkMode
+          ? "border-[#8ab4f8]"
+          : "border-[#1a73e8]"
       }`}
     >
-      <div className="flex items-start justify-between mb-2">
+      <div className="flex items-start justify-between mb-1">
         <div className="flex items-center gap-2 flex-wrap">
           <div
-            className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium flex-shrink-0 ${
-              isResolved
-                ? "bg-green-500"
-                : isDarkMode
-                  ? "bg-blue-600"
-                  : "bg-blue-500"
+            className={`w-9 h-9 rounded-full flex items-center justify-center font-medium text-[15px] flex-shrink-0 ${
+              isDarkMode ? "bg-[#8ab4f8]/20 text-[#8ab4f8]" : "bg-[#e8f0fe] text-[#1a73e8]"
             }`}
           >
             {comment.commenter_name?.charAt(0)?.toUpperCase() || "?"}
@@ -151,7 +111,8 @@ export default function CommentCard({
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <span
-                className={`font-medium text-sm ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                className={`font-medium text-[14px] leading-tight ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}
+                style={{ fontFamily: 'Google Sans, sans-serif' }}
               >
                 {comment.commenter_name}
               </span>
@@ -159,7 +120,7 @@ export default function CommentCard({
               {getVisibilityBadge()}
             </div>
             <span
-              className={`text-xs ${isDarkMode ? "text-slate-400" : "text-gray-500"}`}
+              className={`text-[12px] leading-tight mt-0.5 block ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}
             >
               {new Date(comment.created_at).toLocaleString("en-US", {
                 month: "short",
@@ -172,79 +133,97 @@ export default function CommentCard({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {isResolved ? (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 font-medium">
-              ✅ Resolved
-            </span>
-          ) : (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200 font-medium">
-              🔴 Unresolved
-            </span>
-          )}
-
-          {canResolve() && (
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {canEdit() && !isEditing && (
             <button
-              onClick={() => onResolve(comment.id)}
-              className={`text-xs px-2 py-1 rounded-lg transition-colors ${
-                isResolved
-                  ? isDarkMode
-                    ? "bg-yellow-900/30 text-yellow-300 hover:bg-yellow-800/50"
-                    : "bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
-                  : isDarkMode
-                    ? "bg-green-900/30 text-green-300 hover:bg-green-800/50"
-                    : "bg-green-100 text-green-700 hover:bg-green-200"
+              onClick={() => {
+                setEditText(comment.comment_text);
+                setIsEditing(true);
+              }}
+              className={`p-1.5 rounded-full transition-colors flex items-center justify-center ${
+                isDarkMode
+                  ? "text-[#9aa0a6] hover:bg-[#3c4043] hover:text-[#e8eaed]"
+                  : "text-[#5f6368] hover:bg-[#f1f3f4] hover:text-[#202124]"
               }`}
-              title={isResolved ? "Mark as unresolved" : "Mark as resolved"}
+              title="Edit"
             >
-              {isResolved ? "Unresolve" : "Resolve"}
+              <EditIcon className="w-[18px] h-[18px]" />
             </button>
           )}
 
-          {canDelete() && (
+          {canDelete() && !isEditing && (
             <button
               onClick={() => onDelete(comment.id)}
-              className={`text-xs px-2 py-1 rounded-lg transition-colors ${
+              className={`p-1.5 rounded-full transition-colors flex items-center justify-center ${
                 isDarkMode
-                  ? "bg-red-900/30 text-red-300 hover:bg-red-800/50"
-                  : "bg-red-100 text-red-700 hover:bg-red-200"
+                  ? "text-[#9aa0a6] hover:bg-[#5c1010]/30 hover:text-[#f28b82]"
+                  : "text-[#5f6368] hover:bg-[#fce8e6] hover:text-[#c5221f]"
               }`}
-              title={
-                deleteTimeLeft ? `Delete (${deleteTimeLeft} left)` : "Delete"
-              }
+              title="Delete"
             >
-              🗑{" "}
-              {deleteTimeLeft && <span className="ml-1">{deleteTimeLeft}</span>}
+              <TrashIcon className="w-[18px] h-[18px]" />
             </button>
           )}
         </div>
       </div>
 
-      <p
-        className={`text-sm whitespace-pre-wrap ${
-          isResolved
-            ? isDarkMode
-              ? "text-slate-400 line-through decoration-1"
-              : "text-gray-500"
-            : isDarkMode
-              ? "text-slate-200"
-              : "text-gray-700"
-        }`}
-      >
-        {comment.comment_text}
-      </p>
-
-      {isResolved && comment.resolved_at && (
+      {isEditing ? (
+        <div className="mt-2 text-[14px]">
+          <textarea
+            value={editText}
+            onChange={(e) => setEditText(e.target.value)}
+            className={`w-full px-4 py-3 text-[14px] rounded-[16px] border focus:outline-none transition-shadow resize-none ${
+              isDarkMode
+                ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed] focus:shadow-[inset_0_0_0_1px_#8ab4f8]"
+                : "bg-white border-[#dadce0] text-[#202124] focus:shadow-[inset_0_0_0_1px_#1a73e8]"
+            }`}
+            rows={2}
+          />
+          <div className="flex justify-end gap-2 mt-2">
+            <button
+              onClick={() => setIsEditing(false)}
+              className={`text-[13px] px-4 py-1.5 rounded-full font-medium transition-colors ${
+                isDarkMode
+                  ? "text-[#9aa0a6] hover:bg-[#3c4043]"
+                  : "text-[#5f6368] hover:bg-[#f1f3f4]"
+              }`}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                if (editText.trim() && editText !== comment.comment_text) {
+                  onEdit(comment.id, editText);
+                }
+                setIsEditing(false);
+              }}
+              disabled={!editText.trim() || editText === comment.comment_text}
+              className={`text-[13px] px-4 py-1.5 rounded-full font-medium transition-colors ${
+                isDarkMode
+                  ? "bg-[#8ab4f8] text-[#202124] hover:bg-[#8ab4f8]/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  : "bg-[#1a73e8] text-white hover:bg-[#1a73e8]/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              }`}
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      ) : (
         <p
-          className={`text-xs mt-1 ${isDarkMode ? "text-slate-500" : "text-gray-400"}`}
+          className={`text-[14px] mt-2 whitespace-pre-wrap leading-relaxed ${
+            isDarkMode ? "text-[#e8eaed]" : "text-[#3c4043]"
+          }`}
         >
-          Resolved{" "}
-          {new Date(comment.resolved_at).toLocaleString("en-US", {
-            month: "short",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
+          {comment.comment_text}
+          {comment.updated_at && comment.updated_at !== comment.created_at && (
+            <span
+              className={`text-[11px] ml-2 italic ${
+                isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"
+              }`}
+            >
+              (edited)
+            </span>
+          )}
         </p>
       )}
     </div>

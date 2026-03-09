@@ -55,7 +55,7 @@ export default function DashboardLayout({
   const topbarBg = theme.topbar || "bg-white border-b border-slate-200";
 
   return (
-    <div className={`flex h-screen ${bgC} font-sans selection:bg-blue-100 selection:text-blue-900`}>
+    <div className={`flex h-screen ${bgC} font-sans selection:bg-[#c2e7ff] selection:text-[#001d35] flex-col md:flex-row ${isDarkMode ? 'dark' : ''}`}>
 
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <div className={`absolute top-0 left-1/4 w-[500px] h-[500px] ${theme.glow1 || "hidden"} rounded-full blur-[120px]`} />
@@ -420,7 +420,7 @@ export default function DashboardLayout({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-8 relative z-10 scroll-smooth">
+        <div className="flex-1 overflow-y-scroll overflow-x-hidden p-4 sm:p-8 relative z-10 scroll-smooth custom-scrollbar">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeView}

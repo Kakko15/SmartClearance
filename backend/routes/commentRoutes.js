@@ -149,19 +149,17 @@ router.get("/:clearanceId/comments", async (req, res) => {
   }
 });
 
-router.patch("/comments/:commentId/resolve", async (req, res) => {
+router.put("/comments/:commentId", async (req, res) => {
   try {
     const { commentId } = req.params;
-    const { user_id } = req.body;
+    const { user_id, comment_text } = req.body;
 
-    if (!user_id) {
+    if (!user_id || !comment_text) {
       return res.status(400).json({
         success: false,
-        error: "Missing user_id",
+        error: "Missing user_id or comment_text",
       });
     }
-
-    const userProfile = await getUserProfile(user_id);
 
     const { data: comment, error: fetchError } = await supabase
       .from("clearance_comments")
@@ -176,26 +174,17 @@ router.patch("/comments/:commentId/resolve", async (req, res) => {
       });
     }
 
-    const isAuthor = comment.commenter_id === user_id;
-    const isSuperAdmin = userProfile.role === "super_admin";
-    const isRegistrar = userProfile.role === "registrar_admin";
-
-    if (!isAuthor && !isSuperAdmin && !isRegistrar) {
+    if (comment.commenter_id !== user_id) {
       return res.status(403).json({
         success: false,
-        error:
-          "Unauthorized to resolve this comment. Only the author, Super Admin, or Registrar Admin can resolve comments.",
+        error: "Unauthorized: Only the author can edit this comment.",
       });
     }
-
-    const newResolvedState = !comment.is_resolved;
 
     const { data: updated, error: updateError } = await supabase
       .from("clearance_comments")
       .update({
-        is_resolved: newResolvedState,
-        resolved_by: newResolvedState ? user_id : null,
-        resolved_at: newResolvedState ? new Date().toISOString() : null,
+        comment_text: comment_text.trim(),
         updated_at: new Date().toISOString(),
       })
       .eq("id", commentId)
@@ -206,13 +195,11 @@ router.patch("/comments/:commentId/resolve", async (req, res) => {
 
     res.json({
       success: true,
-      message: newResolvedState
-        ? "Comment marked as resolved"
-        : "Comment marked as unresolved",
+      message: "Comment updated successfully",
       comment: updated,
     });
   } catch (error) {
-    console.error("Error resolving comment:", error);
+    console.error("Error updating comment:", error);
     res.status(500).json({
       success: false,
       error: error.message,
@@ -247,21 +234,10 @@ router.delete("/comments/:commentId", async (req, res) => {
       });
     }
 
-    const isAuthor = comment.commenter_id === user_id;
-    const isSuperAdmin = userProfile.role === "super_admin";
-
-    if (userProfile.role === "student") {
+    if (user_id !== comment.commenter_id) {
       return res.status(403).json({
         success: false,
-        error: "Students cannot delete comments",
-      });
-    }
-
-    if (!isAuthor && !isSuperAdmin) {
-      return res.status(403).json({
-        success: false,
-        error:
-          "Unauthorized to delete this comment. Only the author or Super Admin can delete.",
+        error: "You can only delete your own comments",
       });
     }
 
@@ -411,13 +387,10 @@ router.delete("/:id", async (req, res) => {
       });
     }
 
-    const isAuthor = comment.commenter_id === user_id;
-    const isSuperAdmin = userProfile.role === "super_admin";
-
-    if (!isAuthor && !isSuperAdmin) {
+    if (user_id !== comment.commenter_id) {
       return res.status(403).json({
         success: false,
-        error: "Unauthorized to delete this comment",
+        error: "You can only delete your own comments",
       });
     }
 
