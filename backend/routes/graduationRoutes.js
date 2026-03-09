@@ -57,32 +57,44 @@ router.post("/apply", async (req, res) => {
 
     if (error) throw error;
 
-    let { data: professors } = await supabase
+    // Fetch all professor accounts
+    let { data: allProfessors } = await supabase
       .from("profiles")
       .select("id, full_name")
       .eq("role", "professor")
       .eq("account_enabled", true);
 
-    if (professors && portion) {
-      if (portion === "undergraduate") {
-        const undergradNames = [
-          "Department Chairman",
-          "College Dean",
-          "Director Student Affairs",
-          "NSTP Director",
-          "Executive Officer"
-        ];
-        professors = professors.filter(p => undergradNames.includes(p.full_name));
-      } else if (portion === "graduate") {
-        const gradNames = [
-          "Dean Graduate School"
-        ];
-        professors = professors.filter(p => gradNames.includes(p.full_name));
-      }
+    // Determine which professors belong to this portion (REG Form 07)
+    let wantedProfessors = allProfessors || [];
+    if (portion === "undergraduate") {
+      const undergradNames = [
+        "Department Chairman",
+        "College Dean",
+        "Director Student Affairs",
+        "NSTP Director",
+        "Executive Officer",
+      ];
+      wantedProfessors = wantedProfessors.filter((p) => undergradNames.includes(p.full_name));
+    } else if (portion === "graduate") {
+      wantedProfessors = wantedProfessors.filter((p) => p.full_name === "Dean Graduate School");
     }
 
-    if (professors && professors.length > 0) {
-      const studentProfLinks = professors.map((p) => ({
+    const wantedIds = wantedProfessors.map((p) => p.id);
+
+    // Step 1: Remove any auto-created professor_approvals that are NOT in our wanted list
+    // (DB trigger may create approvals for ALL professors on request insert)
+    if (wantedIds.length > 0) {
+      await supabase
+        .from("professor_approvals")
+        .delete()
+        .eq("request_id", request.id)
+        .not("professor_id", "in", `(${wantedIds.join(",")})`);
+    }
+
+    // Step 2: Ensure wanted professor_approvals exist (upsert to handle both cases)
+    if (wantedProfessors.length > 0) {
+      // Link student to professors
+      const studentProfLinks = wantedProfessors.map((p) => ({
         student_id,
         professor_id: p.id,
         course_code: "GRAD",
@@ -97,7 +109,8 @@ router.post("/apply", async (req, res) => {
           ignoreDuplicates: true,
         });
 
-      const approvalRecords = professors.map((p) => ({
+      // Upsert professor approvals (trigger may have already created them)
+      const approvalRecords = wantedProfessors.map((p) => ({
         request_id: request.id,
         professor_id: p.id,
         status: "pending",
@@ -105,19 +118,20 @@ router.post("/apply", async (req, res) => {
 
       const { error: approvalError } = await supabase
         .from("professor_approvals")
-        .insert(approvalRecords);
+        .upsert(approvalRecords, {
+          onConflict: "request_id,professor_id",
+          ignoreDuplicates: true,
+        });
 
       if (approvalError) {
-        console.warn(
-          "Professor approvals insert warning:",
-          approvalError.message,
-        );
+        console.warn("Professor approvals upsert warning:", approvalError.message);
       }
 
+      // Update professor counts on the request
       await supabase
         .from("requests")
         .update({
-          professors_total_count: professors.length,
+          professors_total_count: wantedProfessors.length,
           professors_approved_count: 0,
         })
         .eq("id", request.id);
@@ -126,7 +140,7 @@ router.post("/apply", async (req, res) => {
     res.json({
       success: true,
       request,
-      professorsAssigned: professors?.length || 0,
+      professorsAssigned: wantedProfessors?.length || 0,
       message: "Graduation clearance application submitted successfully",
     });
   } catch (error) {
@@ -251,17 +265,45 @@ router.get("/status/:studentId", async (req, res) => {
     ).length;
     const professorsTotalCount = approvals.length;
 
-    if (!request.current_stage) {
-      if (request.professors_status !== "approved") {
-        request.current_stage = "Professors Approval";
-      } else if (request.library_status !== "approved") {
-        request.current_stage = "Library Clearance";
-      } else if (request.cashier_status !== "approved") {
-        request.current_stage = "Cashier Clearance";
-      } else if (request.registrar_status !== "approved") {
-        request.current_stage = "Registrar Final Approval";
+    // Always recalculate current_stage per REG Form 07 order
+    {
+      // Determine portion from professor approvals
+      const UNDERGRAD_NAMES = ["Department Chairman", "College Dean", "Director Student Affairs", "NSTP Director", "Executive Officer"];
+      const isUndergrad = approvals.some((a) => UNDERGRAD_NAMES.includes(a.professor?.full_name));
+      const findProfStatus = (name) => approvals.find((a) => a.professor?.full_name === name)?.status;
+
+      if (isUndergrad) {
+        // REG Form 07 Undergraduate order (7 steps)
+        if (findProfStatus("Department Chairman") !== "approved") {
+          request.current_stage = "Department Chairman";
+        } else if (findProfStatus("College Dean") !== "approved") {
+          request.current_stage = "College Dean/Director";
+        } else if (findProfStatus("Director Student Affairs") !== "approved") {
+          request.current_stage = "Director for Student Affairs";
+        } else if (request.library_status !== "approved") {
+          request.current_stage = "Campus Librarian";
+        } else if (request.cashier_status !== "approved") {
+          request.current_stage = "Chief Accountant";
+        } else if (findProfStatus("NSTP Director") !== "approved") {
+          request.current_stage = "NSTP Director";
+        } else if (findProfStatus("Executive Officer") !== "approved") {
+          request.current_stage = "Executive Officer";
+        } else {
+          request.current_stage = "Completed";
+        }
       } else {
-        request.current_stage = "Completed";
+        // REG Form 07 Graduate order
+        if (request.cashier_status !== "approved") {
+          request.current_stage = "Chief Accountant";
+        } else if (request.library_status !== "approved") {
+          request.current_stage = "Campus Librarian";
+        } else if (request.registrar_status !== "approved") {
+          request.current_stage = "Record Evaluator";
+        } else if (findProfStatus("Dean Graduate School") !== "approved") {
+          request.current_stage = "Dean, Graduate School";
+        } else {
+          request.current_stage = "Completed";
+        }
       }
     }
 
@@ -319,6 +361,9 @@ router.get("/professor/students/:professorId", async (req, res) => {
           id,
           created_at,
           professors_status,
+          library_status,
+          cashier_status,
+          registrar_status,
           student:student_id (
             id,
             full_name,
@@ -335,28 +380,50 @@ router.get("/professor/students/:professorId", async (req, res) => {
 
     if (error) throw error;
 
-    const PROF_ORDER = [
-      "Department Chairman",
-      "College Dean",
-      "Director Student Affairs",
-      "NSTP Director",
-      "Executive Officer",
-      "Dean Graduate School",
-    ];
+    // Professor prerequisites per REG Form 07
+    // Undergraduate: Chairman → Dean → DSA → [Library] → [Cashier] → NSTP → [Registrar] → Executive
+    // Graduate: [Cashier] → [Library] → [Registrar] → Dean Graduate School
+    const UNDERGRAD_PROF_PREREQS = {
+      "Department Chairman": [],
+      "College Dean": ["Department Chairman"],
+      "Director Student Affairs": ["College Dean"],
+      "NSTP Director": ["Director Student Affairs"],
+      "Executive Officer": ["NSTP Director"],
+    };
 
     const approvals = (rawApprovals || []).map((app) => {
       let is_locked = false;
       const myName = app.professor?.full_name;
-      const myIdx = PROF_ORDER.indexOf(myName);
+      const otherApps = app.request?.professor_approvals || [];
 
-      if (myIdx > 0 && app.request && app.request.professor_approvals) {
-        const otherApps = app.request.professor_approvals;
-        for (let i = 0; i < myIdx; i++) {
-          const prevName = PROF_ORDER[i];
-          const prevApp = otherApps.find((oa) => oa.professor?.full_name === prevName);
-          if (prevApp && prevApp.status !== "approved") {
+      // Check professor prerequisites
+      const prereqs = UNDERGRAD_PROF_PREREQS[myName] || [];
+      for (const prereqName of prereqs) {
+        const prev = otherApps.find((oa) => oa.professor?.full_name === prereqName);
+        if (prev && prev.status !== "approved") {
+          is_locked = true;
+          break;
+        }
+      }
+
+      // Interleaved admin stage checks (REG Form 07 order)
+      if (!is_locked && app.request) {
+        if (myName === "NSTP Director") {
+          // Undergrad: NSTP requires Library + Cashier admin approved first
+          if (app.request.library_status !== "approved" || app.request.cashier_status !== "approved") {
             is_locked = true;
-            break;
+          }
+        } else if (myName === "Executive Officer") {
+          // Undergrad: Executive Officer requires Cashier approved (no registrar in undergrad flow)
+          if (app.request.cashier_status !== "approved") {
+            is_locked = true;
+          }
+        } else if (myName === "Dean Graduate School") {
+          // Graduate: Dean requires all admin stages approved
+          if (app.request.cashier_status !== "approved" ||
+            app.request.library_status !== "approved" ||
+            app.request.registrar_status !== "approved") {
+            is_locked = true;
           }
         }
       }
@@ -396,6 +463,45 @@ router.post("/professor/approve", async (req, res) => {
       .single();
 
     if (error) throw error;
+
+    // Check if this is the last step → mark request as completed
+    try {
+      const { data: profInfo } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", professor_id)
+        .single();
+
+      const profName = profInfo?.full_name;
+
+      if (profName === "Executive Officer" || profName === "Dean Graduate School") {
+        const { data: request } = await supabase
+          .from("requests")
+          .select("id, library_status, cashier_status, registrar_status, is_completed")
+          .eq("id", data.request_id)
+          .single();
+
+        if (request && !request.is_completed &&
+          request.library_status === "approved" &&
+          request.cashier_status === "approved" &&
+          request.registrar_status === "approved") {
+          const certificateNumber = `ISU-GC-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+          await supabase
+            .from("requests")
+            .update({
+              is_completed: true,
+              professors_status: "approved",
+              certificate_generated: true,
+              certificate_generated_at: new Date().toISOString(),
+              certificate_number: certificateNumber,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", request.id);
+        }
+      }
+    } catch (completionErr) {
+      console.warn("Completion check warning:", completionErr.message);
+    }
 
     res.json({
       success: true,
@@ -460,6 +566,7 @@ router.get("/library/pending", async (req, res) => {
         created_at,
         professors_status,
         library_status,
+        cashier_status,
         library_comments,
         student:student_id (
           id,
@@ -467,19 +574,35 @@ router.get("/library/pending", async (req, res) => {
           student_number,
           course_year,
           email
-        )
+        ),
+        professor_approvals(status, professor:professor_id(full_name))
       `,
       )
       .eq("clearance_type", "graduation")
-      .eq("professors_status", "approved")
       .eq("library_status", "pending")
       .order("created_at", { ascending: true });
 
     if (error) throw error;
 
+    // Filter by REG Form 07 prerequisites
+    const UNDERGRAD_NAMES = ["Department Chairman", "College Dean", "Director Student Affairs", "NSTP Director", "Executive Officer"];
+    const eligible = (requests || []).filter((req) => {
+      const approvals = req.professor_approvals || [];
+      const isUndergrad = approvals.some((a) => UNDERGRAD_NAMES.includes(a.professor?.full_name));
+      if (isUndergrad) {
+        // Undergrad: Library unlocks after Director Student Affairs approves
+        const dsa = approvals.find((a) => a.professor?.full_name === "Director Student Affairs");
+        return dsa?.status === "approved";
+      } else {
+        // Graduate: Library unlocks after Chief Accountant (cashier) approves
+        return req.cashier_status === "approved";
+      }
+    });
+
+    const cleanRequests = eligible.map(({ professor_approvals, ...rest }) => rest);
     res.json({
       success: true,
-      requests: requests || [],
+      requests: cleanRequests,
     });
   } catch (error) {
     console.error("Error getting library pending:", error);
@@ -580,19 +703,34 @@ router.get("/cashier/pending", async (req, res) => {
           student_number,
           course_year,
           email
-        )
+        ),
+        professor_approvals(status, professor:professor_id(full_name))
       `,
       )
       .eq("clearance_type", "graduation")
-      .eq("library_status", "approved")
       .eq("cashier_status", "pending")
       .order("created_at", { ascending: true });
 
     if (error) throw error;
 
+    // Filter by REG Form 07 prerequisites
+    const UNDERGRAD_NAMES = ["Department Chairman", "College Dean", "Director Student Affairs", "NSTP Director", "Executive Officer"];
+    const eligible = (requests || []).filter((req) => {
+      const approvals = req.professor_approvals || [];
+      const isUndergrad = approvals.some((a) => UNDERGRAD_NAMES.includes(a.professor?.full_name));
+      if (isUndergrad) {
+        // Undergrad: Cashier unlocks after Campus Librarian (library) approves
+        return req.library_status === "approved";
+      } else {
+        // Graduate: Cashier is the first step, always available
+        return true;
+      }
+    });
+
+    const cleanRequests = eligible.map(({ professor_approvals, ...rest }) => rest);
     res.json({
       success: true,
-      requests: requests || [],
+      requests: cleanRequests,
     });
   } catch (error) {
     console.error("Error getting cashier pending:", error);
@@ -695,19 +833,35 @@ router.get("/registrar/pending", async (req, res) => {
           student_number,
           course_year,
           email
-        )
+        ),
+        professor_approvals(status, professor:professor_id(full_name))
       `,
       )
       .eq("clearance_type", "graduation")
-      .eq("cashier_status", "approved")
       .eq("registrar_status", "pending")
       .order("created_at", { ascending: true });
 
     if (error) throw error;
 
+    // Filter by REG Form 07 prerequisites
+    const UNDERGRAD_NAMES = ["Department Chairman", "College Dean", "Director Student Affairs", "NSTP Director", "Executive Officer"];
+    const eligible = (requests || []).filter((req) => {
+      const approvals = req.professor_approvals || [];
+      const isUndergrad = approvals.some((a) => UNDERGRAD_NAMES.includes(a.professor?.full_name));
+      if (isUndergrad) {
+        // Undergrad: Registrar unlocks after NSTP Director professor approves
+        const nstp = approvals.find((a) => a.professor?.full_name === "NSTP Director");
+        return nstp?.status === "approved";
+      } else {
+        // Graduate: Registrar unlocks after Campus Librarian (library) approves
+        return req.library_status === "approved";
+      }
+    });
+
+    const cleanRequests = eligible.map(({ professor_approvals, ...rest }) => rest);
     res.json({
       success: true,
-      requests: requests || [],
+      requests: cleanRequests,
     });
   } catch (error) {
     console.error("Error getting registrar pending:", error);

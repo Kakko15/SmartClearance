@@ -69,35 +69,35 @@ const StageNode = ({
   const statusConfig = {
     approved: {
       color: "bg-[#1e8e3e]",
-      bg: isDarkMode ? "bg-[#303e33] border border-transparent" : "bg-[#e6f4ea] border border-transparent",
-      badge: isDarkMode ? "bg-transparent text-[#81c995]" : "bg-transparent text-[#137333]",
+      bg: isDarkMode ? "bg-[#1e8e3e]/10 border border-[#1e8e3e]/20" : "bg-white border border-[#dadce0] shadow-[0_1px_2px_0_rgba(60,64,67,0.1),0_1px_3px_1px_rgba(60,64,67,0.05)]",
+      badge: isDarkMode ? "bg-[#1e8e3e]/20 text-[#81c995]" : "bg-[#e6f4ea] text-[#137333]",
       icon: <CheckIcon className="w-5 h-5 text-white" />,
       label: "Approved",
       iconBg: isDarkMode ? "bg-[#81c995]" : "bg-[#1e8e3e]",
     },
     rejected: {
       color: isDarkMode ? "bg-[#f28b82]" : "bg-[#d93025]",
-      bg: isDarkMode ? "bg-[#45272a] border border-[#fce8e6]" : "bg-[#fce8e6] border border-[#fce8e6]",
-      badge: isDarkMode ? "bg-transparent text-[#f28b82]" : "bg-transparent text-[#c5221f]",
+      bg: isDarkMode ? "bg-[#d93025]/10 border border-[#d93025]/20" : "bg-white border border-[#dadce0] shadow-[0_1px_2px_0_rgba(60,64,67,0.1),0_1px_3px_1px_rgba(60,64,67,0.05)]",
+      badge: isDarkMode ? "bg-[#f28b82]/20 text-[#f28b82]" : "bg-[#fce8e6] text-[#c5221f]",
       icon: <XMarkIcon className="w-5 h-5 text-white" />,
       label: "Rejected",
       iconBg: isDarkMode ? "bg-[#f28b82]" : "bg-[#d93025]",
     },
     pending: {
-      color: isDarkMode ? "bg-primary-400" : "bg-primary-600",
-      bg: isDarkMode ? "bg-[#282a2d] border border-[#5f6368] shadow-sm" : "bg-white border border-[#dadce0] shadow-sm",
-      badge: isDarkMode ? "bg-[#422c00] text-[#fde293] border-transparent" : "bg-[#fef7e0] text-[#b06000] border-transparent",
+      color: isDarkMode ? "bg-[#8ab4f8]" : "bg-[#1a73e8]",
+      bg: isDarkMode ? "bg-[#202124] border border-[#8ab4f8]/30 shadow-md ring-1 ring-[#8ab4f8]/20" : "bg-white border border-[#1a73e8]/20 shadow-[0_1px_3px_0_rgba(26,115,232,0.15),0_4px_8px_3px_rgba(26,115,232,0.05)] ring-1 ring-[#1a73e8]/10",
+      badge: isDarkMode ? "bg-[#8ab4f8]/15 text-[#8ab4f8]" : "bg-[#e8f0fe] text-[#1967d2]",
       icon: <ClockIcon className="w-4.5 h-4.5 text-white" />,
-      label: "Pending",
-      iconBg: isDarkMode ? "bg-primary-400" : "bg-primary-600",
+      label: "In Progress",
+      iconBg: isDarkMode ? "bg-[#8ab4f8]" : "bg-[#1a73e8]",
     },
     locked: {
       color: isDarkMode ? "bg-[#5f6368]" : "bg-[#dadce0]",
-      bg: isDarkMode ? "bg-[#303134] border border-transparent grayscale opacity-80" : "bg-[#f8f9fa] border border-transparent grayscale opacity-80",
-      badge: isDarkMode ? "bg-[#3c4043] text-[#9aa0a6] border-transparent" : "bg-[#f1f3f4] text-[#5f6368] border-transparent",
-      icon: <ClockIcon className="w-4.5 h-4.5 text-gray-400" />,
+      bg: isDarkMode ? "bg-transparent border border-dashed border-[#5f6368]" : "bg-[#f8f9fa] border border-dashed border-[#dadce0]",
+      badge: isDarkMode ? "bg-[#3c4043] text-[#9aa0a6]" : "bg-white text-[#5f6368] border border-[#dadce0]",
+      icon: <ClockIcon className={`w-4.5 h-4.5 ${isDarkMode ? 'text-[#9aa0a6]' : 'text-gray-400'}`} />,
       label: "Locked",
-      iconBg: isDarkMode ? "bg-[#3c4043]" : "bg-[#f1f3f4]",
+      iconBg: isDarkMode ? "bg-[#3c4043]" : "bg-white border-2 border-[#dadce0]",
     },
   };
 
@@ -115,47 +115,43 @@ const StageNode = ({
           <motion.div
             whileHover={{ scale: stage.status === 'locked' ? 1 : 1.05 }}
             className={`relative w-10 h-10 rounded-full ${config.iconBg} flex items-center justify-center z-10 ${stage.status !== 'locked' ? 'shadow-sm' : ''}`}
-            onClick={onToggle}
+            onClick={stage.status !== 'locked' ? onToggle : undefined}
           >
             {config.icon}
           </motion.div>
           {!isLast && (
             <div
-              className={`w-0.5 flex-1 min-h-[50px] ${
-                stage.status === "approved" ? "bg-[#1e8e3e]" : (isDarkMode ? "bg-[#5f6368]" : "bg-[#dadce0]")
-              }`}
+              className={`w-[2px] flex-1 min-h-[50px] ${stage.status === "approved" ? "bg-[#1e8e3e]" : (isDarkMode ? "bg-[#5f6368]" : "bg-[#dadce0]")}`}
             />
           )}
         </div>
 
-        <div className={`flex-1 ${isLast ? "pb-0" : "pb-6"}`}>
+        <div className={`flex-1 ${isLast ? "pb-0" : "pb-7"}`}>
           <div
-            className={`rounded-2xl p-4 transition-all duration-200 ${config.bg} ${
-              isExpanded && stage.status !== 'locked' ? "ring-2 ring-[#e8f0fe]" : ""
-            } ${stage.status !== 'locked' ? 'cursor-pointer hover:shadow-md' : ''}`}
+            className={`rounded-[20px] p-5 transition-all duration-200 ${config.bg} ${isExpanded && stage.status !== 'locked' ? (isDarkMode ? "ring-2 ring-[#8ab4f8]/30" : "ring-2 ring-[#e8f0fe]") : ""} ${stage.status !== 'locked' ? 'cursor-pointer hover:shadow-md' : 'opacity-80'}`}
             onClick={stage.status !== 'locked' ? onToggle : undefined}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div
-                  className={`w-9 h-9 rounded-full ${config.iconBg} bg-opacity-10 flex items-center justify-center`}
+                  className={`w-10 h-10 rounded-full ${isDarkMode ? 'bg-white/5' : 'bg-black/5'} flex items-center justify-center`}
                 >
-                  <div className={`text-${config.iconBg.replace('bg-', '')}`}>
-                     {stage.iconComponent}
+                  <div className={`${isDarkMode ? 'text-[#e8eaed]' : 'text-[#3c4043]'}`}>
+                    {stage.iconComponent}
                   </div>
                 </div>
                 <div>
-                  <h4 className={`font-medium text-[15px] ${isDarkMode ? (stage.status === 'locked' ? 'text-[#9aa0a6]' : 'text-[#e8eaed]') : (stage.status === 'locked' ? 'text-[#5f6368]' : 'text-[#202124]')}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
+                  <h4 className={`font-medium text-[16px] tracking-tight ${isDarkMode ? (stage.status === 'locked' ? 'text-[#9aa0a6]' : 'text-[#e8eaed]') : (stage.status === 'locked' ? 'text-[#5f6368]' : 'text-[#202124]')}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
                     {stage.title}
                   </h4>
-                  <p className={`text-[13px] mt-0.5 ${isDarkMode ? 'text-[#9aa0a6]' : 'text-[#5f6368]'}`}>
+                  <p className={`text-[13px] mt-0.5 font-normal leading-relaxed ${isDarkMode ? 'text-[#9aa0a6]' : 'text-[#5f6368]'}`}>
                     {stage.description}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <span
-                  className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${config.badge}`}
+                  className={`px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${config.badge}`}
                 >
                   {config.label}
                 </span>
@@ -168,17 +164,18 @@ const StageNode = ({
                       e.stopPropagation();
                       onViewComments();
                     }}
-                    className="w-7 h-7 rounded-lg bg-orange-100 hover:bg-orange-200 flex items-center justify-center transition-colors"
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${isDarkMode ? "bg-orange-900/40 hover:bg-orange-800/60" : "bg-orange-50 hover:bg-orange-100"
+                      }`}
                     title="View comments"
                   >
-                    <ChatBubbleIcon className="w-4 h-4 text-orange-600" />
+                    <ChatBubbleIcon className={`w-4 h-4 ${isDarkMode ? "text-orange-400" : "text-orange-600"}`} />
                   </motion.button>
                 )}
                 {children && (
                   <motion.div
                     animate={{ rotate: isExpanded ? 180 : 0 }}
                     transition={{ duration: 0.2 }}
-                    className="text-gray-400"
+                    className={isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}
                   >
                     <ChevronDownIcon className="w-4 h-4" />
                   </motion.div>
@@ -195,7 +192,7 @@ const StageNode = ({
                   transition={{ duration: 0.3, ease: "easeInOut" }}
                   className="overflow-hidden"
                 >
-                  <div className="mt-3 pt-3 border-t border-gray-200/50">
+                  <div className={`mt-4 pt-4 border-t ${isDarkMode ? 'border-[#3c4043]' : 'border-[#dadce0]'}`}>
                     {children}
                   </div>
                 </motion.div>
@@ -207,9 +204,9 @@ const StageNode = ({
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className={`mt-2 px-5 py-3 rounded-xl text-sm border ${isDarkMode ? 'bg-[#303134] border-[#5f6368] text-[#e8eaed]' : 'bg-[#f8f9fa] border-[#dadce0] text-[#3c4043]'}`}
+              className={`mt-2.5 px-5 py-3.5 rounded-2xl text-[13px] leading-relaxed border shadow-sm ${isDarkMode ? 'bg-[#303134] border-[#5f6368] text-[#e8eaed]' : 'bg-[#fff8e1] border-[#fde293] text-[#3c4043]'}`}
             >
-              <span className={`font-semibold ${isDarkMode ? 'text-[#ffffff]' : 'text-[#202124]'}`}>Note:</span> {stage.comments}
+              <span className={`font-semibold mr-1 ${isDarkMode ? 'text-[#ffffff]' : 'text-[#f29900]'}`}>Note:</span> {stage.comments}
             </motion.div>
           )}
         </div>
@@ -230,13 +227,13 @@ const ProfessorCard = ({
       dot: isDarkMode ? "bg-emerald-400" : "bg-emerald-500",
       badge: isDarkMode ? "bg-emerald-400 bg-opacity-[0.15] text-emerald-400 border border-emerald-400/20" : "bg-emerald-50 text-emerald-700 border border-transparent",
     },
-    rejected: { 
-      dot: isDarkMode ? "bg-red-400" : "bg-red-500", 
-      badge: isDarkMode ? "bg-red-400 bg-opacity-[0.15] text-red-400 border border-red-400/20" : "bg-red-50 text-red-700 border border-transparent" 
+    rejected: {
+      dot: isDarkMode ? "bg-red-400" : "bg-red-500",
+      badge: isDarkMode ? "bg-red-400 bg-opacity-[0.15] text-red-400 border border-red-400/20" : "bg-red-50 text-red-700 border border-transparent"
     },
-    pending: { 
-      dot: isDarkMode ? "bg-[#fde293]" : "bg-amber-500", 
-      badge: isDarkMode ? "bg-[#422c00] text-[#fde293] border border-[#fde293]/20" : "bg-amber-50 text-amber-700 border border-transparent" 
+    pending: {
+      dot: isDarkMode ? "bg-[#fde293]" : "bg-amber-500",
+      badge: isDarkMode ? "bg-[#422c00] text-[#fde293] border border-[#fde293]/20" : "bg-amber-50 text-amber-700 border border-transparent"
     },
   };
   const colors = statusColors[approval.status] || statusColors.pending;
@@ -294,17 +291,17 @@ const ProfessorCard = ({
           />
         )}
         <motion.div
-           initial={{ opacity: 0, x: -4 }}
-           animate={{ opacity: 0 }}
-           whileHover={{ opacity: 1, x: 0 }}
-           className={`opacity-0 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'text-primary-400' : 'text-primary-500'}`}
-         >
-           <svg
-             className="w-4 h-4"
-             fill="none"
-             stroke="currentColor"
-             viewBox="0 0 24 24"
-           >
+          initial={{ opacity: 0, x: -4 }}
+          animate={{ opacity: 0 }}
+          whileHover={{ opacity: 1, x: 0 }}
+          className={`opacity-0 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'text-primary-400' : 'text-primary-500'}`}
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -460,23 +457,21 @@ const CommentPopupModal = ({
                 {specificComments.map((comment) => (
                   <div
                     key={comment.id}
-                    className={`border-l-4 pl-4 py-3 rounded-r-xl bg-white shadow-sm ${
-                      comment.is_resolved
-                        ? "border-green-300 opacity-60"
-                        : target.type === "professor"
-                          ? "border-purple-400"
-                          : "border-blue-400"
-                    }`}
+                    className={`border-l-4 pl-4 py-3 rounded-r-xl bg-white shadow-sm ${comment.is_resolved
+                      ? "border-green-300 opacity-60"
+                      : target.type === "professor"
+                        ? "border-purple-400"
+                        : "border-blue-400"
+                      }`}
                   >
                     <div className="flex items-start gap-3">
                       <div
-                        className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
-                          comment.is_resolved
-                            ? "bg-green-400"
-                            : target.type === "professor"
-                              ? "bg-gradient-to-br from-purple-400 to-indigo-500"
-                              : "bg-gradient-to-br from-blue-400 to-indigo-500"
-                        }`}
+                        className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${comment.is_resolved
+                          ? "bg-green-400"
+                          : target.type === "professor"
+                            ? "bg-gradient-to-br from-purple-400 to-indigo-500"
+                            : "bg-gradient-to-br from-blue-400 to-indigo-500"
+                          }`}
                       >
                         <span className="text-white text-xs font-bold">
                           {comment.commenter_name?.charAt(0) || "?"}
@@ -488,12 +483,11 @@ const CommentPopupModal = ({
                             {comment.commenter_name}
                           </span>
                           <span
-                            className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
-                              comment.commenter_role === "professor" ||
+                            className={`text-xs px-2 py-0.5 rounded-full border font-medium ${comment.commenter_role === "professor" ||
                               comment.commenter_role === "department_head"
-                                ? "bg-purple-50 text-purple-700 border-purple-200"
-                                : "bg-blue-50 text-blue-700 border-blue-200"
-                            }`}
+                              ? "bg-purple-50 text-purple-700 border-purple-200"
+                              : "bg-blue-50 text-blue-700 border-blue-200"
+                              }`}
                           >
                             {comment.commenter_role === "professor"
                               ? "Professor"
@@ -516,11 +510,10 @@ const CommentPopupModal = ({
                           )}
                         </div>
                         <p
-                          className={`text-sm whitespace-pre-wrap leading-relaxed mt-1 ${
-                            comment.is_resolved
-                              ? "text-gray-400 line-through decoration-1"
-                              : "text-gray-700"
-                          }`}
+                          className={`text-sm whitespace-pre-wrap leading-relaxed mt-1 ${comment.is_resolved
+                            ? "text-gray-400 line-through decoration-1"
+                            : "text-gray-700"
+                            }`}
                         >
                           {comment.comment_text}
                         </p>
@@ -557,22 +550,30 @@ const ProgressBar = ({ stages, isDarkMode }) => {
   const pct = total > 0 ? (approved / total) * 100 : 0;
 
   return (
-    <div className="mb-8">
-      <div className="flex items-center justify-between mb-2">
-        <span className={`text-[14px] font-medium ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>
+    <div className="mb-4">
+      <div className="flex items-center justify-between mb-2.5">
+        <span className={`text-[15px] font-medium tracking-tight ${isDarkMode ? "text-[#e8eaed]" : "text-[#3c4043]"}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
           Overall Progress
         </span>
-        <span className={`text-[13px] font-bold ${isDarkMode ? "text-primary-400" : "text-primary-600"}`}>
+        <span className={`text-[14px] font-bold ${isDarkMode ? "text-[#81c995]" : "text-[#1e8e3e]"}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
           {approved}/{total} stages complete
         </span>
       </div>
-      <div className={`h-1.5 rounded-full overflow-hidden ${isDarkMode ? "bg-[#3c4043]" : "bg-[#f1f3f4]"}`}>
+      <div className={`h-[8px] rounded-full overflow-hidden shadow-inner ${isDarkMode ? "bg-[#303134]" : "bg-[#f1f3f4]"}`}>
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${pct}%` }}
-          transition={{ duration: 1, ease: "easeOut", delay: 0.5 }}
-          className={`h-full rounded-full ${isDarkMode ? "bg-primary-400" : "bg-primary-600"}`}
-        />
+          transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1], delay: 0.2 }}
+          className={`h-full rounded-full relative overflow-hidden ${isDarkMode ? "bg-[#81c995] shadow-[0_0_10px_rgba(129,201,149,0.5)]" : "bg-[#1e8e3e] shadow-[0_0_10px_rgba(30,142,62,0.4)]"}`}
+        >
+          {pct > 0 && pct < 100 && (
+            <motion.div
+              animate={{ x: ["-100%", "200%"] }}
+              transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -skew-x-12"
+            />
+          )}
+        </motion.div>
       </div>
     </div>
   );
@@ -594,6 +595,7 @@ export default function StudentDashboardGraduation({
   const [activeView, setActiveView] = useState("status");
   const [expandedStages, setExpandedStages] = useState({ professors: true });
   const [cancelling, setCancelling] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
   const [commentTarget, setCommentTarget] = useState(null);
   const [clearanceComments, setClearanceComments] = useState([]);
 
@@ -619,6 +621,20 @@ export default function StudentDashboardGraduation({
     const interval = setInterval(() => fetchClearanceComments(reqId), 10000);
     return () => clearInterval(interval);
   }, [clearanceStatus]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape" && showCancelModal) {
+        setShowCancelModal(false);
+      }
+    };
+    if (showCancelModal) {
+      window.addEventListener("keydown", handleKeyDown);
+    }
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [showCancelModal]);
 
   const fetchClearanceStatus = async () => {
     setLoading(true);
@@ -661,20 +677,17 @@ export default function StudentDashboardGraduation({
     }
   };
 
-  const handleCancel = async () => {
-    if (
-      !window.confirm(
-        "Are you sure you want to cancel your graduation clearance request?",
-      )
-    )
-      return;
+  const handleCancel = () => setShowCancelModal(true);
+
+  const confirmCancel = async () => {
+    setShowCancelModal(false);
     setCancelling(true);
     try {
       const response = await axios.delete(
         `${API_URL}/graduation/cancel/${studentId}`,
       );
       if (response.data.success) {
-        toast.success("Request cancelled");
+        toast.success("Request cancelled successfully");
         fetchClearanceStatus();
       }
     } catch (error) {
@@ -683,6 +696,8 @@ export default function StudentDashboardGraduation({
       setCancelling(false);
     }
   };
+
+
 
   const toggleStage = (key) =>
     setExpandedStages((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -720,52 +735,29 @@ export default function StudentDashboardGraduation({
   const buildStages = () => {
     if (!clearanceStatus?.request) return [];
     const r = clearanceStatus.request;
+    const profApprovals = clearanceStatus.professorApprovals || [];
 
-    const PROF_ORDER = [
-      "Department Chairman",
-      "College Dean",
-      "Director Student Affairs",
-      "NSTP Director",
-      "Executive Officer",
-      "Dean Graduate School",
-    ];
+    // Detect portion from assigned professors
+    const UNDERGRAD_NAMES = ["Department Chairman", "College Dean", "Director Student Affairs", "NSTP Director", "Executive Officer"];
+    const isUndergraduate = profApprovals.some((a) => UNDERGRAD_NAMES.includes(a.professor?.full_name));
 
-    const profApprovals = (clearanceStatus.professorApprovals || [])
-      .slice()
-      .sort((a, b) => {
-        const idxA = PROF_ORDER.indexOf(a.professor?.full_name);
-        const idxB = PROF_ORDER.indexOf(b.professor?.full_name);
-        return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99);
-      });
+    const findProf = (name) => profApprovals.find((a) => a.professor?.full_name === name);
 
-    let isLocked = false;
-
-    const profStages = profApprovals.map((approval) => {
-      const name = approval.professor?.full_name || "Unknown Professor";
-      const profClearanceComments = clearanceComments.filter(
-        (c) => c.commenter_id === approval.professor_id
-      );
+    // Build a professor stage node
+    const buildProfNode = (approval, locked) => {
+      if (!approval) return null;
+      const name = approval.professor?.full_name || "Unknown";
+      const profCC = clearanceComments.filter((c) => c.commenter_id === approval.professor_id);
       const unresolvedCount =
-        profClearanceComments.filter((c) => !c.is_resolved).length +
+        profCC.filter((c) => !c.is_resolved).length +
         (approval.comments && approval.comments.trim() && approval.status !== "approved" ? 1 : 0);
-
-      const hasComments =
-        profClearanceComments.length > 0 || !!(approval.comments && approval.comments.trim());
-
-      let status = approval.status;
-      if (isLocked && status === "pending") {
-        status = "locked";
-      }
-      if (approval.status !== "approved") {
-        isLocked = true;
-      }
-
+      const hasComments = profCC.length > 0 || !!(approval.comments && approval.comments.trim());
       return {
         key: `prof-${approval.id}`,
         title: name,
-        description: "Professor Approval",
+        description: "Clearance Approval",
         iconComponent: <UsersIcon className="w-4 h-4 text-white" />,
-        status,
+        status: locked && approval.status === "pending" ? "locked" : approval.status,
         comments: approval.comments,
         hasChildren: false,
         hasComments,
@@ -773,45 +765,64 @@ export default function StudentDashboardGraduation({
         approval,
         type: "professor",
       };
-    });
+    };
 
-    const adminStages = [
-      {
-        key: "library",
-        title: "Library Clearance",
-        description: "Check for unsettled books and obligations",
-        iconComponent: <BookOpenIcon className="w-4 h-4 text-white" />,
-        status: isLocked && r.library_status === "pending" ? "locked" : r.library_status || "pending",
-        comments: r.library_comments,
-        hasComments: !!(r.library_comments && r.library_comments.trim()),
-        unresolvedCount: r.library_comments ? 1 : 0,
-        type: "stage"
-      },
-      {
-        key: "cashier",
-        title: "Cashier Clearance",
-        description: "Verify financial obligations",
-        iconComponent: <BanknotesIcon className="w-4 h-4 text-white" />,
-        status: (isLocked || r.library_status !== "approved") && r.cashier_status === "pending" ? "locked" : r.cashier_status || "pending",
-        comments: r.cashier_comments,
-        hasComments: !!(r.cashier_comments && r.cashier_comments.trim()),
-        unresolvedCount: r.cashier_comments ? 1 : 0,
-        type: "stage"
-      },
-      {
-        key: "registrar",
-        title: "Registrar Final Approval",
-        description: "Final validation and certificate generation",
-        iconComponent: <BuildingLibraryIcon className="w-4 h-4 text-white" />,
-        status: (isLocked || r.library_status !== "approved" || r.cashier_status !== "approved") && r.registrar_status === "pending" ? "locked" : r.registrar_status || "pending",
-        comments: r.registrar_comments,
-        hasComments: !!(r.registrar_comments && r.registrar_comments.trim()),
-        unresolvedCount: r.registrar_comments ? 1 : 0,
-        type: "stage"
-      },
-    ];
+    // Build an admin stage node
+    const buildAdminNode = (key, title, description, icon, locked) => {
+      const sField = { library: "library_status", cashier: "cashier_status", registrar: "registrar_status" }[key];
+      const cField = { library: "library_comments", cashier: "cashier_comments", registrar: "registrar_comments" }[key];
+      const st = r[sField] || "pending";
+      const cm = r[cField];
+      return {
+        key,
+        title,
+        description,
+        iconComponent: icon,
+        status: locked && st === "pending" ? "locked" : st,
+        comments: cm,
+        hasComments: !!(cm && cm.trim()),
+        unresolvedCount: cm ? 1 : 0,
+        type: "stage",
+      };
+    };
 
-    return [...profStages, ...adminStages];
+    // Define form order per portion (REG Form 07)
+    // Undergraduate: 7 steps | Graduate: 4 steps
+    const steps = isUndergraduate
+      ? [
+        { type: "prof", name: "Department Chairman" },
+        { type: "prof", name: "College Dean" },
+        { type: "prof", name: "Director Student Affairs" },
+        { type: "admin", key: "library", title: "Campus Librarian", desc: "Library clearance and book obligations", icon: <BookOpenIcon className="w-4 h-4 text-white" /> },
+        { type: "admin", key: "cashier", title: "Chief Accountant", desc: "Financial obligations clearance", icon: <BanknotesIcon className="w-4 h-4 text-white" /> },
+        { type: "prof", name: "NSTP Director" },
+        { type: "prof", name: "Executive Officer" },
+      ]
+      : [
+        { type: "admin", key: "cashier", title: "Chief Accountant", desc: "Financial obligations clearance", icon: <BanknotesIcon className="w-4 h-4 text-white" /> },
+        { type: "admin", key: "library", title: "Campus Librarian", desc: "Library clearance and book obligations", icon: <BookOpenIcon className="w-4 h-4 text-white" /> },
+        { type: "admin", key: "registrar", title: "Student's Record Evaluator", desc: "Record evaluation and validation", icon: <BuildingLibraryIcon className="w-4 h-4 text-white" /> },
+        { type: "prof", name: "Dean Graduate School" },
+      ];
+
+    // Build stages with sequential locking
+    const stages = [];
+    let isLocked = false;
+    for (const step of steps) {
+      if (step.type === "prof") {
+        const node = buildProfNode(findProf(step.name), isLocked);
+        if (node) {
+          stages.push(node);
+          if (node.status !== "approved") isLocked = true;
+        }
+      } else {
+        const sField = { library: "library_status", cashier: "cashier_status", registrar: "registrar_status" }[step.key];
+        const node = buildAdminNode(step.key, step.title, step.desc, step.icon, isLocked);
+        stages.push(node);
+        if ((r[sField] || "pending") !== "approved") isLocked = true;
+      }
+    }
+    return stages;
   };
 
   const unresolvedCommentCount = clearanceStatus?.unresolvedCommentCount || 0;
@@ -893,7 +904,7 @@ export default function StudentDashboardGraduation({
               <GlassCard isDark={isDarkMode} className="p-8 border-none shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] rounded-3xl">
                 <div className={`h-6 w-48 rounded mb-2 animate-pulse ${isDarkMode ? 'bg-slate-800' : 'bg-slate-200'}`} />
                 <div className={`h-4 w-64 rounded mb-8 animate-pulse ${isDarkMode ? 'bg-slate-800' : 'bg-slate-200'}`} />
-                
+
                 <div className="space-y-6">
                   {[1, 2, 3, 4].map((i) => (
                     <div key={i} className="flex items-start gap-4">
@@ -902,7 +913,7 @@ export default function StudentDashboardGraduation({
                         <div className={`w-10 h-10 rounded-full animate-pulse ${isDarkMode ? 'bg-slate-800' : 'bg-slate-200'}`} />
                         {i !== 4 && <div className={`w-0.5 h-[50px] animate-pulse ${isDarkMode ? 'bg-slate-800' : 'bg-slate-200'}`} />}
                       </div>
-                      
+
 
                       <div className="flex-1 pb-6 w-full">
                         <div className={`rounded-2xl p-4 flex items-center justify-between w-full h-[72px] animate-pulse ${isDarkMode ? 'bg-slate-800/50' : 'bg-slate-50'}`}>
@@ -922,7 +933,7 @@ export default function StudentDashboardGraduation({
               </GlassCard>
             </div>
           ) : !clearanceStatus?.hasRequest ? (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ staggerChildren: 0.1 }}
@@ -938,7 +949,7 @@ export default function StudentDashboardGraduation({
               >
                 <GlassCard isDark={isDarkMode} className={`p-8 md:p-10 text-center flex flex-col justify-between h-full rounded-[24px] border ${isDarkMode ? 'border-[#3c4043] bg-[#202124]' : 'border-[#dadce0] bg-white'} shadow-[0_1px_2px_0_rgba(60,64,67,0.3)] hover:shadow-[0_4px_10px_0_rgba(60,64,67,0.15)] transition-all duration-300`}>
                   <div className={`absolute top-0 left-0 right-0 h-1 ${isDarkMode ? 'bg-primary-400' : 'bg-primary-600'} rounded-t-[24px] opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
-                  
+
                   <div className="flex-1 flex flex-col items-center">
                     <motion.div
                       whileHover={{ scale: 1.05, rotate: -5 }}
@@ -947,7 +958,7 @@ export default function StudentDashboardGraduation({
                     >
                       <AcademicCapIcon className={`w-8 h-8 ${isDarkMode ? 'text-primary-400' : 'text-primary-600'}`} />
                     </motion.div>
-                    
+
                     <h3 className={`text-[20px] font-medium mb-3 tracking-tight ${isDarkMode ? 'text-[#e8eaed]' : 'text-[#202124]'}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
                       Undergraduate Portion
                     </h3>
@@ -955,18 +966,17 @@ export default function StudentDashboardGraduation({
                       Standard clearance process including Department Chairman, College Dean, and Executive Officer approvals.
                     </p>
                   </div>
-                  
+
                   <motion.button
                     whileTap={{ scale: 0.98 }}
                     onClick={() => handleApply("undergraduate")}
                     disabled={applying !== false}
-                    className={`w-full py-2.5 rounded-full font-medium text-[14px] transition-all duration-200 border border-transparent ${
-                      applying !== false 
-                        ? 'opacity-50 cursor-not-allowed' 
-                        : isDarkMode
-                          ? 'hover:shadow-[0_1px_3px_1px_rgba(0,0,0,0.15)] bg-primary-400 text-dark-bg hover:bg-primary-300'
-                          : 'hover:shadow-[0_1px_3px_1px_rgba(60,64,67,0.15)] bg-primary-600 text-white hover:bg-primary-700'
-                    }`}
+                    className={`w-full py-2.5 rounded-full font-medium text-[14px] transition-all duration-200 border border-transparent ${applying !== false
+                      ? 'opacity-50 cursor-not-allowed'
+                      : isDarkMode
+                        ? 'hover:shadow-[0_1px_3px_1px_rgba(0,0,0,0.15)] bg-primary-400 text-dark-bg hover:bg-primary-300'
+                        : 'hover:shadow-[0_1px_3px_1px_rgba(60,64,67,0.15)] bg-primary-600 text-white hover:bg-primary-700'
+                      }`}
                     style={{ fontFamily: 'Google Sans, sans-serif' }}
                   >
                     {applying === "undergraduate" ? "Applying..." : "Select Undergraduate"}
@@ -984,7 +994,7 @@ export default function StudentDashboardGraduation({
               >
                 <GlassCard isDark={isDarkMode} className={`p-8 md:p-10 text-center flex flex-col justify-between h-full rounded-[24px] border ${isDarkMode ? 'border-[#3c4043] bg-[#202124]' : 'border-[#dadce0] bg-white'} shadow-[0_1px_2px_0_rgba(60,64,67,0.3)] hover:shadow-[0_4px_10px_0_rgba(60,64,67,0.15)] transition-all duration-300`}>
                   <div className={`absolute top-0 left-0 right-0 h-1 ${isDarkMode ? 'bg-secondary-400' : 'bg-secondary-600'} rounded-t-[24px] opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
-                  
+
                   <div className="flex-1 flex flex-col items-center">
                     <motion.div
                       whileHover={{ scale: 1.05, rotate: 5 }}
@@ -993,7 +1003,7 @@ export default function StudentDashboardGraduation({
                     >
                       <BookOpenIcon className={`w-8 h-8 ${isDarkMode ? 'text-secondary-400' : 'text-secondary-600'}`} />
                     </motion.div>
-                    
+
                     <h3 className={`text-[20px] font-medium mb-3 tracking-tight ${isDarkMode ? 'text-[#e8eaed]' : 'text-[#202124]'}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
                       Graduate Portion
                     </h3>
@@ -1001,18 +1011,17 @@ export default function StudentDashboardGraduation({
                       Specialized clearance process for Master's and Doctoral students requiring Graduate School approval.
                     </p>
                   </div>
-                  
+
                   <motion.button
                     whileTap={{ scale: 0.98 }}
                     onClick={() => handleApply("graduate")}
                     disabled={applying !== false}
-                    className={`w-full py-2.5 rounded-full font-medium text-[14px] transition-all duration-200 border border-transparent ${
-                      applying !== false 
-                        ? 'opacity-50 cursor-not-allowed' 
-                        : isDarkMode
-                          ? 'hover:shadow-[0_1px_3px_1px_rgba(0,0,0,0.15)] bg-secondary-400 text-dark-bg hover:bg-secondary-300'
-                          : 'hover:shadow-[0_1px_3px_1px_rgba(60,64,67,0.15)] bg-secondary-600 text-white hover:bg-secondary-700'
-                    }`}
+                    className={`w-full py-2.5 rounded-full font-medium text-[14px] transition-all duration-200 border border-transparent ${applying !== false
+                      ? 'opacity-50 cursor-not-allowed'
+                      : isDarkMode
+                        ? 'hover:shadow-[0_1px_3px_1px_rgba(0,0,0,0.15)] bg-secondary-400 text-dark-bg hover:bg-secondary-300'
+                        : 'hover:shadow-[0_1px_3px_1px_rgba(60,64,67,0.15)] bg-secondary-600 text-white hover:bg-secondary-700'
+                      }`}
                     style={{ fontFamily: 'Google Sans, sans-serif' }}
                   >
                     {applying === "graduate" ? "Applying..." : "Select Graduate"}
@@ -1022,35 +1031,55 @@ export default function StudentDashboardGraduation({
             </motion.div>
           ) : (
             <>
-              <GlassCard isDark={isDarkMode} className="p-6 border-none shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] rounded-3xl">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-5">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isDarkMode ? 'bg-[#303134]' : 'bg-[#f1f3f4]'}`}>
-                      <AcademicCapIcon className={`w-6 h-6 ${isDarkMode ? 'text-primary-400' : 'text-primary-600'}`} />
+              <GlassCard isDark={isDarkMode} className="p-7 border-none shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] rounded-3xl relative overflow-hidden">
+                <div className={`absolute top-0 left-0 w-1.5 h-full ${isDarkMode ? 'bg-[#8ab4f8]' : 'bg-[#1a73e8]'}`} />
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 pl-2">
+                  <div className="flex items-start sm:items-center gap-5">
+                    <div className="relative">
+                      <div className={`w-14 h-14 rounded-full flex items-center justify-center ${isDarkMode ? 'bg-[#1a73e8]/20 text-[#8ab4f8]' : 'bg-[#e8f0fe] text-[#1a73e8]'}`}>
+                        <AcademicCapIcon className="w-7 h-7" />
+                      </div>
+                      <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center shadow-sm ${isDarkMode ? 'bg-[#202124]' : 'bg-white'}`}>
+                        <div className="w-3.5 h-3.5 rounded-full bg-[#1e8e3e] shadow-[0_0_8px_rgba(30,142,62,0.8)] animate-pulse" />
+                      </div>
                     </div>
                     <div>
-                      <p className={`text-[12px] font-medium mb-1 uppercase tracking-wider ${isDarkMode ? 'text-[#9aa0a6]' : 'text-[#5f6368]'}`}>
-                        Applied on{" "}
-                        {new Date(
-                          clearanceStatus.request.created_at,
-                        ).toLocaleDateString()}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <p className={`text-[12px] font-bold uppercase tracking-widest ${isDarkMode ? 'text-[#9aa0a6]' : 'text-[#5f6368]'}`}>
+                          Applied on{" "}
+                          {new Date(
+                            clearanceStatus.request.created_at,
+                          ).toLocaleDateString()}
+                        </p>
+                        <span className={`text-[10px] hidden sm:inline ${isDarkMode ? 'text-[#5f6368]' : 'text-[#dadce0]'}`}>•</span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest shadow-sm ${isDarkMode ? 'bg-[#3c4043] text-[#e8eaed]' : 'bg-[#f8f9fa] text-[#3c4043] border border-[#dadce0]'
+                          }`}>
+                          {(() => {
+                            const profs = clearanceStatus?.professorApprovals || [];
+                            const isUG = profs.some((a) => [
+                              "Department Chairman", "College Dean", "Director Student Affairs",
+                              "NSTP Director", "Executive Officer"
+                            ].includes(a.professor?.full_name));
+                            return isUG ? "Undergraduate" : "Graduate";
+                          })()} Portion
+                        </span>
+                      </div>
                       <div className="flex items-center gap-3 flex-wrap">
-                        <h3 className={`font-medium text-[15px] ${isDarkMode ? 'text-[#e8eaed]' : 'text-[#202124]'}`}>
+                        <h3 className={`font-medium text-[18px] tracking-tight ${isDarkMode ? 'text-[#e8eaed]' : 'text-[#202124]'}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
                           Current Stage:
                         </h3>
-                        <span className={`px-3.5 py-1 rounded-full text-[13px] font-semibold border border-transparent ${isDarkMode ? 'bg-primary-900 bg-opacity-[0.3] text-primary-400' : 'bg-primary-50 text-primary-600'}`}>
+                        <span className={`px-3 py-1 rounded-md text-[14px] font-medium border border-transparent shadow-sm ${isDarkMode ? 'bg-[#1a73e8]/20 text-[#8ab4f8] ring-1 ring-[#8ab4f8]/30' : 'bg-[#e8f0fe] text-[#1967d2] ring-1 ring-[#1a73e8]/10'
+                          }`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
                           {clearanceStatus.request.current_stage}
                         </span>
                         {unresolvedCommentCount > 0 && (
                           <motion.span
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}
-                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#fce8e6] text-[#c5221f] border border-transparent"
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-bold bg-[#fce8e6] text-[#c5221f] shadow-[0_1px_2px_rgba(60,64,67,0.3)]"
                           >
-                            <ChatBubbleIcon className="w-3.5 h-3.5" />
-                            {unresolvedCommentCount} unresolved comment
-                            {unresolvedCommentCount !== 1 ? "s" : ""}
+                            <ChatBubbleIcon className="w-3.5 h-3.5 text-[#d93025]" />
+                            {unresolvedCommentCount} unresolved comment{unresolvedCommentCount !== 1 ? "s" : ""}
                           </motion.span>
                         )}
                       </div>
@@ -1059,28 +1088,30 @@ export default function StudentDashboardGraduation({
                   <button
                     onClick={handleCancel}
                     disabled={cancelling}
-                    className={`flex items-center gap-1.5 px-4 py-2 rounded-full font-medium transition-all duration-75 ease-out active:scale-[0.96] text-[14px] disabled:opacity-50 ${
-                      isDarkMode 
-                        ? 'text-[#f28b82] hover:bg-red-400/10' 
-                        : 'text-[#d93025] hover:bg-[#fce8e6]'
-                    }`}
+                    className={`flex items-center justify-center gap-2 px-6 py-2.5 rounded-full font-medium transition-all duration-200 active:scale-[0.98] text-[14px] disabled:opacity-50 border ${isDarkMode
+                      ? 'text-[#f28b82] border-[#f28b82]/30 hover:bg-[#f28b82]/10 hover:border-[#f28b82]/50'
+                      : 'text-[#d93025] border-[#dadce0] hover:bg-[#fce8e6] hover:border-[#d93025]/50 hover:text-[#c5221f]'
+                      }`}
                   >
                     <XMarkIcon className="w-4 h-4" />
-                    {cancelling ? "Cancelling..." : "Cancel"}
+                    {cancelling ? "Cancelling..." : "Cancel Request"}
                   </button>
                 </div>
               </GlassCard>
 
-              <GlassCard isDark={isDarkMode} className="p-8 border-none shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] rounded-3xl">
-                <h3 className={`text-[20px] font-normal mb-1 ${isDarkMode ? 'text-[#e8eaed]' : 'text-[#202124]'}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
-                  Clearance Progress Tree
-                </h3>
-                <p className={`text-[14px] mb-6 ${isDarkMode ? 'text-[#9aa0a6]' : 'text-[#5f6368]'}`}>
-                  Click on each stage to expand details · Click a professor row
-                  to view comments
-                </p>
-                <ProgressBar stages={buildStages()} isDarkMode={isDarkMode} />
-                <div className="mt-4">
+              <GlassCard isDark={isDarkMode} className="p-7 sm:p-9 border-none shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] rounded-[28px]">
+                <div className="mb-8">
+                  <h3 className={`text-[22px] font-medium tracking-tight mb-2 ${isDarkMode ? 'text-[#e8eaed]' : 'text-[#202124]'}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
+                    Clearance Progress Tree
+                  </h3>
+                  <p className={`text-[14px] leading-relaxed ${isDarkMode ? 'text-[#9aa0a6]' : 'text-[#5f6368]'}`}>
+                    Track your graduation clearance step-by-step. Click any active stage to expand details and view specific requirements or professor notes.
+                  </p>
+                </div>
+                <div className="mb-6">
+                  <ProgressBar stages={buildStages()} isDarkMode={isDarkMode} />
+                </div>
+                <div className="mt-8 flex flex-col gap-2">
                   {buildStages().map((stage, i) => (
                     <StageNode
                       key={stage.key}
@@ -1158,6 +1189,95 @@ export default function StudentDashboardGraduation({
             onClose={closeCommentPanel}
             clearanceComments={clearanceComments}
           />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showCancelModal && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+              className="absolute inset-0 bg-[#202124]/40 backdrop-blur-[4px]"
+              onClick={() => setShowCancelModal(false)}
+            />
+
+            {/* Modal */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 15 }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              onClick={(e) => e.stopPropagation()}
+              className={`relative w-full max-w-[420px] rounded-[28px] overflow-hidden flex flex-col shadow-[0_24px_38px_3px_rgba(0,0,0,0.14),0_9px_46px_8px_rgba(0,0,0,0.12),0_11px_15px_-7px_rgba(0,0,0,0.2)] ${isDarkMode ? "bg-[#28292a]" : "bg-white"
+                }`}
+              style={{ fontFamily: "'Google Sans', 'Inter', sans-serif" }}
+            >
+              {/* Top illustrative band */}
+              <div className={`h-[6px] w-full ${isDarkMode ? "bg-[#f28b82]/90" : "bg-[#d93025]"}`} />
+
+              {/* Content Container */}
+              <div className="px-7 pt-8 pb-2 sm:px-9 sm:pt-9 sm:pb-4 flex flex-col items-center text-center">
+                {/* Warning Icon - Top Centered */}
+                <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-6 transition-colors ${isDarkMode ? "bg-red-900/30 text-[#f28b82]" : "bg-red-50 text-[#d93025]"
+                  }`}>
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                </div>
+
+                {/* Title */}
+                <h3 className={`text-[24px] font-medium mb-3 leading-tight tracking-[-0.015em] ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"
+                  }`}>
+                  Cancel clearance?
+                </h3>
+
+                {/* Description */}
+                <p className={`text-[15px] leading-[24px] font-normal ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"
+                  }`}>
+                  This action will permanently discard your current graduation clearance progress and all approvals.
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 px-7 pb-8 pt-6 sm:px-9 sm:pb-9">
+                <button
+                  onClick={() => setShowCancelModal(false)}
+                  className={`w-full sm:w-auto flex-1 py-3 px-5 rounded-full text-[15px] font-medium transition-all duration-200 active:scale-[0.98] ${isDarkMode
+                    ? "bg-transparent text-[#e8eaed] hover:bg-[#3c4043]"
+                    : "bg-transparent text-[#3c4043] hover:bg-[#f1f3f4]"
+                    }`}
+                >
+                  Keep Request
+                </button>
+                <button
+                  onClick={confirmCancel}
+                  disabled={cancelling}
+                  className={`w-full sm:w-auto flex-1 py-3 px-5 rounded-full text-[15px] font-medium transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2 ${cancelling ? "opacity-70 cursor-not-allowed" : ""
+                    } ${isDarkMode
+                      ? "bg-[#f28b82] text-[#202124] hover:bg-[#f5a19a] shadow-sm"
+                      : "bg-[#d93025] text-white hover:bg-[#c5221f] shadow-[0_1px_2px_rgba(217,48,37,0.3)]"
+                    }`}
+                >
+                  {cancelling ? (
+                    <>
+                      <svg className="animate-spin -ml-1 h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Cancelling...</span>
+                    </>
+                  ) : (
+                    "Yes, Cancel It"
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </DashboardLayout>
