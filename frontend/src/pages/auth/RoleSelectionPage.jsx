@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Particles from "../../components/visuals/Particles";
 import logo from "../../assets/logo.png";
 
@@ -9,6 +9,10 @@ export default function RoleSelectionPage({
   isDark,
 }) {
   const [showAdminModal, setShowAdminModal] = useState(false);
+
+  useEffect(() => {
+    document.title = "SmartClearance";
+  }, []);
 
   const roles = [
     {

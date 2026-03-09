@@ -15,10 +15,12 @@ function formatRetryTime(totalSeconds) {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
-function getSavedLoginEmails() {
+function getSavedLoginEmails(role) {
+  if (!role) return [];
   try {
-    const storedEmails = JSON.parse(
-      localStorage.getItem(SAVED_LOGIN_EMAILS_KEY) || "[]",
+    const key = `${SAVED_LOGIN_EMAILS_KEY}_${role}`;
+    let storedEmails = JSON.parse(
+      localStorage.getItem(key) || "[]",
     );
 
     if (!Array.isArray(storedEmails)) return [];
@@ -32,14 +34,16 @@ function getSavedLoginEmails() {
   }
 }
 
-function persistSavedLoginEmails(emails) {
+function persistSavedLoginEmails(emails, role) {
+  if (!role) return;
+  const key = `${SAVED_LOGIN_EMAILS_KEY}_${role}`;
   localStorage.setItem(
-    SAVED_LOGIN_EMAILS_KEY,
+    key,
     JSON.stringify(emails.slice(0, MAX_SAVED_LOGIN_EMAILS)),
   );
 }
 
-export default function LoginForm({ isDark, onLoginSuccess }) {
+export default function LoginForm({ isDark, onLoginSuccess, selectedRole }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -52,9 +56,21 @@ export default function LoginForm({ isDark, onLoginSuccess }) {
   const [touched, setTouched] = useState({});
   const [loginFeedback, setLoginFeedback] = useState(null);
   const [retryCountdown, setRetryCountdown] = useState(0);
-  const [savedEmails, setSavedEmails] = useState(() => getSavedLoginEmails());
+  const [savedEmails, setSavedEmails] = useState([]);
   const [showSavedEmails, setShowSavedEmails] = useState(false);
   const [activeSavedEmailIndex, setActiveSavedEmailIndex] = useState(-1);
+
+  // Update saved emails when role changes or mounts
+  useEffect(() => {
+    // Small delay to ensure role is completely set
+    const timer = setTimeout(() => {
+      setSavedEmails(getSavedLoginEmails(selectedRole));
+      setShowSavedEmails(false);
+      setActiveSavedEmailIndex(-1);
+    }, 10);
+    return () => clearTimeout(timer);
+  }, [selectedRole]);
+
   const emailFieldRef = useRef(null);
   const passwordInputRef = useRef(null);
   const normalizedEmailQuery = email.trim().toLowerCase();
@@ -147,7 +163,7 @@ export default function LoginForm({ isDark, onLoginSuccess }) {
         ...currentEmails.filter((savedEmail) => savedEmail !== normalizedEmail),
       ].slice(0, MAX_SAVED_LOGIN_EMAILS);
 
-      persistSavedLoginEmails(nextEmails);
+      persistSavedLoginEmails(nextEmails, selectedRole);
       return nextEmails;
     });
   };
@@ -167,7 +183,7 @@ export default function LoginForm({ isDark, onLoginSuccess }) {
       const nextEmails = currentEmails.filter(
         (savedEmail) => savedEmail !== savedEmailToDelete,
       );
-      persistSavedLoginEmails(nextEmails);
+      persistSavedLoginEmails(nextEmails, selectedRole);
       return nextEmails;
     });
     setActiveSavedEmailIndex(-1);
@@ -547,7 +563,9 @@ export default function LoginForm({ isDark, onLoginSuccess }) {
                 value={email}
                 onChange={(e) => handleEmailChange(e.target.value)}
                 onFocus={() => {
-                  if (savedEmails.length > 0) {
+                  const currentSaved = getSavedLoginEmails(selectedRole);
+                  setSavedEmails(currentSaved);
+                  if (currentSaved.length > 0) {
                     setShowSavedEmails(true);
                   }
                 }}
@@ -577,6 +595,7 @@ export default function LoginForm({ isDark, onLoginSuccess }) {
                   transition={{ duration: 0.18 }}
                   id="saved-login-email-list"
                   role="listbox"
+                  onMouseLeave={() => setActiveSavedEmailIndex(-1)}
                   className="absolute left-0 right-0 top-full z-30 mt-2 rounded-2xl border border-slate-700 bg-slate-950/95 shadow-[0_18px_50px_rgba(15,23,42,0.45)] backdrop-blur-xl"
                 >
                   {filteredSavedEmails.map((savedEmail, index) => (
@@ -610,7 +629,7 @@ export default function LoginForm({ isDark, onLoginSuccess }) {
                       >
                         <span className="block truncate pr-3">{savedEmail}</span>
                       </button>
-                      <div className="group relative mr-3 flex-shrink-0">
+                      <div className="group/delete relative mr-3 flex-shrink-0">
                         <button
                           type="button"
                           aria-label={`Delete saved email ${savedEmail}`}
@@ -639,7 +658,7 @@ export default function LoginForm({ isDark, onLoginSuccess }) {
                             />
                           </svg>
                         </button>
-                        <span className="pointer-events-none absolute left-full top-1/2 z-40 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-900 opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+                        <span className="pointer-events-none absolute left-full top-1/2 z-40 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-900 opacity-0 shadow-lg transition-opacity duration-150 group-hover/delete:opacity-100 group-focus-within/delete:opacity-100">
                           Delete entry
                         </span>
                       </div>

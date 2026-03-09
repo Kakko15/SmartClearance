@@ -23,10 +23,15 @@ import logo from "./assets/logo.png";
 const PRESERVED_LOCAL_STORAGE_KEYS = ["theme", "saved_login_emails"];
 
 function clearLocalStoragePreservingPreferences() {
-  const preservedEntries = PRESERVED_LOCAL_STORAGE_KEYS.map((key) => [
-    key,
-    localStorage.getItem(key),
-  ]).filter(([, value]) => value !== null);
+  // Find all keys we want to preserve
+  // Specifically theme, and any key starting with saved_login_emails
+  const preservedEntries = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key === "theme" || key.startsWith("saved_login_emails")) {
+      preservedEntries.push([key, localStorage.getItem(key)]);
+    }
+  }
 
   localStorage.clear();
 
@@ -334,15 +339,19 @@ function App() {
             return;
           }
 
-          setSelectedRole(null);
-          const hasSeenLoader = sessionStorage.getItem("hasSeenLoader");
-          sessionStorage.clear();
-          if (hasSeenLoader) {
-            sessionStorage.setItem("hasSeenLoader", "true");
+          // Don't wipe the selectedRole entirely if we're purposefully staying on the login screen
+          // We only clear it if we explicitly want to go back to role selection.
+          const currentMode = sessionStorage.getItem("currentAppMode");
+          if (currentMode !== "app") {
+            setSelectedRole(null);
+            const hasSeenLoader = sessionStorage.getItem("hasSeenLoader");
+            sessionStorage.clear();
+            if (hasSeenLoader) {
+              sessionStorage.setItem("hasSeenLoader", "true");
+            }
+            setAppMode("roleSelection");
+            sessionStorage.setItem("currentAppMode", "roleSelection");
           }
-
-          setAppMode("roleSelection");
-          sessionStorage.setItem("currentAppMode", "roleSelection");
         }
       },
     );
@@ -355,9 +364,11 @@ function App() {
 
   const handleSignOut = async () => {
     try {
+      // Remember the role we were just using before clearing session storage
+      const previousRole = sessionStorage.getItem("selectedRole");
+      
       setUser(null);
       setProfile(null);
-      setSelectedRole(null);
       setTwoFactorPending(false);
       setPendingUser(null);
       setPendingProfile(null);
@@ -365,20 +376,42 @@ function App() {
       sessionStorage.clear();
       clearLocalStoragePreservingPreferences();
 
+      // Restore the role so we stay on the auth page for that role
+      if (previousRole) {
+        setSelectedRole(previousRole);
+        sessionStorage.setItem("selectedRole", previousRole);
+        sessionStorage.setItem("currentAppMode", "app"); // Set BEFORE signOut to prevent auth listener from wiping
+      } else {
+        setSelectedRole(null);
+        sessionStorage.setItem("currentAppMode", "roleSelection");
+      }
+
       await supabase.auth.signOut();
 
       toast.success("Signed out successfully");
 
-      setAppMode("roleSelection");
-      sessionStorage.setItem("currentAppMode", "roleSelection");
+      if (previousRole) {
+        setAppMode("app"); // This keeps us on the AuthPage (login screen)
+      } else {
+        setAppMode("roleSelection");
+      }
       sessionStorage.setItem("hasSeenLoader", "true");
     } catch (error) {
       console.error("Logout error:", error);
 
+      const previousRole = sessionStorage.getItem("selectedRole");
       sessionStorage.clear();
       clearLocalStoragePreservingPreferences();
-      setAppMode("landing");
-      sessionStorage.setItem("currentAppMode", "landing");
+      
+      if (previousRole) {
+        setSelectedRole(previousRole);
+        sessionStorage.setItem("selectedRole", previousRole);
+        setAppMode("app");
+        sessionStorage.setItem("currentAppMode", "app");
+      } else {
+        setAppMode("landing");
+        sessionStorage.setItem("currentAppMode", "landing");
+      }
       sessionStorage.setItem("hasSeenLoader", "true");
     }
   };

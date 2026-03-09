@@ -49,7 +49,7 @@ export default function AuthPage({
   }, [isSignUp]);
 
   useEffect(() => {
-    document.title = isSignUp ? "SmartDocs | Signup" : "SmartDocs | Login";
+    document.title = isSignUp ? "SmartClearance | Signup" : "SmartClearance | Login";
   }, [isSignUp]);
 
   return (
@@ -102,7 +102,7 @@ export default function AuthPage({
             <div className="flex items-center gap-3">
               <img
                 src={logo}
-                alt="SmartDocs Logo"
+                alt="SmartClearance Logo"
                 className="w-10 h-10 object-contain drop-shadow-md"
               />
             </div>

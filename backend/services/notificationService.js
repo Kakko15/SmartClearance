@@ -87,7 +87,7 @@ async function notifyRequestSubmitted(requestId, studentId) {
       <p><strong>Current Stage:</strong> ${docType.required_stages[0]}</p>
       <p>You will receive notifications as your request progresses through each stage.</p>
       <br>
-      <p>Best regards,<br>SmartDocs Team</p>
+      <p>Best regards,<br>SmartClearance Team</p>
     `;
 
     await sendEmail(
@@ -131,9 +131,9 @@ async function notifyRequestApproved(
         <p>Congratulations! Your request for <strong>${docType.name}</strong> has been fully approved.</p>
         <p><strong>Request ID:</strong> ${requestId}</p>
         <p><strong>Status:</strong> Completed</p>
-        <p>You can now download your clearance certificate from the SmartDocs dashboard.</p>
+        <p>You can now download your clearance certificate from the SmartClearance dashboard.</p>
         <br>
-        <p>Best regards,<br>SmartDocs Team</p>
+        <p>Best regards,<br>SmartClearance Team</p>
       `
       : `
         <h2>Request Approved</h2>
@@ -144,7 +144,7 @@ async function notifyRequestApproved(
         <p><strong>Next Stage:</strong> ${docType.required_stages[request.current_stage_index]}</p>
         <p>Your request is now being processed at the next stage.</p>
         <br>
-        <p>Best regards,<br>SmartDocs Team</p>
+        <p>Best regards,<br>SmartClearance Team</p>
       `;
 
     await sendEmail(
@@ -180,9 +180,9 @@ async function notifyRequestRejected(requestId, studentId, stageName, reason) {
       <p><strong>Request ID:</strong> ${requestId}</p>
       <p><strong>Status:</strong> On Hold</p>
       <p><strong>Reason:</strong> ${reason}</p>
-      <p>Please address the issue mentioned above and resubmit your request from the SmartDocs dashboard.</p>
+      <p>Please address the issue mentioned above and resubmit your request from the SmartClearance dashboard.</p>
       <br>
-      <p>Best regards,<br>SmartDocs Team</p>
+      <p>Best regards,<br>SmartClearance Team</p>
     `;
 
     await sendEmail(
@@ -223,7 +223,7 @@ async function notifyRequestEscalated(requestId, escalationLevel, daysPending) {
       <p><strong>Days Pending:</strong> ${daysPending}</p>
       <p>Please review and expedite this request.</p>
       <br>
-      <p>SmartDocs Escalation System</p>
+      <p>SmartClearance Escalation System</p>
     `;
 
     await sendEmail(
@@ -242,7 +242,7 @@ async function notifyRequestEscalated(requestId, escalationLevel, daysPending) {
       <p><strong>Request ID:</strong> ${requestId}</p>
       <p>We are working to expedite your request. You will be notified once it is processed.</p>
       <br>
-      <p>Best regards,<br>SmartDocs Team</p>
+      <p>Best regards,<br>SmartClearance Team</p>
     `;
 
     await sendEmail(
@@ -287,9 +287,9 @@ async function notifyNewComment(requestId, commenterId, commentText) {
         <blockquote style="border-left: 3px solid #28a745; padding-left: 15px; color: #555;">
           ${commentText}
         </blockquote>
-        <p>Please check your SmartDocs dashboard for more details.</p>
+        <p>Please check your SmartClearance dashboard for more details.</p>
         <br>
-        <p>Best regards,<br>SmartDocs Team</p>
+        <p>Best regards,<br>SmartClearance Team</p>
       `;
 
       await sendEmail(
