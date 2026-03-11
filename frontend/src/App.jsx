@@ -20,15 +20,18 @@ import PasswordStrengthMeter from "./components/ui/PasswordStrengthMeter";
 import TwoFactorVerify from "./components/auth/TwoFactorVerify";
 import logo from "./assets/logo.png";
 
+// BUG 9 FIX: Use the constant instead of hardcoding key checks
 const PRESERVED_LOCAL_STORAGE_KEYS = ["theme", "saved_login_emails"];
 
 function clearLocalStoragePreservingPreferences() {
-  // Find all keys we want to preserve
-  // Specifically theme, and any key starting with saved_login_emails
   const preservedEntries = [];
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
-    if (key === "theme" || key.startsWith("saved_login_emails")) {
+    if (
+      PRESERVED_LOCAL_STORAGE_KEYS.some(
+        (prefix) => key === prefix || key.startsWith(prefix),
+      )
+    ) {
       preservedEntries.push([key, localStorage.getItem(key)]);
     }
   }
@@ -200,6 +203,11 @@ function App() {
       if (error) throw error;
       if (!isMounted) return;
       if (!data) throw new Error("No profile data");
+
+      // Normalize student number to uppercase (e.g. "ts" → "TS")
+      if (data.student_number) {
+        data.student_number = data.student_number.toUpperCase();
+      }
 
       if (data.account_enabled === false) {
         toast.error(

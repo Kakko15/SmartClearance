@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const supabase = require("../supabaseClient");
+const { requireAuth } = require("../middleware/authMiddleware");
 
 const getUserProfile = async (userId) => {
   const { data, error } = await supabase
@@ -30,15 +31,16 @@ const filterByVisibility = (comments, userRole) => {
   });
 };
 
-router.post("/:clearanceId/comments", async (req, res) => {
+router.post("/:clearanceId/comments", requireAuth, async (req, res) => {
   try {
     const { clearanceId } = req.params;
-    const { user_id, comment_text, visibility = "all" } = req.body;
+    const user_id = req.user.id;
+    const { comment_text, visibility = "all" } = req.body;
 
-    if (!user_id || !comment_text) {
+    if (!comment_text) {
       return res.status(400).json({
         success: false,
-        error: "Missing required fields: user_id and comment_text",
+        error: "Missing required field: comment_text",
       });
     }
 
@@ -101,7 +103,7 @@ router.post("/:clearanceId/comments", async (req, res) => {
       comment: comment,
     });
   } catch (error) {
-    console.error("Error creating comment:", error);
+    console.error("Error creating clearance comment:", error);
     res.status(500).json({
       success: false,
       error: error.message,
@@ -109,19 +111,12 @@ router.post("/:clearanceId/comments", async (req, res) => {
   }
 });
 
-router.get("/:clearanceId/comments", async (req, res) => {
+router.get("/:clearanceId/comments", requireAuth, async (req, res) => {
   try {
     const { clearanceId } = req.params;
-    const { user_id } = req.query;
+    const user_id = req.user.id;
 
-    if (!user_id) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing user_id query parameter",
-      });
-    }
-
-    await getUserProfile(user_id);
+    const userProfile = await getUserProfile(user_id);
 
     const { data: comments, error } = await supabase
       .from("clearance_comments")
@@ -131,12 +126,18 @@ router.get("/:clearanceId/comments", async (req, res) => {
 
     if (error) throw error;
 
+    // BUG 10 FIX: Apply visibility filtering (was missing before)
+    const filteredComments = filterByVisibility(
+      comments || [],
+      userProfile.role,
+    );
+
     res.json({
       success: true,
-      comments: comments || [],
+      comments: filteredComments,
     });
   } catch (error) {
-    console.error("Error fetching comments:", error);
+    console.error("Error fetching clearance comments:", error);
     res.status(500).json({
       success: false,
       error: error.message,
@@ -144,15 +145,16 @@ router.get("/:clearanceId/comments", async (req, res) => {
   }
 });
 
-router.put("/comments/:commentId", async (req, res) => {
+router.put("/comments/:commentId", requireAuth, async (req, res) => {
   try {
     const { commentId } = req.params;
-    const { user_id, comment_text } = req.body;
+    const user_id = req.user.id;
+    const { comment_text } = req.body;
 
-    if (!user_id || !comment_text) {
+    if (!comment_text) {
       return res.status(400).json({
         success: false,
-        error: "Missing user_id or comment_text",
+        error: "Missing comment_text",
       });
     }
 
@@ -194,7 +196,7 @@ router.put("/comments/:commentId", async (req, res) => {
       comment: updated,
     });
   } catch (error) {
-    console.error("Error updating comment:", error);
+    console.error("Error updating clearance comment:", error);
     res.status(500).json({
       success: false,
       error: error.message,
@@ -202,19 +204,10 @@ router.put("/comments/:commentId", async (req, res) => {
   }
 });
 
-router.delete("/comments/:commentId", async (req, res) => {
+router.delete("/comments/:commentId", requireAuth, async (req, res) => {
   try {
     const { commentId } = req.params;
-    const { user_id } = req.body;
-
-    if (!user_id) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing user_id",
-      });
-    }
-
-    const userProfile = await getUserProfile(user_id);
+    const user_id = req.user.id;
 
     const { data: comment, error: fetchError } = await supabase
       .from("clearance_comments")
@@ -248,160 +241,7 @@ router.delete("/comments/:commentId", async (req, res) => {
       message: "Comment deleted successfully",
     });
   } catch (error) {
-    console.error("Error deleting comment:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-router.post("/create", async (req, res) => {
-  try {
-    const { request_id, user_id, comment_text } = req.body;
-
-    if (!request_id || !user_id || !comment_text) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing required fields",
-      });
-    }
-
-    const userProfile = await getUserProfile(user_id);
-
-    const { data: comment, error } = await supabase
-      .from("clearance_comments")
-      .insert({
-        clearance_request_id: request_id,
-        commenter_id: user_id,
-        commenter_name: userProfile.full_name,
-        commenter_role: userProfile.role,
-        comment_text: comment_text.trim(),
-        visibility: "all",
-      })
-      .select("*")
-      .single();
-
-    if (error) throw error;
-
-    res.json({
-      success: true,
-      comment: {
-        ...comment,
-        user_id: comment.commenter_id,
-        request_id: comment.clearance_request_id,
-        profiles: {
-          full_name: comment.commenter_name,
-          role: comment.commenter_role,
-        },
-      },
-    });
-  } catch (error) {
-    console.error("Error creating comment (legacy):", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-router.get("/request/:request_id", async (req, res) => {
-  try {
-    const { request_id } = req.params;
-    const { user_id } = req.query;
-
-    if (!user_id) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing user_id",
-      });
-    }
-
-    const userProfile = await getUserProfile(user_id);
-
-    const { data: comments, error } = await supabase
-      .from("clearance_comments")
-      .select("*")
-      .eq("clearance_request_id", request_id)
-      .order("created_at", { ascending: true });
-
-    if (error) throw error;
-
-    const filteredComments = filterByVisibility(
-      comments || [],
-      userProfile.role,
-    );
-
-    const legacyComments = filteredComments.map((c) => ({
-      ...c,
-      user_id: c.commenter_id,
-      request_id: c.clearance_request_id,
-      profiles: {
-        full_name: c.commenter_name,
-        role: c.commenter_role,
-      },
-    }));
-
-    res.json({
-      success: true,
-      comments: legacyComments,
-    });
-  } catch (error) {
-    console.error("Error fetching comments (legacy):", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-router.delete("/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { user_id } = req.body;
-
-    if (!user_id) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing user_id",
-      });
-    }
-
-    const userProfile = await getUserProfile(user_id);
-
-    const { data: comment, error: fetchError } = await supabase
-      .from("clearance_comments")
-      .select("*")
-      .eq("id", id)
-      .single();
-
-    if (fetchError || !comment) {
-      return res.status(404).json({
-        success: false,
-        error: "Comment not found",
-      });
-    }
-
-    if (user_id !== comment.commenter_id) {
-      return res.status(403).json({
-        success: false,
-        error: "You can only delete your own comments",
-      });
-    }
-
-    const { error: deleteError } = await supabase
-      .from("clearance_comments")
-      .delete()
-      .eq("id", id);
-
-    if (deleteError) throw deleteError;
-
-    res.json({
-      success: true,
-      message: "Comment deleted successfully",
-    });
-  } catch (error) {
-    console.error("Error deleting comment (legacy):", error);
+    console.error("Error deleting clearance comment:", error);
     res.status(500).json({
       success: false,
       error: error.message,

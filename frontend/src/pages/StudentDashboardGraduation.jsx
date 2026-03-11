@@ -604,7 +604,7 @@ const ProgressBar = ({ stages, isDarkMode }) => {
                 initial={{ left: 0, opacity: 0 }}
                 animate={{ left: `${pct}%`, opacity: 1 }}
                 transition={{ duration: 1.5, ease: [0.34, 1.56, 0.64, 1], delay: 0.1 }}
-                className="absolute top-[8px] -translate-x-1/2 flex items-center justify-center z-10"
+                className="absolute top-[2px] -translate-x-1/2 flex items-center justify-center z-10"
               >
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-transform duration-300 group-hover:scale-110 shadow-md ${isDarkMode ? "bg-[#202124] border-[2.5px] border-primary-400" : "bg-white border-[2.5px] border-primary-500"}`}>
                    <div className={`w-2 h-2 rounded-full ${isDarkMode ? "bg-primary-400" : "bg-primary-500"}`}></div>

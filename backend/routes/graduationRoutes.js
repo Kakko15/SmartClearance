@@ -1,11 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { createClient } = require("@supabase/supabase-js");
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY,
-);
+const supabase = require("../supabaseClient");
 
 router.post("/apply", async (req, res) => {
   try {
@@ -465,6 +460,8 @@ router.post("/professor/approve", async (req, res) => {
     if (error) throw error;
 
     // Check if this is the last step → mark request as completed
+    // BUG 5 FIX: Verify ALL required approvals before marking complete,
+    // not just admin statuses. Prevents premature completion.
     try {
       const { data: profInfo } = await supabase
         .from("profiles")
@@ -481,22 +478,36 @@ router.post("/professor/approve", async (req, res) => {
           .eq("id", data.request_id)
           .single();
 
-        if (request && !request.is_completed &&
-          request.library_status === "approved" &&
-          request.cashier_status === "approved" &&
-          request.registrar_status === "approved") {
-          const certificateNumber = `ISU-GC-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
-          await supabase
-            .from("requests")
-            .update({
-              is_completed: true,
-              professors_status: "approved",
-              certificate_generated: true,
-              certificate_generated_at: new Date().toISOString(),
-              certificate_number: certificateNumber,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", request.id);
+        if (request && !request.is_completed) {
+          // Fetch ALL professor approvals for this request to verify they're all approved
+          const { data: allApprovals } = await supabase
+            .from("professor_approvals")
+            .select("status")
+            .eq("request_id", request.id);
+
+          const allProfessorsApproved = allApprovals &&
+            allApprovals.length > 0 &&
+            allApprovals.every((a) => a.status === "approved");
+
+          const allAdminStagesApproved =
+            request.library_status === "approved" &&
+            request.cashier_status === "approved" &&
+            request.registrar_status === "approved";
+
+          if (allProfessorsApproved && allAdminStagesApproved) {
+            const certificateNumber = `ISU-GC-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+            await supabase
+              .from("requests")
+              .update({
+                is_completed: true,
+                professors_status: "approved",
+                certificate_generated: true,
+                certificate_generated_at: new Date().toISOString(),
+                certificate_number: certificateNumber,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", request.id);
+          }
         }
       }
     } catch (completionErr) {
@@ -876,21 +887,49 @@ router.post("/registrar/approve", async (req, res) => {
   try {
     const { request_id, admin_id, comments } = req.body;
 
-    const certificateNumber = `ISU-GC-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+    // BUG 5 FIX: Verify all professor approvals before marking complete.
+    // Previously this blindly set is_completed: true without checking professors.
+    const { data: allApprovals } = await supabase
+      .from("professor_approvals")
+      .select("status")
+      .eq("request_id", request_id);
+
+    const allProfessorsApproved = allApprovals &&
+      allApprovals.length > 0 &&
+      allApprovals.every((a) => a.status === "approved");
+
+    const { data: currentRequest } = await supabase
+      .from("requests")
+      .select("library_status, cashier_status")
+      .eq("id", request_id)
+      .single();
+
+    const canComplete = allProfessorsApproved &&
+      currentRequest?.library_status === "approved" &&
+      currentRequest?.cashier_status === "approved";
+
+    const certificateNumber = canComplete
+      ? `ISU-GC-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`
+      : null;
+
+    const updatePayload = {
+      registrar_status: "approved",
+      registrar_approved_by: admin_id,
+      registrar_approved_at: new Date().toISOString(),
+      registrar_comments: comments || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (canComplete) {
+      updatePayload.is_completed = true;
+      updatePayload.certificate_generated = true;
+      updatePayload.certificate_generated_at = new Date().toISOString();
+      updatePayload.certificate_number = certificateNumber;
+    }
 
     const { data, error } = await supabase
       .from("requests")
-      .update({
-        registrar_status: "approved",
-        registrar_approved_by: admin_id,
-        registrar_approved_at: new Date().toISOString(),
-        registrar_comments: comments || null,
-        is_completed: true,
-        certificate_generated: true,
-        certificate_generated_at: new Date().toISOString(),
-        certificate_number: certificateNumber,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq("id", request_id)
       .select()
       .single();
@@ -901,7 +940,9 @@ router.post("/registrar/approve", async (req, res) => {
       success: true,
       request: data,
       certificateNumber,
-      message: "Graduation clearance completed and certificate generated",
+      message: canComplete
+        ? "Graduation clearance completed and certificate generated"
+        : "Registrar approved. Waiting for remaining approvals to complete clearance.",
     });
   } catch (error) {
     console.error("Error approving registrar:", error);

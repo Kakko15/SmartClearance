@@ -5,7 +5,6 @@ import {
   ArrowRightOnRectangleIcon,
   CogIcon,
   Bars3Icon,
-  PencilSquareIcon,
   MoonIcon,
   SunIcon,
 } from "./Icons";
@@ -96,34 +95,6 @@ export default function DashboardLayout({
             </AnimatePresence>
           </div>
 
-          <div className="flex items-center mt-2">
-             <button
-                className={`w-full flex items-center relative group transition-colors rounded-[16px] h-[44px] ${theme.bg === 'bg-[#030712]' ? 'bg-primary-500/10 text-primary-400 hover:bg-primary-500/20' : 'bg-primary-100 text-primary-900 hover:bg-primary-200'}`}
-             >
-                <div className="flex items-center justify-center w-[44px] h-[44px] flex-shrink-0">
-                  <PencilSquareIcon className="w-5 h-5 flex-shrink-0" />
-                </div>
-                {!sidebarOpen && (
-                  <div className={`pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md border px-3 py-1.5 text-sm font-medium opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 ${theme.bg === 'bg-[#030712]' ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-900'}`}>
-                    New Request
-                  </div>
-                )}
-                <AnimatePresence>
-                  {sidebarOpen && (
-                    <motion.div
-                      layout
-                      initial={{ opacity: 0, width: 0 }}
-                      animate={{ opacity: 1, width: "auto" }}
-                      exit={{ opacity: 0, width: 0 }}
-                      transition={{ opacity: { duration: 0.15 }, width: { type: "spring", bounce: 0, duration: 0.3 } }}
-                      className="overflow-hidden whitespace-nowrap pr-4"
-                    >
-                       <span className="text-[14px] font-medium">New Request</span>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-             </button>
-          </div>
         </div>
 
         <nav className="flex-1 px-3 space-y-1 mt-3">

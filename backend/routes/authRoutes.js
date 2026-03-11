@@ -2,12 +2,7 @@ const express = require("express");
 const router = express.Router();
 const axios = require("axios");
 const rateLimit = require("express-rate-limit");
-const { createClient } = require("@supabase/supabase-js");
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY,
-);
+const supabase = require("../supabaseClient");
 
 const isDev = process.env.NODE_ENV !== "production";
 const DEFAULT_LOGIN_WINDOW_MINUTES = 15;
@@ -552,7 +547,7 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
         id: authData.user.id,
         full_name: fullName,
         role: "student",
-        student_number: studentNumber.trim(),
+        student_number: studentNumber.trim().toUpperCase(),
         course_year: courseYear,
         face_verified: faceVerification.verified,
         face_similarity: similarity,

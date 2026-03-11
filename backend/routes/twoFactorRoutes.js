@@ -4,12 +4,7 @@ const rateLimit = require("express-rate-limit");
 const { generateSecret, verifySync, generateURI } = require("otplib");
 const QRCode = require("qrcode");
 const nodemailer = require("nodemailer");
-const { createClient } = require("@supabase/supabase-js");
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY,
-);
+const supabase = require("../supabaseClient");
 
 const isDev = process.env.NODE_ENV !== "production";
 

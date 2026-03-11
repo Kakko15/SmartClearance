@@ -109,6 +109,24 @@ export default function ProfessorDashboard({
   const approvedStudents = students.filter((s) => s.status === "approved");
   const rejectedStudents = students.filter((s) => s.status === "rejected");
 
+  /**
+   * Detect whether a student record is missing (deleted from DB).
+   * When a profile row is removed, the Supabase join returns null
+   * for the nested student object.
+   */
+  const isDeletedStudent = (s) => !s.request?.student;
+
+  const getStudentName = (s) =>
+    s.request?.student?.full_name || "Deleted Account";
+  const getStudentInitial = (s) =>
+    s.request?.student?.full_name?.charAt(0) || "?";
+  const getStudentNumber = (s) =>
+    s.request?.student?.student_number || "";
+  const getStudentCourse = (s) =>
+    s.request?.student?.course_year || "N/A";
+  const getStudentEmail = (s) =>
+    s.request?.student?.email || "N/A";
+
   const displayStudents =
     activeView === "pending"
       ? pendingStudents
@@ -299,16 +317,39 @@ export default function ProfessorDashboard({
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
                         <div className={`w-12 h-12 rounded-full flex items-center justify-center font-medium text-[18px] flex-shrink-0 ${
-                          isDarkMode ? "bg-[#8ab4f8]/20 text-[#8ab4f8]" : "bg-[#e8f0fe] text-[#1a73e8]"
+                          isDeletedStudent(student)
+                            ? (isDarkMode ? "bg-[#3c4043] text-[#9aa0a6]" : "bg-[#f1f3f4] text-[#9aa0a6]")
+                            : (isDarkMode ? "bg-[#8ab4f8]/20 text-[#8ab4f8]" : "bg-[#e8f0fe] text-[#1a73e8]")
                         }`}>
-                          {student.request?.student?.full_name?.charAt(0) || "?"}
+                          {isDeletedStudent(student) ? (
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                              <circle cx="9" cy="7" r="4" />
+                              <line x1="17" y1="11" x2="22" y2="11" />
+                            </svg>
+                          ) : (
+                            getStudentInitial(student)
+                          )}
                         </div>
                         <div>
-                          <h3 className={`font-medium text-[16px] leading-tight ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
-                            {student.request?.student?.full_name || "Unknown Student"}
-                          </h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className={`font-medium text-[16px] leading-tight ${
+                              isDeletedStudent(student)
+                                ? (isDarkMode ? "text-[#9aa0a6]" : "text-[#9aa0a6]")
+                                : (isDarkMode ? "text-[#e8eaed]" : "text-[#202124]")
+                            }`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
+                              {getStudentName(student)}
+                            </h3>
+                            {isDeletedStudent(student) && (
+                              <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
+                                isDarkMode ? "bg-[#3c4043] text-[#f28b82]" : "bg-[#fce8e6] text-[#c5221f]"
+                              }`}>
+                                Removed
+                              </span>
+                            )}
+                          </div>
                           <p className={`text-[13px] mt-0.5 ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>
-                            {student.request?.student?.student_number || ""}
+                            {getStudentNumber(student)}
                           </p>
                         </div>
                       </div>
@@ -343,13 +384,27 @@ export default function ProfessorDashboard({
                         className="overflow-hidden"
                       >
                         <div className={`px-4 sm:px-5 pb-5 border-t ${isDarkMode ? "border-[#3c4043]" : "border-[#dadce0]"}`}>
+                          {isDeletedStudent(student) ? (
+                            <div className={`mt-4 flex items-center gap-3 p-4 rounded-[16px] ${
+                              isDarkMode ? "bg-[#3c4043]/30 text-[#9aa0a6]" : "bg-[#f8f9fa] text-[#5f6368]"
+                            }`}>
+                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                                <circle cx="12" cy="12" r="10" />
+                                <line x1="12" y1="8" x2="12" y2="12" />
+                                <line x1="12" y1="16" x2="12.01" y2="16" />
+                              </svg>
+                              <p className="text-[14px]">
+                                This student's account has been removed from the system. The approval record is preserved for audit purposes.
+                              </p>
+                            </div>
+                          ) : (
                           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div className={`p-4 rounded-[16px] ${isDarkMode ? "bg-[#3c4043]/30" : "bg-[#f8f9fa]"}`}>
                               <p className={`text-[12px] font-medium tracking-wide ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>
                                 Course & Year
                               </p>
                               <p className={`text-[15px] font-medium mt-1 ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}>
-                                {student.request?.student?.course_year || "N/A"}
+                                {getStudentCourse(student)}
                               </p>
                             </div>
                             <div className={`p-4 rounded-[16px] ${isDarkMode ? "bg-[#3c4043]/30" : "bg-[#f8f9fa]"}`}>
@@ -357,10 +412,11 @@ export default function ProfessorDashboard({
                                 Email
                               </p>
                               <p className={`text-[15px] font-medium mt-1 truncate ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}>
-                                {student.request?.student?.email || "N/A"}
+                                {getStudentEmail(student)}
                               </p>
                             </div>
                           </div>
+                          )}
 
                           {student.request_id && (
                             <div className="mt-5">

@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { createClient } = require("@supabase/supabase-js");
+const supabase = require("../supabaseClient");
 const {
   notifyRequestSubmitted,
   notifyRequestApproved,
@@ -8,11 +8,7 @@ const {
 } = require("../services/notificationService");
 const { generateCertificate } = require("../services/certificateService");
 const { classifyAndRouteRequest } = require("../services/aiRequestRouter");
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY,
-);
+const { requireAuth } = require("../middleware/authMiddleware");
 
 async function getAdminRole(userId) {
   const { data, error } = await supabase
@@ -53,9 +49,10 @@ async function logHistory(
   });
 }
 
-router.post("/create", async (req, res) => {
+router.post("/create", requireAuth, async (req, res) => {
   try {
-    const { student_id, doc_type_id, request_details } = req.body;
+    const student_id = req.user.id;
+    const { doc_type_id, request_details } = req.body;
 
     console.log("Initiating AI request classification...");
 
@@ -76,6 +73,8 @@ router.post("/create", async (req, res) => {
       });
     }
 
+    const now = new Date().toISOString();
+
     const { data, error } = await supabase
       .from("requests")
       .insert({
@@ -84,6 +83,8 @@ router.post("/create", async (req, res) => {
         current_status: "pending",
         current_stage_index: 0,
         is_completed: false,
+        // BUG 4 FIX: Set last_activity_at on creation
+        last_activity_at: now,
 
         ai_classified: aiResult.success,
         classification_data: aiResult.success ? aiResult.classification : null,
@@ -104,11 +105,8 @@ router.post("/create", async (req, res) => {
 
     if (error) throw error;
 
-    await notifyRequestSubmitted(data.id, student_id, {
-      aiProcessed: aiResult.success,
-      urgency: data.urgency_level,
-      estimatedTime: data.estimated_completion_hours,
-    });
+    // BUG 3 FIX: Call with correct 2-param signature (was passing unused 3rd arg)
+    await notifyRequestSubmitted(data.id, student_id);
 
     res.json({
       success: true,
@@ -128,10 +126,10 @@ router.post("/create", async (req, res) => {
   }
 });
 
-router.post("/:id/approve", async (req, res) => {
+router.post("/:id/approve", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { admin_id } = req.body;
+    const admin_id = req.user.id;
 
     const adminRole = await getAdminRole(admin_id);
     if (!adminRole || !adminRole.includes("admin")) {
@@ -161,6 +159,8 @@ router.post("/:id/approve", async (req, res) => {
     const isLastStage =
       nextStageIndex >= request.document_types.required_stages.length;
 
+    const now = new Date().toISOString();
+
     const { data: updated, error: updateError } = await supabase
       .from("requests")
       .update({
@@ -169,7 +169,9 @@ router.post("/:id/approve", async (req, res) => {
           : nextStageIndex,
         current_status: isLastStage ? "completed" : "approved",
         is_completed: isLastStage,
-        updated_at: new Date().toISOString(),
+        updated_at: now,
+        // BUG 4 FIX: Update last_activity_at on every status change
+        last_activity_at: now,
       })
       .eq("id", id)
       .select()
@@ -207,10 +209,11 @@ router.post("/:id/approve", async (req, res) => {
   }
 });
 
-router.post("/:id/reject", async (req, res) => {
+router.post("/:id/reject", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { admin_id, reason } = req.body;
+    const admin_id = req.user.id;
+    const { reason } = req.body;
 
     if (!reason) {
       return res
@@ -241,11 +244,15 @@ router.post("/:id/reject", async (req, res) => {
       });
     }
 
+    const now = new Date().toISOString();
+
     const { data: updated, error: updateError } = await supabase
       .from("requests")
       .update({
         current_status: "on_hold",
-        updated_at: new Date().toISOString(),
+        updated_at: now,
+        // BUG 4 FIX: Update last_activity_at on reject
+        last_activity_at: now,
       })
       .eq("id", id)
       .select()
@@ -274,10 +281,10 @@ router.post("/:id/reject", async (req, res) => {
   }
 });
 
-router.post("/:id/resubmit", async (req, res) => {
+router.post("/:id/resubmit", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { student_id } = req.body;
+    const student_id = req.user.id;
 
     const { data: request, error: reqError } = await supabase
       .from("requests")
@@ -295,11 +302,15 @@ router.post("/:id/resubmit", async (req, res) => {
       });
     }
 
+    const now = new Date().toISOString();
+
     const { data: updated, error: updateError } = await supabase
       .from("requests")
       .update({
         current_status: "pending",
-        updated_at: new Date().toISOString(),
+        updated_at: now,
+        // BUG 4 FIX: Update last_activity_at on resubmit
+        last_activity_at: now,
       })
       .eq("id", id)
       .select()
@@ -326,7 +337,7 @@ router.post("/:id/resubmit", async (req, res) => {
   }
 });
 
-router.get("/student/:student_id", async (req, res) => {
+router.get("/student/:student_id", requireAuth, async (req, res) => {
   try {
     const { student_id } = req.params;
 
@@ -344,7 +355,7 @@ router.get("/student/:student_id", async (req, res) => {
   }
 });
 
-router.get("/admin/:role", async (req, res) => {
+router.get("/admin/:role", requireAuth, async (req, res) => {
   try {
     const { role } = req.params;
 
@@ -378,7 +389,7 @@ router.get("/admin/:role", async (req, res) => {
   }
 });
 
-router.get("/:id/history", async (req, res) => {
+router.get("/:id/history", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -396,10 +407,10 @@ router.get("/:id/history", async (req, res) => {
   }
 });
 
-router.delete("/:id/delete", async (req, res) => {
+router.delete("/:id/delete", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { student_id } = req.body;
+    const student_id = req.user.id;
 
     const { data: request, error: reqError } = await supabase
       .from("requests")

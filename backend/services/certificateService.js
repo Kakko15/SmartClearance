@@ -72,7 +72,9 @@ async function generateCertificate(requestId) {
     const chunks = [];
     doc.on("data", (chunk) => chunks.push(chunk));
 
-    const qrCodeData = `${process.env.SUPABASE_URL}/verify/${verificationCode}`;
+    // BUG 7 FIX: Use the actual API verification endpoint instead of Supabase URL
+    const apiUrl = process.env.VITE_API_URL || process.env.API_URL || "http://localhost:5000/api";
+    const qrCodeData = `${apiUrl}/certificates/verify/${verificationCode}`;
     const qrCodeImage = await QRCode.toDataURL(qrCodeData);
 
     doc
@@ -201,7 +203,7 @@ async function generateCertificate(requestId) {
     doc
       .fontSize(8)
       .text(
-        "For verification, visit smartclearance.edu/verify or scan the QR code above.",
+        `For verification, visit ${apiUrl}/certificates/verify or scan the QR code above.`,
         0,
         doc.page.height - 80,
         {

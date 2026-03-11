@@ -11,6 +11,24 @@ const emailTransporter = nodemailer.createTransport({
   },
 });
 
+/**
+ * BUG 8 FIX: Resolve a user's email address reliably.
+ * The profiles table may not have an email column, so we look up
+ * the auth user record which always has the email.
+ */
+async function resolveUserEmail(userId) {
+  try {
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.admin.getUserById(userId);
+    if (error || !user) return null;
+    return user.email;
+  } catch (_error) {
+    return null;
+  }
+}
+
 async function sendEmail(userId, requestId, recipient, subject, message) {
   let logData = null;
   try {
@@ -77,6 +95,13 @@ async function notifyRequestSubmitted(requestId, studentId) {
     const student = request.profiles;
     const docType = request.document_types;
 
+    // BUG 8 FIX: Resolve email from auth record, not profiles table
+    const studentEmail = await resolveUserEmail(studentId);
+    if (!studentEmail) {
+      console.warn(`Could not resolve email for user ${studentId}, skipping notification`);
+      return;
+    }
+
     const emailSubject = `Request Submitted - ${docType.name}`;
     const emailMessage = `
       <h2>Request Submitted Successfully</h2>
@@ -93,7 +118,7 @@ async function notifyRequestSubmitted(requestId, studentId) {
     await sendEmail(
       studentId,
       requestId,
-      student.email || student.full_name,
+      studentEmail,
       emailSubject,
       emailMessage,
     );
@@ -119,6 +144,13 @@ async function notifyRequestApproved(
 
     const student = request.profiles;
     const docType = request.document_types;
+
+    // BUG 8 FIX: Resolve email from auth record
+    const studentEmail = await resolveUserEmail(studentId);
+    if (!studentEmail) {
+      console.warn(`Could not resolve email for user ${studentId}, skipping notification`);
+      return;
+    }
 
     const emailSubject = isCompleted
       ? `Clearance Completed - ${docType.name}`
@@ -150,7 +182,7 @@ async function notifyRequestApproved(
     await sendEmail(
       studentId,
       requestId,
-      student.email || student.full_name,
+      studentEmail,
       emailSubject,
       emailMessage,
     );
@@ -172,6 +204,13 @@ async function notifyRequestRejected(requestId, studentId, stageName, reason) {
     const student = request.profiles;
     const docType = request.document_types;
 
+    // BUG 8 FIX: Resolve email from auth record
+    const studentEmail = await resolveUserEmail(studentId);
+    if (!studentEmail) {
+      console.warn(`Could not resolve email for user ${studentId}, skipping notification`);
+      return;
+    }
+
     const emailSubject = `Request On Hold - ${docType.name}`;
     const emailMessage = `
       <h2>Request Placed On Hold</h2>
@@ -188,7 +227,7 @@ async function notifyRequestRejected(requestId, studentId, stageName, reason) {
     await sendEmail(
       studentId,
       requestId,
-      student.email || student.full_name,
+      studentEmail,
       emailSubject,
       emailMessage,
     );
@@ -234,6 +273,13 @@ async function notifyRequestEscalated(requestId, escalationLevel, daysPending) {
       emailMessage,
     );
 
+    // BUG 8 FIX: Resolve student email from auth record
+    const studentEmail = await resolveUserEmail(student.id);
+    if (!studentEmail) {
+      console.warn(`Could not resolve email for student ${student.id}, skipping student notification`);
+      return;
+    }
+
     const studentEmailSubject = `Request Update - ${docType.name}`;
     const studentEmailMessage = `
       <h2>Request Status Update</h2>
@@ -248,7 +294,7 @@ async function notifyRequestEscalated(requestId, escalationLevel, daysPending) {
     await sendEmail(
       student.id,
       requestId,
-      student.email || student.full_name,
+      studentEmail,
       studentEmailSubject,
       studentEmailMessage,
     );
@@ -277,6 +323,13 @@ async function notifyNewComment(requestId, commenterId, commentText) {
     const docType = request.document_types;
 
     if (commenterId !== student.id) {
+      // BUG 8 FIX: Resolve student email from auth record
+      const studentEmail = await resolveUserEmail(student.id);
+      if (!studentEmail) {
+        console.warn(`Could not resolve email for student ${student.id}, skipping comment notification`);
+        return;
+      }
+
       const emailSubject = `New Comment on Your Request - ${docType.name}`;
       const emailMessage = `
         <h2>New Comment on Your Request</h2>
@@ -295,7 +348,7 @@ async function notifyNewComment(requestId, commenterId, commentText) {
       await sendEmail(
         student.id,
         requestId,
-        student.email || student.full_name,
+        studentEmail,
         emailSubject,
         emailMessage,
       );
@@ -307,6 +360,7 @@ async function notifyNewComment(requestId, commenterId, commentText) {
 
 module.exports = {
   sendEmail,
+  resolveUserEmail,
   notifyRequestSubmitted,
   notifyRequestApproved,
   notifyRequestRejected,

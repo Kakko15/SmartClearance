@@ -894,7 +894,7 @@ export default function SignupFormWithFaceVerification({
                 type="text"
                 value={formData.studentNumber}
                 onChange={(e) =>
-                  setFormData({ ...formData, studentNumber: e.target.value })
+                  setFormData({ ...formData, studentNumber: e.target.value.toUpperCase() })
                 }
                 placeholder="e.g., 21-3243 or 23-3174-TS"
                 required

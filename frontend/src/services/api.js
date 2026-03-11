@@ -1,66 +1,110 @@
+import { supabase } from "../lib/supabase";
+
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
+/**
+ * BUG 6 FIX (frontend counterpart): Retrieve the current Supabase session
+ * access token and attach it as a Bearer token to all API requests.
+ * This pairs with the new requireAuth middleware on the backend.
+ */
+async function getAuthHeaders() {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const headers = { "Content-Type": "application/json" };
+  if (session?.access_token) {
+    headers["Authorization"] = `Bearer ${session.access_token}`;
+  }
+  return headers;
+}
+
+async function getAuthHeadersMultipart() {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const headers = {};
+  if (session?.access_token) {
+    headers["Authorization"] = `Bearer ${session.access_token}`;
+  }
+  return headers;
+}
+
 export const createRequest = async (studentId, docTypeId) => {
+  const headers = await getAuthHeaders();
   const response = await fetch(`${API_URL}/requests/create`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ student_id: studentId, doc_type_id: docTypeId }),
   });
   return response.json();
 };
 
 export const getStudentRequests = async (studentId) => {
-  const response = await fetch(`${API_URL}/requests/student/${studentId}`);
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${API_URL}/requests/student/${studentId}`, {
+    headers,
+  });
   return response.json();
 };
 
 export const resubmitRequest = async (requestId, studentId) => {
+  const headers = await getAuthHeaders();
   const response = await fetch(`${API_URL}/requests/${requestId}/resubmit`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ student_id: studentId }),
   });
   return response.json();
 };
 
 export const getAdminRequests = async (role) => {
-  const response = await fetch(`${API_URL}/requests/admin/${role}`);
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${API_URL}/requests/admin/${role}`, {
+    headers,
+  });
   return response.json();
 };
 
 export const approveRequest = async (requestId, adminId) => {
+  const headers = await getAuthHeaders();
   const response = await fetch(`${API_URL}/requests/${requestId}/approve`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ admin_id: adminId }),
   });
   return response.json();
 };
 
 export const rejectRequest = async (requestId, adminId, reason) => {
+  const headers = await getAuthHeaders();
   const response = await fetch(`${API_URL}/requests/${requestId}/reject`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ admin_id: adminId, reason }),
   });
   return response.json();
 };
 
 export const getRequestHistory = async (requestId) => {
-  const response = await fetch(`${API_URL}/requests/${requestId}/history`);
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${API_URL}/requests/${requestId}/history`, {
+    headers,
+  });
   return response.json();
 };
 
 export const deleteRequest = async (requestId, studentId) => {
+  const headers = await getAuthHeaders();
   const response = await fetch(`${API_URL}/requests/${requestId}/delete`, {
     method: "DELETE",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ student_id: studentId }),
   });
   return response.json();
 };
 
 export const uploadDocument = async (requestId, userId, file) => {
+  const headers = await getAuthHeadersMultipart();
   const formData = new FormData();
   formData.append("file", file);
   formData.append("request_id", requestId);
@@ -68,31 +112,36 @@ export const uploadDocument = async (requestId, userId, file) => {
 
   const response = await fetch(`${API_URL}/documents/upload`, {
     method: "POST",
+    headers,
     body: formData,
   });
   return response.json();
 };
 
 export const getRequestDocuments = async (requestId, userId) => {
+  const headers = await getAuthHeaders();
   const response = await fetch(
     `${API_URL}/documents/request/${requestId}?user_id=${userId}`,
+    { headers },
   );
   return response.json();
 };
 
 export const deleteDocument = async (documentId, userId) => {
+  const headers = await getAuthHeaders();
   const response = await fetch(`${API_URL}/documents/${documentId}`, {
     method: "DELETE",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ user_id: userId }),
   });
   return response.json();
 };
 
 export const createComment = async (requestId, userId, commentText) => {
+  const headers = await getAuthHeaders();
   const response = await fetch(`${API_URL}/comments/create`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({
       request_id: requestId,
       user_id: userId,
@@ -103,25 +152,29 @@ export const createComment = async (requestId, userId, commentText) => {
 };
 
 export const getRequestComments = async (requestId, userId) => {
+  const headers = await getAuthHeaders();
   const response = await fetch(
     `${API_URL}/comments/request/${requestId}?user_id=${userId}`,
+    { headers },
   );
   return response.json();
 };
 
 export const updateComment = async (commentId, userId, commentText) => {
+  const headers = await getAuthHeaders();
   const response = await fetch(`${API_URL}/comments/${commentId}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ user_id: userId, comment_text: commentText }),
   });
   return response.json();
 };
 
 export const deleteComment = async (commentId, userId) => {
+  const headers = await getAuthHeaders();
   const response = await fetch(`${API_URL}/comments/${commentId}`, {
     method: "DELETE",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ user_id: userId }),
   });
   return response.json();
@@ -133,9 +186,10 @@ export const createClearanceComment = async (
   commentText,
   visibility = "all",
 ) => {
+  const headers = await getAuthHeaders();
   const response = await fetch(`${API_URL}/clearance/${clearanceId}/comments`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({
       user_id: userId,
       comment_text: commentText,
@@ -146,42 +200,49 @@ export const createClearanceComment = async (
 };
 
 export const getClearanceComments = async (clearanceId, userId) => {
+  const headers = await getAuthHeaders();
   const response = await fetch(
     `${API_URL}/clearance/${clearanceId}/comments?user_id=${userId}`,
+    { headers },
   );
   return response.json();
 };
 
 export const deleteClearanceComment = async (commentId, userId) => {
+  const headers = await getAuthHeaders();
   const response = await fetch(`${API_URL}/clearance/comments/${commentId}`, {
     method: "DELETE",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ user_id: userId }),
   });
   return response.json();
 };
 
 export const updateClearanceComment = async (commentId, userId, commentText) => {
+  const headers = await getAuthHeaders();
   const response = await fetch(`${API_URL}/clearance/comments/${commentId}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ user_id: userId, comment_text: commentText }),
   });
   return response.json();
 };
 
 export const generateCertificate = async (requestId, userId) => {
+  const headers = await getAuthHeaders();
   const response = await fetch(`${API_URL}/certificates/generate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ request_id: requestId, user_id: userId }),
   });
   return response.json();
 };
 
 export const getRequestCertificate = async (requestId, userId) => {
+  const headers = await getAuthHeaders();
   const response = await fetch(
     `${API_URL}/certificates/request/${requestId}?user_id=${userId}`,
+    { headers },
   );
   return response.json();
 };
@@ -194,33 +255,39 @@ export const verifyCertificate = async (verificationCode) => {
 };
 
 export const checkEscalations = async (adminId) => {
+  const headers = await getAuthHeaders();
   const response = await fetch(`${API_URL}/escalation/check`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ admin_id: adminId }),
   });
   return response.json();
 };
 
 export const getEscalationStats = async (adminId) => {
+  const headers = await getAuthHeaders();
   const response = await fetch(
     `${API_URL}/escalation/stats?admin_id=${adminId}`,
+    { headers },
   );
   return response.json();
 };
 
 export const manuallyEscalateRequest = async (requestId, adminId, reason) => {
+  const headers = await getAuthHeaders();
   const response = await fetch(`${API_URL}/escalation/manual`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ request_id: requestId, admin_id: adminId, reason }),
   });
   return response.json();
 };
 
 export const getEscalationHistory = async (requestId, userId) => {
+  const headers = await getAuthHeaders();
   const response = await fetch(
     `${API_URL}/escalation/history/${requestId}?user_id=${userId}`,
+    { headers },
   );
   return response.json();
 };

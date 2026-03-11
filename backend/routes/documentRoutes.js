@@ -1,12 +1,7 @@
 const express = require("express");
 const router = express.Router();
-const { createClient } = require("@supabase/supabase-js");
+const supabase = require("../supabaseClient");
 const upload = require("../middleware/uploadMiddleware");
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY,
-);
 
 router.post("/upload", upload.single("file"), async (req, res) => {
   try {

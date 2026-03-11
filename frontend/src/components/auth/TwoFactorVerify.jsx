@@ -185,13 +185,19 @@ export default function TwoFactorVerify({ userId, email, isDark, onVerified, onC
         </p>
       </div>
 
-      <div className={`flex rounded-xl p-1 mb-5 ${isDark ? "bg-slate-800" : "bg-gray-100"}`}>
+      <div className={`flex rounded-xl p-1 mb-5 relative ${isDark ? "bg-slate-800" : "bg-gray-100"}`}>
+        <motion.div
+          layoutId="2fa-tab-indicator"
+          className={`absolute top-1 bottom-1 rounded-lg ${isDark ? "bg-green-500 shadow-lg" : "bg-white shadow-md"}`}
+          style={{ width: "calc(50% - 4px)", left: method === "authenticator" ? 4 : "calc(50% + 0px)" }}
+          transition={{ type: "spring", stiffness: 500, damping: 35 }}
+        />
         <button
           type="button"
           onClick={() => switchMethod("authenticator")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold relative z-10 transition-colors duration-200 ${
             method === "authenticator"
-              ? isDark ? "bg-green-500 text-white shadow-lg" : "bg-white text-gray-900 shadow-md"
+              ? isDark ? "text-white" : "text-gray-900"
               : isDark ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-gray-900"
           }`}
         >
@@ -203,9 +209,9 @@ export default function TwoFactorVerify({ userId, email, isDark, onVerified, onC
         <button
           type="button"
           onClick={() => switchMethod("email")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold relative z-10 transition-colors duration-200 ${
             method === "email"
-              ? isDark ? "bg-green-500 text-white shadow-lg" : "bg-white text-gray-900 shadow-md"
+              ? isDark ? "text-white" : "text-gray-900"
               : isDark ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-gray-900"
           }`}
         >
@@ -216,26 +222,57 @@ export default function TwoFactorVerify({ userId, email, isDark, onVerified, onC
         </button>
       </div>
 
-      <AnimatePresence mode="wait">
+      <div className="min-h-[200px]">
+      <AnimatePresence mode="wait" initial={false}>
         {method === "authenticator" ? (
           <motion.div
             key="authenticator"
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 10 }}
-            transition={{ duration: 0.15 }}
+            initial={{ opacity: 0, x: -20, filter: "blur(4px)" }}
+            animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
+            exit={{ opacity: 0, x: 20, filter: "blur(4px)" }}
+            transition={{ duration: 0.15, ease: [0.25, 0.46, 0.45, 0.94] }}
           >
             <p className={`text-sm text-center mb-4 ${isDark ? "text-gray-400" : "text-gray-500"}`}>
               Enter the 6-digit code from your authenticator app
             </p>
+
+            <form onSubmit={handleVerify}>
+              <div className="flex justify-center gap-2 mb-5" onPaste={handlePaste}>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <input
+                    key={i}
+                    ref={(el) => (inputRefs.current[i] = el)}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={code[i] || ""}
+                    onChange={(e) => handleCodeChange(i, e.target.value)}
+                    onKeyDown={(e) => handleKeyDown(i, e)}
+                    className={`w-12 h-14 text-center text-xl font-bold rounded-xl border-2 outline-none transition-all ${
+                      isDark
+                        ? "bg-slate-800 border-slate-600 text-white focus:border-green-500"
+                        : "bg-white border-gray-200 text-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500"
+                    }`}
+                  />
+                ))}
+              </div>
+
+              <button
+                type="submit"
+                disabled={verifying || code.length !== 6}
+                className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-full shadow-lg transition-all disabled:opacity-50 mb-3"
+              >
+                {verifying ? "Verifying..." : "Verify"}
+              </button>
+            </form>
           </motion.div>
         ) : (
           <motion.div
             key="email"
-            initial={{ opacity: 0, x: 10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -10 }}
-            transition={{ duration: 0.15 }}
+            initial={{ opacity: 0, x: 20, filter: "blur(4px)" }}
+            animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
+            exit={{ opacity: 0, x: -20, filter: "blur(4px)" }}
+            transition={{ duration: 0.15, ease: [0.25, 0.46, 0.45, 0.94] }}
           >
             {!emailSent ? (
               <div className="text-center mb-4">
@@ -256,82 +293,76 @@ export default function TwoFactorVerify({ userId, email, isDark, onVerified, onC
                 </button>
               </div>
             ) : (
-              <div className="text-center mb-4">
-                <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>
-                  Enter the code sent to <strong className={isDark ? "text-white" : "text-gray-900"}>{maskedEmail}</strong>
-                </p>
-                {countdown > 0 && (
-                  <motion.p
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className={`text-xs mt-1.5 font-semibold ${
-                      countdown <= 30
-                        ? "text-red-500"
-                        : countdown <= 60
-                          ? isDark ? "text-yellow-400" : "text-yellow-600"
-                          : isDark ? "text-green-400" : "text-green-600"
-                    }`}
+              <>
+                <div className="text-center mb-4">
+                  <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+                    Enter the code sent to <strong className={isDark ? "text-white" : "text-gray-900"}>{maskedEmail}</strong>
+                  </p>
+                  {countdown > 0 && (
+                    <motion.p
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className={`text-xs mt-1.5 font-semibold ${
+                        countdown <= 30
+                          ? "text-red-500"
+                          : countdown <= 60
+                            ? isDark ? "text-yellow-400" : "text-yellow-600"
+                            : isDark ? "text-green-400" : "text-green-600"
+                      }`}
+                    >
+                      Code expires in {formatTime(countdown)}
+                    </motion.p>
+                  )}
+                </div>
+
+                <form onSubmit={handleVerify}>
+                  <div className="flex justify-center gap-2 mb-5" onPaste={handlePaste}>
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <input
+                        key={i}
+                        ref={(el) => (inputRefs.current[i] = el)}
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={1}
+                        value={code[i] || ""}
+                        onChange={(e) => handleCodeChange(i, e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(i, e)}
+                        className={`w-12 h-14 text-center text-xl font-bold rounded-xl border-2 outline-none transition-all ${
+                          isDark
+                            ? "bg-slate-800 border-slate-600 text-white focus:border-green-500"
+                            : "bg-white border-gray-200 text-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500"
+                        }`}
+                      />
+                    ))}
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={verifying || code.length !== 6}
+                    className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-full shadow-lg transition-all disabled:opacity-50 mb-3"
                   >
-                    Code expires in {formatTime(countdown)}
-                  </motion.p>
-                )}
-              </div>
+                    {verifying ? "Verifying..." : "Verify"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={sendEmailOTP}
+                    disabled={sendingEmail || resendCooldown > 0}
+                    className={`w-full text-sm font-semibold py-2 transition-colors disabled:opacity-40 ${isDark ? "text-blue-400 hover:text-blue-300" : "text-blue-600 hover:text-blue-700"}`}
+                  >
+                    {sendingEmail
+                      ? "Sending..."
+                      : resendCooldown > 0
+                        ? `Resend code in ${resendCooldown}s`
+                        : "Resend code"}
+                  </button>
+                </form>
+              </>
             )}
           </motion.div>
         )}
       </AnimatePresence>
-
-      <form onSubmit={handleVerify}>
-        {(method === "authenticator" || emailSent) && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <div className="flex justify-center gap-2 mb-5" onPaste={handlePaste}>
-              {Array.from({ length: 6 }).map((_, i) => (
-                <input
-                  key={i}
-                  ref={(el) => (inputRefs.current[i] = el)}
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={1}
-                  value={code[i] || ""}
-                  onChange={(e) => handleCodeChange(i, e.target.value)}
-                  onKeyDown={(e) => handleKeyDown(i, e)}
-                  className={`w-12 h-14 text-center text-xl font-bold rounded-xl border-2 outline-none transition-all ${
-                    isDark
-                      ? "bg-slate-800 border-slate-600 text-white focus:border-green-500"
-                      : "bg-white border-gray-200 text-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500"
-                  }`}
-                />
-              ))}
-            </div>
-
-            <button
-              type="submit"
-              disabled={verifying || code.length !== 6}
-              className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-full shadow-lg transition-all disabled:opacity-50 mb-3"
-            >
-              {verifying ? "Verifying..." : "Verify"}
-            </button>
-          </motion.div>
-        )}
-
-        {method === "email" && emailSent && (
-          <button
-            type="button"
-            onClick={sendEmailOTP}
-            disabled={sendingEmail || resendCooldown > 0}
-            className={`w-full text-sm font-semibold py-2 transition-colors disabled:opacity-40 ${isDark ? "text-blue-400 hover:text-blue-300" : "text-blue-600 hover:text-blue-700"}`}
-          >
-            {sendingEmail
-              ? "Sending..."
-              : resendCooldown > 0
-                ? `Resend code in ${resendCooldown}s`
-                : "Resend code"}
-          </button>
-        )}
-      </form>
+      </div>
 
       <button
         type="button"
