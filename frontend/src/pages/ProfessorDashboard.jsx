@@ -230,16 +230,27 @@ export default function ProfessorDashboard({
         </div>
 
         {loading ? (
-          <GlassCard className="p-12 text-center" isDark={isDarkMode}>
-            <div className="flex flex-col items-center gap-4">
-              <div className={`w-12 h-12 border-[3px] rounded-full animate-spin ${
-                isDarkMode ? "border-[#8ab4f8] border-t-transparent" : "border-[#1a73e8] border-t-transparent"
-              }`} />
-              <p className={`text-[14px] font-medium ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>
-                Loading student data...
-              </p>
-            </div>
-          </GlassCard>
+          <div className="space-y-4">
+            {[1, 2, 3, 4].map((i) => (
+              <GlassCard key={i} className="overflow-hidden border-none shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] rounded-[20px] mb-2" isDark={isDarkMode}>
+                <div className={`p-4 sm:p-5 transition-colors duration-200 ${isDarkMode ? "bg-[#3c4043]/10" : "bg-[#f8f9fa]"}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-12 h-12 rounded-full animate-pulse ${isDarkMode ? 'bg-[#3c4043]' : 'bg-[#e8f0fe]'}`} />
+                      <div>
+                        <div className={`h-4 w-40 rounded mb-2 animate-pulse ${isDarkMode ? 'bg-[#3c4043]' : 'bg-[#e8f0fe]'}`} />
+                        <div className={`h-3 w-24 rounded animate-pulse ${isDarkMode ? 'bg-[#3c4043]' : 'bg-[#e8f0fe]'}`} />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className={`hidden sm:block h-6 w-24 rounded-full animate-pulse ${isDarkMode ? 'bg-[#3c4043]' : 'bg-[#e8f0fe]'}`} />
+                      <div className={`w-8 h-8 rounded-full animate-pulse ${isDarkMode ? 'bg-[#3c4043]' : 'bg-[#e8f0fe]'}`} />
+                    </div>
+                  </div>
+                </div>
+              </GlassCard>
+            ))}
+          </div>
         ) : displayStudents.length === 0 ? (
           <GlassCard className="p-12 text-center" isDark={isDarkMode}>
             <motion.div

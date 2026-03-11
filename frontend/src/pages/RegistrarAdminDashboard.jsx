@@ -236,14 +236,37 @@ export default function RegistrarAdminDashboard({
             </div>
 
             {loading ? (
-              <GlassCard className="p-12">
-                <div className="flex flex-col items-center gap-4">
-                  <div className="w-12 h-12 border-4 border-slate-500 border-t-transparent rounded-full animate-spin" />
-                  <p className="text-sm text-gray-500">
-                    Loading pending approvals...
-                  </p>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider animate-pulse">
+                    Loading Students...
+                  </h3>
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="p-4 rounded-xl border-2 border-gray-100 bg-white/70">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-slate-200 rounded-xl animate-pulse" />
+                        <div className="flex-1">
+                          <div className="h-4 w-32 bg-slate-200 rounded animate-pulse mb-1.5" />
+                          <div className="h-3 w-24 bg-slate-200 rounded animate-pulse" />
+                        </div>
+                        <div className="w-16 h-6 bg-slate-200 rounded-full animate-pulse" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </GlassCard>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 animate-pulse">
+                    Review Panel
+                  </h3>
+                  <GlassCard className="p-5 h-[400px] flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-4 w-full">
+                       <div className="w-16 h-16 rounded-2xl bg-slate-200 animate-pulse" />
+                       <div className="h-4 w-48 bg-slate-200 rounded animate-pulse mb-2" />
+                       <div className="h-3 w-32 bg-slate-200 rounded animate-pulse" />
+                    </div>
+                  </GlassCard>
+                </div>
+              </div>
             ) : requests.length === 0 ? (
               <GlassCard className="p-12 text-center">
                 <motion.div
@@ -469,14 +492,37 @@ export default function RegistrarAdminDashboard({
             </div>
 
             {accountsLoading ? (
-              <GlassCard className="p-12">
-                <div className="flex flex-col items-center gap-4">
-                  <div className="w-12 h-12 border-4 border-slate-500 border-t-transparent rounded-full animate-spin" />
-                  <p className="text-sm text-gray-500">
-                    Loading pending accounts...
-                  </p>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider animate-pulse">
+                    Loading Accounts...
+                  </h3>
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="p-4 rounded-xl border-2 border-gray-100 bg-white/70">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-slate-200 rounded-xl animate-pulse" />
+                        <div className="flex-1">
+                          <div className="h-4 w-32 bg-slate-200 rounded animate-pulse mb-1.5" />
+                          <div className="h-3 w-24 bg-slate-200 rounded animate-pulse" />
+                        </div>
+                        <div className="w-16 h-6 bg-slate-200 rounded-full animate-pulse" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </GlassCard>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 animate-pulse">
+                    Account Review
+                  </h3>
+                  <GlassCard className="p-5 h-[400px] flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-4 w-full">
+                       <div className="w-16 h-16 rounded-2xl bg-slate-200 animate-pulse" />
+                       <div className="h-4 w-48 bg-slate-200 rounded animate-pulse mb-2" />
+                       <div className="h-3 w-32 bg-slate-200 rounded animate-pulse" />
+                    </div>
+                  </GlassCard>
+                </div>
+              </div>
             ) : pendingAccounts.length === 0 ? (
               <GlassCard className="p-12 text-center">
                 <motion.div

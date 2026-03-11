@@ -125,7 +125,7 @@ const ActionButton = ({
 export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
   const [requests, setRequests] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
-  const [_isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
 
@@ -524,7 +524,33 @@ export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
                 <h2 className="text-2xl font-bold text-white mb-6">
                   Clearance Queue
                 </h2>
-                {requests.length === 0 ? (
+                {isLoading ? (
+                  <div className="space-y-4">
+                    {[1, 2, 3].map((i) => (
+                      <GlassCard key={i} className="p-6 mb-4 opacity-70">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-5">
+                            <div className="w-14 h-14 rounded-2xl bg-white/10 animate-pulse" />
+                            <div>
+                              <div className="w-32 h-5 bg-white/10 rounded animate-pulse mb-2" />
+                              <div className="flex gap-2">
+                                <div className="w-16 h-4 bg-white/10 rounded animate-pulse" />
+                                <div className="w-20 h-4 bg-white/10 rounded animate-pulse" />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-6">
+                            <div className="text-right hidden sm:block">
+                              <div className="w-24 h-3 bg-white/10 rounded animate-pulse mb-1.5 ml-auto" />
+                              <div className="w-20 h-4 bg-white/10 rounded animate-pulse ml-auto" />
+                            </div>
+                            <div className="w-10 h-10 rounded-full bg-white/10 animate-pulse" />
+                          </div>
+                        </div>
+                      </GlassCard>
+                    ))}
+                  </div>
+                ) : requests.length === 0 ? (
                   <GlassCard className="p-12 text-center">
                     <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4">
                       <svg

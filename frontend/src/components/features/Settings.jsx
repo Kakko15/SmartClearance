@@ -22,7 +22,7 @@ export default function Settings({ user, profile, onClose, theme, setTheme, mode
 
 
   const [fullName, setFullName] = useState(profile?.full_name || "");
-  const [newEmail, setNewEmail] = useState("");
+
 
 
   const [currentPassword, setCurrentPassword] = useState("");
@@ -98,20 +98,7 @@ export default function Settings({ user, profile, onClose, theme, setTheme, mode
     }
   };
 
-  const handleEmailChange = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.updateUser({ email: newEmail });
-      if (error) throw error;
-      toast.success("Email updated successfully");
-      setNewEmail("");
-    } catch (_error) {
-      toast.error("Failed to update email");
-    } finally {
-      setLoading(false);
-    }
-  };
+
 
   const handleNotifToggle = (setter, state, name) => {
     setter(!state);
@@ -260,33 +247,7 @@ export default function Settings({ user, profile, onClose, theme, setTheme, mode
                       </form>
                     </div>
 
-                    <div className={`p-6 rounded-2xl border ${bgCard}`}>
-                      <h4 className={`text-lg font-medium mb-1 ${textPrimary}`}>Email Address</h4>
-                      <p className={`text-sm mb-6 ${textSecondary}`}>Your primary point of contact</p>
-                      <form onSubmit={handleEmailChange} className="space-y-5">
-                       <div>
-                          <input
-                            type="email"
-                            value={user?.email || ""}
-                            disabled
-                            className={`${inputClass} opacity-60 cursor-not-allowed mb-4`}
-                          />
-                          <label className={`block text-sm font-medium mb-2 ${textSecondary}`}>Update Email</label>
-                          <input
-                            type="email"
-                            value={newEmail}
-                            onChange={(e) => setNewEmail(e.target.value)}
-                            className={inputClass}
-                            placeholder="newemail@example.com"
-                          />
-                        </div>
-                        <div className="flex justify-end">
-                          <button type="submit" disabled={loading || !newEmail} className={btnPrimary}>
-                            {loading ? "Updating..." : "Update email"}
-                          </button>
-                        </div>
-                      </form>
-                    </div>
+
                   </motion.div>
                 )}
 
