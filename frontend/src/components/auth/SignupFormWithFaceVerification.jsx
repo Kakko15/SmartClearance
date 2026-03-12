@@ -287,7 +287,49 @@ export default function SignupFormWithFaceVerification({
   const [showPassword, setShowPassword] = useState(false);
   const [show2FASetup, setShow2FASetup] = useState(false);
   const [signupUserId, setSignupUserId] = useState(null);
+  const [emailError, setEmailError] = useState("");
+  const [checkingEmail, setCheckingEmail] = useState(false);
+  const [touched, setTouched] = useState({});
   const recaptchaRef = useRef(null);
+
+  const handleBlur = (field) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+  };
+
+  const getFieldError = (field) => {
+    if (!touched[field]) return null;
+    const val = formData[field];
+
+    switch (field) {
+      case "firstName":
+        if (!val || val.trim().length < 2) return "First name is required.";
+        break;
+      case "lastName":
+        if (!val || val.trim().length < 2) return "Last name is required.";
+        break;
+      case "password":
+        if (!val || val.length < 8) return "Password must be at least 8 characters.";
+        if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])/.test(val))
+          return "Must include uppercase, lowercase, number, and special character.";
+        break;
+      case "confirmPassword":
+        if (!val) return "Please confirm your password.";
+        if (val !== formData.password) return "Passwords do not match.";
+        break;
+      case "studentNumber":
+        if (!val || !val.trim()) return "Student number is required.";
+        break;
+      case "course":
+        if (!val) return "Please select your course.";
+        break;
+      case "yearLevel":
+        if (!val) return "Please select your year level.";
+        break;
+      default:
+        break;
+    }
+    return null;
+  };
 
   useEffect(() => {
     sessionStorage.setItem("signupStep", String(currentStep));
@@ -308,59 +350,84 @@ export default function SignupFormWithFaceVerification({
       });
   }, []);
 
-  const handleStep1Submit = (e) => {
-    e.preventDefault();
+  const validateAndCheckEmail = async (email) => {
+    const trimmed = email.trim().toLowerCase();
 
-    if (!formData.firstName.trim() || formData.firstName.trim().length < 2) {
-      toast.error("First name too short");
-      return;
-    }
-    if (!formData.lastName.trim() || formData.lastName.trim().length < 2) {
-      toast.error("Last name too short");
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      toast.error("Invalid email address");
-      return;
-    }
-    if (formData.password.length < 8) {
-      toast.error("Password must be at least 8 characters");
-      return;
-    }
-    if (
-      !/[A-Z]/.test(formData.password) ||
-      !/[a-z]/.test(formData.password) ||
-      !/[0-9]/.test(formData.password) ||
-      !/[^A-Za-z0-9]/.test(formData.password)
-    ) {
-      toast.error(
-        "Password must contain uppercase, lowercase, number, and special character",
-      );
-      return;
-    }
-    if (formData.password !== formData.confirmPassword) {
-      toast.error("Passwords do not match");
-      return;
-    }
-    if (!formData.studentNumber.trim()) {
-      toast.error("Student number is required");
-      return;
-    }
-    if (!formData.course) {
-      toast.error("Please select your course");
-      return;
-    }
-    if (!formData.yearLevel) {
-      toast.error("Please select your year level");
-      return;
-    }
-    if (!recaptchaToken && !IS_LOCALHOST) {
-      toast.error("Please verify reCAPTCHA");
+    // Empty — they touched it but left it blank
+    if (!trimmed) {
+      setEmailError("Email is required.");
       return;
     }
 
-    setCurrentStep(2);
+    // Format validation first
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setEmailError("Please enter a valid email address.");
+      return;
+    }
+
+    // Format is good — clear any format error, then check availability
+    setEmailError("");
+    setCheckingEmail(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/check-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmed }),
+      });
+      const data = await res.json();
+      if (data.success && data.exists) {
+        setEmailError("This email is already registered. Please sign in instead.");
+      } else {
+        setEmailError("");
+      }
+    } catch (err) {
+      console.error("Email check failed:", err);
+      setEmailError("");
+    } finally {
+      setCheckingEmail(false);
+    }
   };
+
+  const handleStep1Submit = (e) => {
+      e.preventDefault();
+
+      // Mark all fields as touched so errors show
+      const allFields = ["firstName", "lastName", "password", "confirmPassword", "studentNumber", "course", "yearLevel"];
+      const allTouched = {};
+      allFields.forEach((f) => (allTouched[f] = true));
+      setTouched((prev) => ({ ...prev, ...allTouched }));
+
+      if (emailError) return;
+
+      // Check if any field has a validation error
+      const hasError = allFields.some((f) => {
+        const val = formData[f];
+        switch (f) {
+          case "firstName": return !val || val.trim().length < 2;
+          case "lastName": return !val || val.trim().length < 2;
+          case "password": return !val || val.length < 8 || !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])/.test(val);
+          case "confirmPassword": return !val || val !== formData.password;
+          case "studentNumber": return !val || !val.trim();
+          case "course": return !val;
+          case "yearLevel": return !val;
+          default: return false;
+        }
+      });
+
+      if (hasError) return;
+
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+        setEmailError("Please enter a valid email address.");
+        return;
+      }
+
+      if (!recaptchaToken && !IS_LOCALHOST) {
+        toast.error("Please verify reCAPTCHA");
+        return;
+      }
+
+      setCurrentStep(2);
+    };
 
   const handleIDVerified = (descriptor) => {
     setIdDescriptor(descriptor);
@@ -525,21 +592,36 @@ export default function SignupFormWithFaceVerification({
               >
                 First Name <span className="text-red-500">*</span>
               </label>
-              <SpotlightBorder isDark={isDark}>
+              <SpotlightBorder isDark={isDark} error={!!getFieldError("firstName")}>
                 <input
                   type="text"
                   value={formData.firstName}
-                  onChange={(e) =>
-                    setFormData({ ...formData, firstName: e.target.value })
-                  }
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^a-zA-ZÀ-ÿ\s'-]/g, "");
+                    setFormData({ ...formData, firstName: val });
+                  }}
+                  onBlur={() => handleBlur("firstName")}
                   required
                   className={`w-full border rounded-xl px-4 py-3 outline-none ${
                     isDark
                       ? "bg-slate-900 border-slate-700 text-white caret-green-500 focus:border-green-500"
                       : "bg-white border-gray-200 text-gray-900 caret-green-500 focus:border-green-500"
-                  }`}
+                  } ${getFieldError("firstName") ? "!border-red-500 focus:!border-red-500" : ""}`}
                 />
               </SpotlightBorder>
+              <AnimatePresence>
+                {getFieldError("firstName") && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -5, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: "auto" }}
+                    exit={{ opacity: 0, y: -5, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="text-red-500 text-xs mt-1 ml-1 font-bold"
+                  >
+                    {getFieldError("firstName")}
+                  </motion.p>
+                )}
+              </AnimatePresence>
             </div>
 
             <div>
@@ -548,21 +630,36 @@ export default function SignupFormWithFaceVerification({
               >
                 Last Name <span className="text-red-500">*</span>
               </label>
-              <SpotlightBorder isDark={isDark}>
+              <SpotlightBorder isDark={isDark} error={!!getFieldError("lastName")}>
                 <input
                   type="text"
                   value={formData.lastName}
-                  onChange={(e) =>
-                    setFormData({ ...formData, lastName: e.target.value })
-                  }
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^a-zA-ZÀ-ÿ\s'-]/g, "");
+                    setFormData({ ...formData, lastName: val });
+                  }}
+                  onBlur={() => handleBlur("lastName")}
                   required
                   className={`w-full border rounded-xl px-4 py-3 outline-none ${
                     isDark
                       ? "bg-slate-900 border-slate-700 text-white caret-green-500 focus:border-green-500"
                       : "bg-white border-gray-200 text-gray-900 caret-green-500 focus:border-green-500"
-                  }`}
+                  } ${getFieldError("lastName") ? "!border-red-500 focus:!border-red-500" : ""}`}
                 />
               </SpotlightBorder>
+              <AnimatePresence>
+                {getFieldError("lastName") && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -5, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: "auto" }}
+                    exit={{ opacity: 0, y: -5, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="text-red-500 text-xs mt-1 ml-1 font-bold"
+                  >
+                    {getFieldError("lastName")}
+                  </motion.p>
+                )}
+              </AnimatePresence>
             </div>
           </div>
 
@@ -572,24 +669,39 @@ export default function SignupFormWithFaceVerification({
             >
               Email <span className="text-red-500">*</span>
             </label>
-            <SpotlightBorder isDark={isDark}>
+            <SpotlightBorder isDark={isDark} error={!!emailError}>
               <input
                 type="email"
                 value={formData.email}
-                onChange={(e) =>
+                onChange={(e) => {
                   setFormData({
                     ...formData,
                     email: e.target.value.toLowerCase(),
-                  })
-                }
+                  });
+                  if (emailError) setEmailError("");
+                }}
+                onBlur={() => validateAndCheckEmail(formData.email)}
                 required
                 className={`w-full border rounded-xl px-4 py-3 outline-none ${
                   isDark
                     ? "bg-slate-900 border-slate-700 text-white caret-green-500 focus:border-green-500"
                     : "bg-white border-gray-200 text-gray-900 caret-green-500 focus:border-green-500"
-                }`}
+                } ${emailError ? "!border-red-500 focus:!border-red-500" : ""}`}
               />
             </SpotlightBorder>
+            <AnimatePresence>
+              {emailError && (
+                <motion.p
+                  initial={{ opacity: 0, y: -5, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: "auto" }}
+                  exit={{ opacity: 0, y: -5, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="text-red-500 text-xs mt-1 ml-1 font-bold"
+                >
+                  {emailError}
+                </motion.p>
+              )}
+            </AnimatePresence>
           </div>
 
           <div>
@@ -598,7 +710,7 @@ export default function SignupFormWithFaceVerification({
             >
               Password <span className="text-red-500">*</span>
             </label>
-            <SpotlightBorder isDark={isDark}>
+            <SpotlightBorder isDark={isDark} error={!!getFieldError("password")}>
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
@@ -607,13 +719,13 @@ export default function SignupFormWithFaceVerification({
                     setFormData({ ...formData, password: e.target.value })
                   }
                   onFocus={() => setIsPasswordFocused(true)}
-                  onBlur={() => setIsPasswordFocused(false)}
+                  onBlur={() => { setIsPasswordFocused(false); handleBlur("password"); }}
                   required
                   className={`w-full border rounded-xl px-4 py-3 outline-none ${
                     isDark
                       ? "bg-slate-900 border-slate-700 text-white caret-green-500 focus:border-green-500"
                       : "bg-white border-gray-200 text-gray-900 caret-green-500 focus:border-green-500"
-                  }`}
+                  } ${getFieldError("password") ? "!border-red-500 focus:!border-red-500" : ""}`}
                 />
                 <button
                   type="button"
@@ -739,6 +851,19 @@ export default function SignupFormWithFaceVerification({
               isVisible={isPasswordFocused}
               isDark={isDark}
             />
+            <AnimatePresence>
+              {getFieldError("password") && (
+                <motion.p
+                  initial={{ opacity: 0, y: -5, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: "auto" }}
+                  exit={{ opacity: 0, y: -5, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="text-red-500 text-xs mt-1 ml-1 font-bold"
+                >
+                  {getFieldError("password")}
+                </motion.p>
+              )}
+            </AnimatePresence>
           </div>
 
           <div>
@@ -747,7 +872,7 @@ export default function SignupFormWithFaceVerification({
             >
               Confirm Password <span className="text-red-500">*</span>
             </label>
-            <SpotlightBorder isDark={isDark}>
+            <SpotlightBorder isDark={isDark} error={!!getFieldError("confirmPassword")}>
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
@@ -755,12 +880,13 @@ export default function SignupFormWithFaceVerification({
                   onChange={(e) =>
                     setFormData({ ...formData, confirmPassword: e.target.value })
                   }
+                  onBlur={() => handleBlur("confirmPassword")}
                   required
                   className={`w-full border rounded-xl px-4 py-3 outline-none ${
                     isDark
                       ? "bg-slate-900 border-slate-700 text-white caret-green-500 focus:border-green-500"
                       : "bg-white border-gray-200 text-gray-900 caret-green-500 focus:border-green-500"
-                  }`}
+                  } ${getFieldError("confirmPassword") ? "!border-red-500 focus:!border-red-500" : ""}`}
                 />
                 <button
                   type="button"
@@ -881,6 +1007,19 @@ export default function SignupFormWithFaceVerification({
                 </div>
               </div>
             </SpotlightBorder>
+            <AnimatePresence>
+              {getFieldError("confirmPassword") && (
+                <motion.p
+                  initial={{ opacity: 0, y: -5, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: "auto" }}
+                  exit={{ opacity: 0, y: -5, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="text-red-500 text-xs mt-1 ml-1 font-bold"
+                >
+                  {getFieldError("confirmPassword")}
+                </motion.p>
+              )}
+            </AnimatePresence>
           </div>
 
           <div>
@@ -889,22 +1028,36 @@ export default function SignupFormWithFaceVerification({
             >
               Student Number <span className="text-red-500">*</span>
             </label>
-            <SpotlightBorder isDark={isDark}>
+            <SpotlightBorder isDark={isDark} error={!!getFieldError("studentNumber")}>
               <input
                 type="text"
                 value={formData.studentNumber}
                 onChange={(e) =>
                   setFormData({ ...formData, studentNumber: e.target.value.toUpperCase() })
                 }
+                onBlur={() => handleBlur("studentNumber")}
                 placeholder="e.g., 21-3243 or 23-3174-TS"
                 required
                 className={`w-full border rounded-xl px-4 py-3 outline-none ${
                   isDark
                     ? "bg-slate-900 border-slate-700 text-white caret-green-500 focus:border-green-500"
                     : "bg-white border-gray-200 text-gray-900 caret-green-500 focus:border-green-500"
-                }`}
+                } ${getFieldError("studentNumber") ? "!border-red-500 focus:!border-red-500" : ""}`}
               />
             </SpotlightBorder>
+            <AnimatePresence>
+              {getFieldError("studentNumber") && (
+                <motion.p
+                  initial={{ opacity: 0, y: -5, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: "auto" }}
+                  exit={{ opacity: 0, y: -5, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="text-red-500 text-xs mt-1 ml-1 font-bold"
+                >
+                  {getFieldError("studentNumber")}
+                </motion.p>
+              )}
+            </AnimatePresence>
           </div>
 
           <div>
@@ -916,11 +1069,28 @@ export default function SignupFormWithFaceVerification({
             <CustomSelect
               options={COURSE_OPTIONS}
               value={formData.course}
-              onChange={(value) => setFormData({ ...formData, course: value })}
+              onChange={(value) => {
+                setFormData({ ...formData, course: value });
+                handleBlur("course");
+              }}
               placeholder="Select your course"
               isDark={isDark}
               searchable
+              error={!!getFieldError("course")}
             />
+            <AnimatePresence>
+              {getFieldError("course") && (
+                <motion.p
+                  initial={{ opacity: 0, y: -5, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: "auto" }}
+                  exit={{ opacity: 0, y: -5, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="text-red-500 text-xs mt-1 ml-1 font-bold"
+                >
+                  {getFieldError("course")}
+                </motion.p>
+              )}
+            </AnimatePresence>
           </div>
 
           <div>
@@ -932,12 +1102,27 @@ export default function SignupFormWithFaceVerification({
             <CustomSelect
               options={YEAR_LEVEL_OPTIONS}
               value={formData.yearLevel}
-              onChange={(value) =>
-                setFormData({ ...formData, yearLevel: value })
-              }
+              onChange={(value) => {
+                setFormData({ ...formData, yearLevel: value });
+                handleBlur("yearLevel");
+              }}
               placeholder="Select your year level"
               isDark={isDark}
+              error={!!getFieldError("yearLevel")}
             />
+            <AnimatePresence>
+              {getFieldError("yearLevel") && (
+                <motion.p
+                  initial={{ opacity: 0, y: -5, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: "auto" }}
+                  exit={{ opacity: 0, y: -5, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="text-red-500 text-xs mt-1 ml-1 font-bold"
+                >
+                  {getFieldError("yearLevel")}
+                </motion.p>
+              )}
+            </AnimatePresence>
           </div>
 
           {!IS_LOCALHOST && (
@@ -954,7 +1139,7 @@ export default function SignupFormWithFaceVerification({
 
           <button
             type="submit"
-            disabled={loading || (!recaptchaToken && !IS_LOCALHOST)}
+            disabled={loading || checkingEmail || !!emailError || (!recaptchaToken && !IS_LOCALHOST)}
             className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-full shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
             Next: Verify ID →

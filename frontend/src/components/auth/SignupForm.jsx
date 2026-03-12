@@ -265,10 +265,44 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
   const recaptchaRef = useRef(null);
 
   const [touched, setTouched] = useState({});
+  const [emailError, setEmailError] = useState("");
+  const [checkingEmail, setCheckingEmail] = useState(false);
 
   const handleBlur = (field) => {
     setTouched((prev) => ({ ...prev, [field]: true }));
     if (field === "password") setIsPasswordFocused(false);
+  };
+
+  const validateAndCheckEmail = async (emailVal) => {
+    handleBlur("email");
+    const trimmed = emailVal.trim().toLowerCase();
+    if (!trimmed) {
+      setEmailError("");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setEmailError("");
+      return;
+    }
+    setCheckingEmail(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/check-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmed }),
+      });
+      const data = await res.json();
+      if (data.success && data.exists) {
+        setEmailError("This email is already registered. Please sign in instead.");
+      } else {
+        setEmailError("");
+      }
+    } catch (err) {
+      console.error("Email check failed:", err);
+      setEmailError("");
+    } finally {
+      setCheckingEmail(false);
+    }
   };
 
   const getFieldError = (field, value, confirmValue) => {
@@ -320,6 +354,7 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
 
   const handleSignUp = async (e) => {
     e.preventDefault();
+    if (emailError) return;
     setLoading(true);
     try {
       if (
@@ -424,7 +459,7 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
               type="text"
               value={signUpData.firstName}
               onChange={(e) =>
-                setSignUpData({ ...signUpData, firstName: e.target.value })
+                setSignUpData({ ...signUpData, firstName: e.target.value.replace(/[^a-zA-ZÀ-ÿ\s'-]/g, "") })
               }
               onBlur={() => handleBlur("firstName")}
               required
@@ -459,7 +494,7 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
               type="text"
               value={signUpData.lastName}
               onChange={(e) =>
-                setSignUpData({ ...signUpData, lastName: e.target.value })
+                setSignUpData({ ...signUpData, lastName: e.target.value.replace(/[^a-zA-ZÀ-ÿ\s'-]/g, "") })
               }
               onBlur={() => handleBlur("lastName")}
               required
@@ -488,18 +523,21 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
         >
           Email <span className="text-red-500">*</span>
         </label>
-        <SpotlightBorder isDark={isDark} error={getFieldError("email", email)}>
+        <SpotlightBorder isDark={isDark} error={getFieldError("email", email) || !!emailError}>
           <input
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value.toLowerCase())}
-            onBlur={() => handleBlur("email")}
+            onChange={(e) => {
+              setEmail(e.target.value.toLowerCase());
+              if (emailError) setEmailError("");
+            }}
+            onBlur={() => validateAndCheckEmail(email)}
             required
-            className={`w-full border rounded-xl px-4 py-3 outline-none transition-all font-medium ${isDark ? "bg-slate-900 border-slate-700 text-white focus:border-green-500" : "bg-white border-gray-200 text-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500"} ${getFieldError("email", email) ? "!border-red-500 focus:!border-red-500 !ring-red-500 bg-red-50 text-red-900" : ""}`}
+            className={`w-full border rounded-xl px-4 py-3 outline-none transition-all font-medium ${isDark ? "bg-slate-900 border-slate-700 text-white focus:border-green-500" : "bg-white border-gray-200 text-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500"} ${getFieldError("email", email) || emailError ? "!border-red-500 focus:!border-red-500 !ring-red-500 bg-red-50 text-red-900" : ""}`}
           />
         </SpotlightBorder>
         <AnimatePresence>
-          {getFieldError("email", email) && (
+          {(getFieldError("email", email) || emailError) && (
             <motion.p
               initial={{ opacity: 0, y: -5, height: 0 }}
               animate={{ opacity: 1, y: 0, height: "auto" }}
@@ -507,7 +545,7 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
               transition={{ duration: 0.2 }}
               className="text-red-500 text-xs mt-1 ml-1 font-bold"
             >
-              {getFieldError("email", email)}
+              {emailError || getFieldError("email", email)}
             </motion.p>
           )}
         </AnimatePresence>

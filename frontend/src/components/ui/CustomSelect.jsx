@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function CustomSelect({
@@ -15,7 +15,7 @@ export default function CustomSelect({
   const [search, setSearch] = useState("");
   const [menuPlacement, setMenuPlacement] = useState("bottom");
   const containerRef = useRef(null);
-  const clearTimerRef = useRef(null);
+  const searchInputRef = useRef(null);
 
   const findLabel = (opts, val) => {
     for (const opt of opts) {
@@ -51,33 +51,14 @@ export default function CustomSelect({
 
   const filteredOptions = searchable ? filterOptions(options, search) : options;
 
-  const handleKeyDown = useCallback(
-    (e) => {
-      if (!isOpen || !searchable) return;
-      if (e.key === "Escape") {
-        setIsOpen(false);
-        setSearch("");
-        return;
-      }
-      if (e.key === "Backspace") {
-        setSearch((prev) => prev.slice(0, -1));
-        return;
-      }
-      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
-        setSearch((prev) => prev + e.key);
-        clearTimeout(clearTimerRef.current);
-        clearTimerRef.current = setTimeout(() => setSearch(""), 1500);
-      }
-    },
-    [isOpen, searchable],
-  );
-
+  // Focus the search input when dropdown opens
   useEffect(() => {
     if (isOpen && searchable) {
-      document.addEventListener("keydown", handleKeyDown);
-      return () => document.removeEventListener("keydown", handleKeyDown);
+      // Small delay to let the dropdown animate in
+      const t = setTimeout(() => searchInputRef.current?.focus(), 50);
+      return () => clearTimeout(t);
     }
-  }, [isOpen, searchable, handleKeyDown]);
+  }, [isOpen, searchable]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -112,6 +93,11 @@ export default function CustomSelect({
       }
     }
   }, [isOpen, placement]);
+
+  const resultCount = filteredOptions.reduce(
+    (count, opt) => count + (opt.options ? opt.options.length : 1),
+    0,
+  );
 
   return (
     <div className="relative" ref={containerRef}>
@@ -178,55 +164,56 @@ export default function CustomSelect({
               ${isDark ? "bg-slate-900/95 border-slate-700" : "bg-white border-slate-200"}
             `}
           >
-            <AnimatePresence>
-              {searchable && search && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.15 }}
-                  className={`border-b ${isDark ? "border-slate-700" : "border-gray-100"}`}
-                >
-                  <div className="flex items-center gap-2 px-4 py-2.5">
-                    <svg
-                      className={`w-4 h-4 shrink-0 ${isDark ? "text-green-400" : "text-green-600"}`}
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                      />
-                    </svg>
-                    <span
-                      className={`text-sm font-bold ${isDark ? "text-green-400" : "text-green-600"}`}
-                    >
-                      {search}
+            {searchable && (
+              <div className={`border-b ${isDark ? "border-slate-700" : "border-gray-100"}`}>
+                <div className="flex items-center gap-2 px-4 py-2.5">
+                  <svg
+                    className={`w-4 h-4 shrink-0 ${isDark ? "text-slate-500" : "text-gray-400"}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") {
+                        setIsOpen(false);
+                        setSearch("");
+                      }
+                      e.stopPropagation();
+                    }}
+                    placeholder="Search..."
+                    className={`flex-1 text-sm font-medium outline-none bg-transparent ${
+                      isDark
+                        ? "text-white placeholder:text-slate-600"
+                        : "text-gray-900 placeholder:text-gray-400"
+                    }`}
+                  />
+                  {search && (
+                    <span className={`text-xs shrink-0 ${isDark ? "text-slate-500" : "text-gray-400"}`}>
+                      {resultCount} result{resultCount !== 1 ? "s" : ""}
                     </span>
-                    <span
-                      className={`text-xs ml-auto ${isDark ? "text-slate-500" : "text-gray-400"}`}
-                    >
-                      {filteredOptions.reduce(
-                        (count, opt) =>
-                          count + (opt.options ? opt.options.length : 1),
-                        0,
-                      )}{" "}
-                      results
-                    </span>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="py-1 my-1 max-h-[250px] overflow-y-auto custom-scrollbar pr-1 mr-1">
               {searchable && search && filteredOptions.length === 0 && (
                 <div
                   className={`px-5 py-8 text-center text-sm ${isDark ? "text-slate-500" : "text-gray-400"}`}
                 >
-                  No results for &ldquo;{search}&rdquo;
+                  No results found
                 </div>
               )}
               {filteredOptions.map((option, index) =>
@@ -330,6 +317,3 @@ export default function CustomSelect({
     </div>
   );
 }
-
-
-

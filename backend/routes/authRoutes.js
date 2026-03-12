@@ -209,6 +209,47 @@ router.post(
   }
 });
 
+const checkEmailLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: isDev ? 100 : 10,
+  message: { success: false, error: "Too many requests. Please wait." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+router.post("/check-email", checkEmailLimiter, async (req, res) => {
+  try {
+    const email = normalizeEmail(req.body?.email);
+    if (!email) {
+      return res.status(400).json({ success: false, error: "Email is required" });
+    }
+
+    // Paginate through users to find a match
+    let page = 1;
+    const perPage = 100;
+    let found = false;
+
+    while (true) {
+      const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
+      if (error) {
+        console.error("Check email listUsers error:", error);
+        return res.status(500).json({ success: false, error: "Server error" });
+      }
+      if (data.users.some((u) => u.email?.toLowerCase() === email)) {
+        found = true;
+        break;
+      }
+      if (data.users.length < perPage) break;
+      page++;
+    }
+
+    return res.json({ success: true, exists: found });
+  } catch (error) {
+    console.error("Check email error:", error);
+    return res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
 router.post("/signup", signupLimiter, async (req, res) => {
   try {
     const {

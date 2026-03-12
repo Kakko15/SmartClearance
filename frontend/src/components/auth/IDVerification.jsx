@@ -77,7 +77,8 @@ export default function IDVerification({ onVerified, isDark, firstName, lastName
 
     try {
       const processFile = await resizeImage(file, 1280);
-      await new Promise(r => setTimeout(r, 0));
+      // Yield so the "Processing your ID..." spinner renders before heavy work begins
+      await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
 
       const qualityCheck = await validateImageQuality(processFile);
       if (!qualityCheck.valid) {
@@ -155,7 +156,8 @@ export default function IDVerification({ onVerified, isDark, firstName, lastName
 
       setOcrProgress(100);
       setProcessingStage('face_detect');
-      await new Promise(r => requestAnimationFrame(() => setTimeout(r, 200)));
+      // Give the browser two full frames to paint the progress update before starting heavy ML work
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 50))));
 
       const faceDetection = await detectFace(processFile);
 

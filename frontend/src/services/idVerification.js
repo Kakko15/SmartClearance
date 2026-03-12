@@ -1,16 +1,31 @@
 import Tesseract from "tesseract.js";
 
+let cachedWorker = null;
+let currentProgressCb = null;
+
+async function getWorker() {
+  if (cachedWorker) return cachedWorker;
+  const worker = await Tesseract.createWorker("eng", undefined, {
+    logger: (m) => {
+      if (m.status === "recognizing text" && currentProgressCb) {
+        currentProgressCb(Math.round(m.progress * 100));
+      }
+    },
+  });
+  cachedWorker = worker;
+  return worker;
+}
+
 export async function extractTextFromID(imageFile, onProgress = null) {
   try {
+    currentProgressCb = onProgress;
+    const worker = await getWorker();
+
     const {
       data: { text },
-    } = await Tesseract.recognize(imageFile, "eng", {
-      logger: (m) => {
-        if (m.status === "recognizing text" && onProgress) {
-          onProgress(Math.round(m.progress * 100));
-        }
-      },
-    });
+    } = await worker.recognize(imageFile);
+
+    currentProgressCb = null;
 
     return {
       success: true,
@@ -19,6 +34,8 @@ export async function extractTextFromID(imageFile, onProgress = null) {
     };
   } catch (error) {
     console.error("OCR error:", error);
+    currentProgressCb = null;
+    cachedWorker = null;
     return {
       success: false,
       error: "Failed to read ID. Please upload a clear photo.",

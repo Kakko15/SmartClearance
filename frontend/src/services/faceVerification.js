@@ -26,16 +26,31 @@ export async function loadFaceModels() {
   }
 }
 
+// Yield control back to the browser so it can paint frames and stay responsive
+function yieldToMain() {
+  return new Promise((resolve) => {
+    if (typeof requestIdleCallback === "function") {
+      requestIdleCallback(resolve, { timeout: 50 });
+    } else {
+      setTimeout(resolve, 0);
+    }
+  });
+}
+
 export async function detectFace(input) {
   try {
     if (!modelsLoaded) {
       await loadFaceModels();
     }
 
+    // Yield before heavy image processing
+    await yieldToMain();
+
     let imageElement = input;
     if (input instanceof File || input instanceof Blob) {
       const img = await faceapi.bufferToImage(input);
-      const maxDim = 416;
+      // Use a smaller dimension to reduce inference time significantly
+      const maxDim = 320;
       const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
       const canvas = document.createElement("canvas");
       canvas.width = Math.round(img.width * scale);
@@ -45,12 +60,17 @@ export async function detectFace(input) {
       imageElement = canvas;
     }
 
-    await new Promise((r) => setTimeout(r, 0));
+    // Yield before the heavy ML inference so the browser can paint
+    await yieldToMain();
 
+    // Run face detection with a higher minConfidence to skip low-quality passes faster
     const detection = await faceapi
-      .detectSingleFace(imageElement)
+      .detectSingleFace(imageElement, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
       .withFaceLandmarks()
       .withFaceDescriptor();
+
+    // Yield after inference so any pending UI updates flush
+    await yieldToMain();
 
     if (!detection) {
       return {
