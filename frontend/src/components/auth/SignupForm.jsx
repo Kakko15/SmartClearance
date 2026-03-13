@@ -6,7 +6,7 @@ import PasswordStrengthMeter from "../ui/PasswordStrengthMeter";
 import CustomSelect from "../ui/CustomSelect";
 import SpotlightBorder from "../ui/SpotlightBorder";
 import TwoFactorSetup from "./TwoFactorSetup";
-import { COURSE_OPTIONS, YEAR_LEVEL_OPTIONS } from "../../constants/formOptions";
+
 
 const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
 const IS_LOCALHOST = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
@@ -28,9 +28,6 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
     firstName: "",
     lastName: "",
     role: selectedRole === "professor" ? "professor" : "library_admin",
-    studentNumber: "",
-    course: "",
-    yearLevel: "",
   });
 
   const recaptchaRef = useRef(null);
@@ -86,9 +83,6 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
         email: "Email is required.",
         password: "Password is required.",
         confirmPassword: "Please confirm your password.",
-        studentNumber: "ID Number is required.",
-        course: "Course is required.",
-        yearLevel: "Year Level is required.",
         adminSecretCode: "Admin secret code is required.",
       };
       return labels[field];
@@ -169,12 +163,6 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
             adminSecretCode:
               selectedRole === "admin" || selectedRole === "professor"
                 ? adminSecretCode
-                : null,
-            studentNumber:
-              signUpData.role === "student" ? signUpData.studentNumber : null,
-            courseYear:
-              signUpData.role === "student"
-                ? `${signUpData.course} - ${signUpData.yearLevel}`
                 : null,
             recaptchaToken: recaptchaToken,
           }),
@@ -391,127 +379,6 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
             : "Contact your supervisor to obtain the admin secret code"}
         </p>
       </div>
-
-      {signUpData.role === "student" && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label
-                className={`block text-sm font-bold mb-1.5 ml-1 ${isDark ? "text-slate-300" : "text-gray-700"}`}
-              >
-                Given ID No. <span className="text-red-500">*</span>
-              </label>
-              <SpotlightBorder
-                isDark={isDark}
-                error={getFieldError("studentNumber", signUpData.studentNumber)}
-              >
-                <input
-                  type="text"
-                  value={signUpData.studentNumber}
-                  onChange={(e) =>
-                    setSignUpData({
-                      ...signUpData,
-                      studentNumber: e.target.value,
-                    })
-                  }
-                  onBlur={() => handleBlur("studentNumber")}
-                  required
-                  className={`w-full border rounded-xl px-4 py-3 outline-none transition-all font-medium ${isDark ? "bg-slate-900 border-slate-700 text-white focus:border-green-500" : "bg-white border-gray-200 text-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500"} ${getFieldError("studentNumber", signUpData.studentNumber) ? "!border-red-500 focus:!border-red-500 !ring-red-500 bg-red-50 text-red-900" : ""}`}
-                />
-              </SpotlightBorder>
-              <AnimatePresence>
-                {getFieldError("studentNumber", signUpData.studentNumber) && (
-                  <motion.p
-                    initial={{ opacity: 0, y: -5, height: 0 }}
-                    animate={{ opacity: 1, y: 0, height: "auto" }}
-                    exit={{ opacity: 0, y: -5, height: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="text-red-500 text-xs mt-1 ml-1 font-bold"
-                  >
-                    {getFieldError("studentNumber", signUpData.studentNumber)}
-                  </motion.p>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <div className="relative z-30">
-              <label
-                className={`block text-sm font-bold mb-1.5 ml-1 ${isDark ? "text-slate-300" : "text-gray-700"}`}
-              >
-                Year Level <span className="text-red-500">*</span>
-              </label>
-              <SpotlightBorder
-                isDark={isDark}
-                error={getFieldError("yearLevel", signUpData.yearLevel)}
-              >
-                <CustomSelect
-                  label=""
-                  value={signUpData.yearLevel}
-                  onChange={(val) => {
-                    setSignUpData({ ...signUpData, yearLevel: val });
-                    handleBlur("yearLevel");
-                  }}
-                  isDark={isDark}
-                  options={YEAR_LEVEL_OPTIONS}
-                  error={getFieldError("yearLevel", signUpData.yearLevel)}
-                  placeholder="Select Year"
-                />
-              </SpotlightBorder>
-              <AnimatePresence>
-                {getFieldError("yearLevel", signUpData.yearLevel) && (
-                  <motion.p
-                    initial={{ opacity: 0, y: -5, height: 0 }}
-                    animate={{ opacity: 1, y: 0, height: "auto" }}
-                    exit={{ opacity: 0, y: -5, height: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="text-red-500 text-xs mt-1 ml-1 font-bold"
-                  >
-                    {getFieldError("yearLevel", signUpData.yearLevel)}
-                  </motion.p>
-                )}
-              </AnimatePresence>
-            </div>
-          </div>
-
-          <div className="relative z-20">
-            <label
-              className={`block text-sm font-bold mb-1.5 ml-1 ${isDark ? "text-slate-300" : "text-gray-700"}`}
-            >
-              Course <span className="text-red-500">*</span>
-            </label>
-            <SpotlightBorder
-              isDark={isDark}
-              error={getFieldError("course", signUpData.course)}
-            >
-              <CustomSelect
-                label=""
-                value={signUpData.course}
-                onChange={(val) => {
-                  setSignUpData({ ...signUpData, course: val });
-                  handleBlur("course");
-                }}
-                isDark={isDark}
-                options={COURSE_OPTIONS}
-                error={getFieldError("course", signUpData.course)}
-                placeholder="Select Course"
-              />
-            </SpotlightBorder>
-            <AnimatePresence>
-              {getFieldError("course", signUpData.course) && (
-                <motion.p
-                  initial={{ opacity: 0, y: -5, height: 0 }}
-                  animate={{ opacity: 1, y: 0, height: "auto" }}
-                  exit={{ opacity: 0, y: -5, height: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="text-red-500 text-xs mt-1 ml-1 font-bold"
-                >
-                  {getFieldError("course", signUpData.course)}
-                </motion.p>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-      )}
 
       <div>
         <label

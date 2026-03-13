@@ -72,8 +72,7 @@ async function generateCertificate(requestId) {
     const chunks = [];
     doc.on("data", (chunk) => chunks.push(chunk));
 
-    // BUG 7 FIX: Use the actual API verification endpoint instead of Supabase URL
-    const apiUrl = process.env.VITE_API_URL || process.env.API_URL || "http://localhost:5000/api";
+    const apiUrl = process.env.API_URL || "http://localhost:5000/api";
     const qrCodeData = `${apiUrl}/certificates/verify/${verificationCode}`;
     const qrCodeImage = await QRCode.toDataURL(qrCodeData);
 

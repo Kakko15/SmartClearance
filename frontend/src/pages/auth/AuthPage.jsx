@@ -129,7 +129,7 @@ export default function AuthPage({
                   d="M10 19l-7-7m0 0l7-7m-7 7h18"
                 />
               </svg>
-              Back to Home
+              Back to Role Selection
             </button>
           </div>
 

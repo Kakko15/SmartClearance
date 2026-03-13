@@ -326,11 +326,16 @@ router.post("/signup", signupLimiter, async (req, res) => {
     if (recaptchaToken) {
       const recaptchaResult = await verifyRecaptcha(recaptchaToken);
       if (!recaptchaResult.success) {
-        console.warn(
-          "[WARN] reCAPTCHA verification failed:",
-          recaptchaResult["error-codes"],
-        );
+        return res.status(400).json({
+          success: false,
+          error: "reCAPTCHA verification failed. Please try again.",
+        });
       }
+    } else if (!isDev) {
+      return res.status(400).json({
+        success: false,
+        error: "reCAPTCHA verification is required.",
+      });
     }
 
     if (firstName.trim().length < 2) {
@@ -523,8 +528,16 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
     if (recaptchaToken) {
       const recaptchaResult = await verifyRecaptcha(recaptchaToken);
       if (!recaptchaResult.success) {
-        console.warn("[WARN] reCAPTCHA verification failed:", recaptchaResult["error-codes"]);
+        return res.status(400).json({
+          success: false,
+          error: "reCAPTCHA verification failed. Please try again.",
+        });
       }
+    } else if (!isDev) {
+      return res.status(400).json({
+        success: false,
+        error: "reCAPTCHA verification is required.",
+      });
     }
 
     if (firstName.trim().length < 2 || lastName.trim().length < 2) {

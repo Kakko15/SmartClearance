@@ -38,7 +38,8 @@ export default function PasswordResetPage() {
       completePasswordReset();
       await supabase.auth.signOut();
       sessionStorage.setItem("hasSeenLoader", "true");
-      navigate("/home", { replace: true });
+      const savedRole = sessionStorage.getItem("selectedRole");
+      navigate(savedRole ? "/auth" : "/select-role", { replace: true });
     } catch (err) {
       toast.error(err.message || "Failed to update password");
     } finally {
