@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   motion,
   AnimatePresence,
@@ -256,6 +257,11 @@ const FeatureCard = ({ title, desc, icon, delay, isDark, color }) => {
 const WORDS = ["Digital", "Rapid", "Smart", "Eco"];
 
 const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
+  const navigate = useNavigate();
+  const handleEnter = () => {
+    if (onEnter) onEnter();
+    navigate("/select-role");
+  };
   const [isScrolled, setIsScrolled] = useState(false);
   const [activeModal, setActiveModal] = useState(null);
 
@@ -415,7 +421,7 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
               className="flex flex-col sm:flex-row gap-5 pt-4"
             >
               <button
-                onClick={onEnter}
+                onClick={handleEnter}
                 className={`group relative overflow-hidden px-8 py-4 rounded-2xl font-bold tracking-widest transition-all hover:scale-105 active:scale-95 shadow-2xl ${isDark ? "bg-white text-slate-950 hover:shadow-white/20" : "bg-slate-950 text-white hover:shadow-black/20"}`}
               >
                 <div
@@ -912,7 +918,7 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
               >
                 <li>
                   <button
-                    onClick={onEnter}
+                    onClick={handleEnter}
                     className="hover:text-primary-500 transition-colors text-left"
                   >
                     Portal Login

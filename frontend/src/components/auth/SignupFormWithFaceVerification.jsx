@@ -9,239 +9,10 @@ import PasswordStrengthMeter from "../ui/PasswordStrengthMeter";
 import SpotlightBorder from "../ui/SpotlightBorder";
 import TwoFactorSetup from "./TwoFactorSetup";
 import CustomSelect from "../ui/CustomSelect";
+import { COURSE_OPTIONS, YEAR_LEVEL_OPTIONS } from "../../constants/formOptions";
 
 const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
 const IS_LOCALHOST = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-
-const COURSE_OPTIONS = [
-  {
-    label: "Agriculture, Forestry & Environment",
-    options: [
-      {
-        value: "Bachelor of Science in Agriculture",
-        label: "BS Ag / BSA: Bachelor of Science in Agriculture",
-      },
-      {
-        value: "Bachelor of Science in Animal Husbandry",
-        label: "BSAH: Bachelor of Science in Animal Husbandry",
-      },
-      {
-        value: "Bachelor of Science in Agri Business",
-        label: "BSAB: Bachelor of Science in Agri Business",
-      },
-      {
-        value: "Bachelor of Science in Forestry",
-        label: "BSF: Bachelor of Science in Forestry",
-      },
-      {
-        value: "Bachelor of Science Environmental Science",
-        label: "BS Env Sci: Bachelor of Science Environmental Science",
-      },
-      {
-        value: "Bachelor of Science in Fisheries and Aquatic Sciences",
-        label: "BSFAS: Bachelor of Science in Fisheries and Aquatic Sciences",
-      },
-      {
-        value: "Diploma in Agricultural Technology",
-        label: "DAT: Diploma in Agricultural Technology",
-      },
-      {
-        value: "Diploma in Agricultural Sciences",
-        label: "DAS: Diploma in Agricultural Sciences",
-      },
-    ],
-  },
-  {
-    label: "Engineering & Technology",
-    options: [
-      {
-        value: "Bachelor of Science in Agricultural and Biosystems Engineering",
-        label:
-          "BSABE: Bachelor of Science in Agricultural and Biosystems Engineering",
-      },
-      {
-        value: "Bachelor of Science in Civil Engineering",
-        label: "BSCE: Bachelor of Science in Civil Engineering",
-      },
-      {
-        value: "Bachelor of Science in Computer Science",
-        label: "BSCS: Bachelor of Science in Computer Science",
-      },
-      {
-        value: "Bachelor of Science in Information Technology",
-        label: "BSIT: Bachelor of Science in Information Technology",
-      },
-      {
-        value: "Bachelor of Science in Information Systems",
-        label: "BSIS: Bachelor of Science in Information Systems",
-      },
-      {
-        value: "Bachelor of Science in Data Science and Analytics",
-        label: "BSDSA: Bachelor of Science in Data Science and Analytics",
-      },
-      {
-        value:
-          "Bachelor of Technology and Livelihood Education - Home Economics",
-        label:
-          "BTLEd-HE: Bachelor of Technology and Livelihood Education - Home Economics",
-      },
-      {
-        value:
-          "Bachelor of Technology and Livelihood Education - Information and Communication Technology",
-        label:
-          "BTLEd-ICT: Bachelor of Technology and Livelihood Education - Information and Communication Technology",
-      },
-    ],
-  },
-  {
-    label: "Health & Medical Sciences",
-    options: [
-      {
-        value: "Doctor of Veterinary Medicine",
-        label: "DVM: Doctor of Veterinary Medicine",
-      },
-      {
-        value: "Bachelor of Science in Nursing",
-        label: "BSN: Bachelor of Science in Nursing",
-      },
-    ],
-  },
-  {
-    label: "Business & Public Administration",
-    options: [
-      {
-        value: "Bachelor of Science in Accountancy",
-        label: "BSA: Bachelor of Science in Accountancy",
-      },
-      {
-        value: "Bachelor of Science in Management Accounting",
-        label: "BSMA: Bachelor of Science in Management Accounting",
-      },
-      {
-        value:
-          "Bachelor of Science in Business Administration (Human Resource Management)",
-        label:
-          "BSBA-HRM: Bachelor of Science in Business Administration (Human Resource Management)",
-      },
-      {
-        value:
-          "Bachelor of Science in Business Administration (Marketing Management)",
-        label:
-          "BSBA-MM: Bachelor of Science in Business Administration (Marketing Management)",
-      },
-      {
-        value: "Bachelor of Science in Entrepreneurship",
-        label: "BS Entrep: Bachelor of Science in Entrepreneurship",
-      },
-      {
-        value: "Bachelor in Public Administration",
-        label: "BPA: Bachelor in Public Administration",
-      },
-    ],
-  },
-  {
-    label: "Education & Library Science",
-    options: [
-      {
-        value: "Bachelor of Elementary Education",
-        label: "BEEd: Bachelor of Elementary Education",
-      },
-      {
-        value: "Bachelor of Secondary Education (English)",
-        label: "BSEd: Bachelor of Secondary Education (English)",
-      },
-      {
-        value: "Bachelor of Secondary Education (Filipino)",
-        label: "BSEd: Bachelor of Secondary Education (Filipino)",
-      },
-      {
-        value: "Bachelor of Secondary Education (Mathematics)",
-        label: "BSEd: Bachelor of Secondary Education (Mathematics)",
-      },
-      {
-        value: "Bachelor of Secondary Education (Social Studies)",
-        label: "BSEd: Bachelor of Secondary Education (Social Studies)",
-      },
-      {
-        value:
-          "Bachelor of Secondary Education (Library & Information Management)",
-        label:
-          "BSEd-LISM: Bachelor of Secondary Education (Library & Information Management)",
-      },
-      {
-        value: "Bachelor of Library and Information Science",
-        label: "BLIS: Bachelor of Library and Information Science",
-      },
-      {
-        value: "Bachelor of Early Childhood Education",
-        label: "BECEd: Bachelor of Early Childhood Education",
-      },
-      {
-        value: "Bachelor of Physical Education",
-        label: "BPEd: Bachelor of Physical Education",
-      },
-    ],
-  },
-  {
-    label: "Arts & Sciences",
-    options: [
-      {
-        value: "Bachelor of Science in Biology",
-        label: "BS Bio: Bachelor of Science in Biology",
-      },
-      {
-        value: "Bachelor of Science in Chemistry",
-        label: "BS Chem: Bachelor of Science in Chemistry",
-      },
-      {
-        value: "Bachelor of Science in Mathematics",
-        label: "BS Math: Bachelor of Science in Mathematics",
-      },
-      {
-        value: "Bachelor of Science in Psychology",
-        label: "BS Psych: Bachelor of Science in Psychology",
-      },
-      {
-        value: "Bachelor of Arts in English Language Studies",
-        label: "BA ELS: Bachelor of Arts in English Language Studies",
-      },
-      {
-        value: "Bachelor of Arts in Communication",
-        label: "BA Comm: Bachelor of Arts in Communication",
-      },
-    ],
-  },
-  {
-    label: "Criminal Justice & Tourism",
-    options: [
-      {
-        value: "Bachelor of Science in Criminology",
-        label: "BS Crim: Bachelor of Science in Criminology",
-      },
-      {
-        value: "Bachelor of Science in Law Enforcement Administration",
-        label: "BSLEA: Bachelor of Science in Law Enforcement Administration",
-      },
-      {
-        value: "Bachelor of Science in Hospitality Management",
-        label: "BSHM: Bachelor of Science in Hospitality Management",
-      },
-      {
-        value: "Bachelor of Science in Tourism Management",
-        label: "BSTM: Bachelor of Science in Tourism Management",
-      },
-    ],
-  },
-];
-
-const YEAR_LEVEL_OPTIONS = [
-  { value: "1st Year", label: "1st Year" },
-  { value: "2nd Year", label: "2nd Year" },
-  { value: "3rd Year", label: "3rd Year" },
-  { value: "4th Year", label: "4th Year" },
-  { value: "5th Year", label: "5th Year" },
-  { value: "6th Year", label: "6th Year" },
-];
 
 export default function SignupFormWithFaceVerification({
   onSwitchMode,
@@ -346,7 +117,6 @@ export default function SignupFormWithFaceVerification({
       })
       .catch((error) => {
         console.error("Failed to load models:", error);
-        toast.error("Failed to load face detection models");
       });
   }, []);
 
@@ -388,7 +158,7 @@ export default function SignupFormWithFaceVerification({
     }
   };
 
-  const handleStep1Submit = (e) => {
+  const handleStep1Submit = async (e) => {
       e.preventDefault();
 
       // Mark all fields as touched so errors show
@@ -424,6 +194,19 @@ export default function SignupFormWithFaceVerification({
       if (!recaptchaToken && !IS_LOCALHOST) {
         toast.error("Please verify reCAPTCHA");
         return;
+      }
+
+      if (modelsLoading) {
+        setLoading(true);
+        try {
+          await loadFaceModels();
+          setModelsLoading(false);
+        } catch {
+          toast.error("Face detection models failed to load. Please refresh the page.");
+          setLoading(false);
+          return;
+        }
+        setLoading(false);
       }
 
       setCurrentStep(2);
@@ -541,35 +324,6 @@ export default function SignupFormWithFaceVerification({
           }, 1000);
         }}
       />
-    );
-  }
-
-  if (modelsLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <svg
-          className="animate-spin h-12 w-12 text-green-500 mb-4"
-          viewBox="0 0 24 24"
-        >
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-            fill="none"
-          />
-          <path
-            className="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-          />
-        </svg>
-        <p className={isDark ? "text-gray-400" : "text-gray-600"}>
-          Loading face detection models...
-        </p>
-      </div>
     );
   }
 
@@ -1140,9 +894,19 @@ export default function SignupFormWithFaceVerification({
           <button
             type="submit"
             disabled={loading || checkingEmail || !!emailError || (!recaptchaToken && !IS_LOCALHOST)}
-            className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-full shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-full shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
           >
-            Next: Verify ID →
+            {loading ? (
+              <>
+                <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                <span>Preparing verification...</span>
+              </>
+            ) : (
+              "Next: Verify ID →"
+            )}
           </button>
         </motion.form>
       )}

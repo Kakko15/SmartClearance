@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import Particles from "../../components/visuals/Particles";
 import logo from "../../assets/logo.png";
 
@@ -9,6 +10,7 @@ export default function RoleSelectionPage({
   isDark,
 }) {
   const [showAdminModal, setShowAdminModal] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     document.title = "SmartClearance";
@@ -219,7 +221,7 @@ export default function RoleSelectionPage({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6, delay: 0.3 }}
-            onClick={onBackToHome}
+            onClick={() => navigate("/home")}
             className={`mt-4 flex items-center gap-2 mx-auto text-sm font-medium transition-colors ${isDark ? "text-slate-400 hover:text-white" : "text-gray-500 hover:text-gray-900"}`}
           >
             <svg

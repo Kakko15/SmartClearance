@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import LoginForm from "../../components/auth/LoginForm";
 import SignupForm from "../../components/auth/SignupForm";
@@ -38,6 +39,7 @@ export default function AuthPage({
   const selectedRoleLabel = formatRoleLabel(selectedRole);
   const selectedRoleIsAdmin =
     selectedRole === "admin" || selectedRole?.includes("admin");
+  const navigate = useNavigate();
 
   const [isSignUp, setIsSignUp] = useState(() => {
     const savedMode = sessionStorage.getItem("authMode") === "signup";
@@ -110,6 +112,7 @@ export default function AuthPage({
               onClick={() => {
                 sessionStorage.removeItem("authMode");
                 onBackToHome();
+                navigate("/select-role");
               }}
               className={`flex items-center gap-2 text-sm font-medium transition-colors ${isDark ? "text-slate-400 hover:text-white" : "text-gray-500 hover:text-gray-900"}`}
             >
