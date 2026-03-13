@@ -1,21 +1,16 @@
 const express = require("express");
 const router = express.Router();
 const supabase = require("../supabaseClient");
+const { requireAuth } = require("../middleware/authMiddleware");
 const {
   generateCertificate,
   verifyCertificate,
 } = require("../services/certificateService");
 
-router.post("/generate", async (req, res) => {
+router.post("/generate", requireAuth, async (req, res) => {
   try {
-    const { request_id, user_id } = req.body;
-
-    if (!request_id || !user_id) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing required fields",
-      });
-    }
+    const { request_id } = req.body;
+    const user_id = req.user.id;
 
     const { data: request, error: reqError } = await supabase
       .from("requests")
@@ -69,17 +64,10 @@ router.post("/generate", async (req, res) => {
   }
 });
 
-router.get("/request/:request_id", async (req, res) => {
+router.get("/request/:request_id", requireAuth, async (req, res) => {
   try {
     const { request_id } = req.params;
-    const { user_id } = req.query;
-
-    if (!user_id) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing user_id",
-      });
-    }
+    const user_id = req.user.id;
 
     const { data: request } = await supabase
       .from("requests")

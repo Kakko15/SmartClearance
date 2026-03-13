@@ -8,6 +8,7 @@ import SelfieCapture from "./SelfieCapture";
 import PasswordStrengthMeter from "../ui/PasswordStrengthMeter";
 import SpotlightBorder from "../ui/SpotlightBorder";
 import TwoFactorSetup from "./TwoFactorSetup";
+import EmailVerification from "./EmailVerification";
 import CustomSelect from "../ui/CustomSelect";
 import { COURSE_OPTIONS, YEAR_LEVEL_OPTIONS } from "../../constants/formOptions";
 
@@ -57,7 +58,9 @@ export default function SignupFormWithFaceVerification({
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [show2FASetup, setShow2FASetup] = useState(false);
+  const [showEmailVerification, setShowEmailVerification] = useState(false);
   const [signupUserId, setSignupUserId] = useState(null);
+  const [signupToken, setSignupToken] = useState(null);
   const [emailError, setEmailError] = useState("");
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [touched, setTouched] = useState({});
@@ -267,6 +270,7 @@ export default function SignupFormWithFaceVerification({
       sessionStorage.removeItem("signupStep");
       sessionStorage.removeItem("signupFormData");
       setSignupUserId(result.user.id);
+      setSignupToken(result.signupToken);
       setShow2FASetup(true);
     } catch (error) {
       console.error("Signup error:", error);
@@ -316,12 +320,31 @@ export default function SignupFormWithFaceVerification({
       <TwoFactorSetup
         userId={signupUserId}
         email={formData.email}
+        signupToken={signupToken}
         isDark={isDark}
         onComplete={() => {
+          toast.success("2FA enabled! Now verify your email.");
+          setShow2FASetup(false);
+          setShowEmailVerification(true);
+        }}
+      />
+    );
+  }
+
+  if (showEmailVerification && signupUserId) {
+    return (
+      <EmailVerification
+        email={formData.email}
+        userId={signupUserId}
+        isDark={isDark}
+        onVerified={() => {
           toast.success("You're all set! Please sign in.");
           setTimeout(() => {
             if (onSwitchMode) onSwitchMode();
           }, 1000);
+        }}
+        onSwitchToLogin={() => {
+          if (onSwitchMode) onSwitchMode();
         }}
       />
     );

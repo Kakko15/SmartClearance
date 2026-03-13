@@ -1,9 +1,7 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import toast from "react-hot-toast";
-import { supabase } from "./lib/supabase";
-import { useAuth, NavigateSetter } from "./contexts/AuthContext";
+import { useAuth } from "./contexts/AuthContext";
 import { useTheme } from "./contexts/ThemeContext";
 import StudentDashboardGraduation from "./pages/StudentDashboardGraduation";
 import AdminDashboard from "./pages/AdminDashboard";

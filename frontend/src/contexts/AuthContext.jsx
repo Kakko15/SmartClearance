@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useRef, useCallback } f
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { supabase } from "../lib/supabase";
+import useIdleTimeout from "../hooks/useIdleTimeout";
 
 const PRESERVED_LOCAL_STORAGE_KEYS = ["theme", "saved_login_emails"];
 
@@ -322,6 +323,78 @@ export function AuthProvider({ children }) {
     setShowPasswordReset(false);
     window.location.hash = "";
   };
+
+  // ── Idle Timeout ────────────────────────────────────────────────────────
+  // Default: 15 min timeout, 2 min warning. University shared computers need this.
+  const IDLE_TIMEOUT_MS = parseInt(import.meta.env.VITE_IDLE_TIMEOUT_MINUTES || "15", 10) * 60 * 1000;
+  const IDLE_WARNING_MS = 2 * 60 * 1000;
+  const isAuthenticated = !!user && !!profile;
+  const idleSignOutRef = useRef(false);
+
+  const handleIdleSignOut = useCallback(async () => {
+    if (idleSignOutRef.current) return; // prevent double-fire
+    idleSignOutRef.current = true;
+
+    try {
+      const previousRole = sessionStorage.getItem("selectedRole");
+
+      setUser(null);
+      setProfile(null);
+      setTwoFactorPending(false);
+      setPendingUser(null);
+      setPendingProfile(null);
+
+      sessionStorage.clear();
+      clearLocalStoragePreservingPreferences();
+
+      if (previousRole) {
+        setSelectedRole(previousRole);
+        sessionStorage.setItem("selectedRole", previousRole);
+      } else {
+        setSelectedRole(null);
+      }
+
+      roleMismatchRef.current = true;
+      await supabase.auth.signOut();
+
+      toast("You were signed out due to inactivity", {
+        icon: "🔒",
+        duration: 6000,
+      });
+
+      if (previousRole) {
+        navigateRef.current?.("/auth");
+      } else {
+        navigateRef.current?.("/select-role");
+      }
+      sessionStorage.setItem("hasSeenLoader", "true");
+    } catch (error) {
+      console.error("Idle sign-out error:", error);
+    } finally {
+      idleSignOutRef.current = false;
+    }
+  }, []);
+
+  const handleIdleWarning = useCallback((secondsLeft) => {
+    toast(`Session expiring in ${Math.ceil(secondsLeft / 60)} min due to inactivity. Move your mouse to stay signed in.`, {
+      icon: "⏳",
+      duration: 10000,
+      id: "idle-warning", // prevent duplicate toasts
+    });
+  }, []);
+
+  const handleIdleActive = useCallback(() => {
+    toast.dismiss("idle-warning");
+  }, []);
+
+  useIdleTimeout({
+    enabled: isAuthenticated,
+    timeoutMs: IDLE_TIMEOUT_MS,
+    warningMs: IDLE_WARNING_MS,
+    onIdle: handleIdleSignOut,
+    onWarning: handleIdleWarning,
+    onActive: handleIdleActive,
+  });
 
   const value = {
     user,

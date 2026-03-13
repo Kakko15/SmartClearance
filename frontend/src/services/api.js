@@ -291,3 +291,39 @@ export const getEscalationHistory = async (requestId, userId) => {
   );
   return response.json();
 };
+
+// ── Secret Code Management ──────────────────────────────────────────────────
+
+export const getSecretCodes = async () => {
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${API_URL}/admin/secret-codes`, { headers });
+  return response.json();
+};
+
+export const createSecretCode = async (role, description, maxUses, expiresAt) => {
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${API_URL}/admin/secret-codes`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ role, description, max_uses: maxUses, ...(expiresAt ? { expires_at: expiresAt } : {}) }),
+  });
+  return response.json();
+};
+
+export const toggleSecretCode = async (id) => {
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${API_URL}/admin/secret-codes/${id}/toggle`, {
+    method: "PATCH",
+    headers,
+  });
+  return response.json();
+};
+
+export const deleteSecretCode = async (id) => {
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${API_URL}/admin/secret-codes/${id}`, {
+    method: "DELETE",
+    headers,
+  });
+  return response.json();
+};

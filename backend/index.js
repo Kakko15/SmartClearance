@@ -22,7 +22,7 @@ app.use(
     credentials: true,
   }),
 );
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
 
 const PORT = process.env.PORT || 5000;
 
@@ -36,6 +36,7 @@ const escalationRoutes = require("./routes/escalationRoutes");
 const graduationRoutes = require("./routes/graduationRoutes");
 const adminAccountRoutes = require("./routes/adminAccountRoutes");
 const twoFactorRoutes = require("./routes/twoFactorRoutes");
+const secretCodeRoutes = require("./routes/secretCodeRoutes");
 
 app.use("/api/requests", requestRoutes);
 app.use("/api/auth", authRoutes);
@@ -48,6 +49,7 @@ app.use("/api/certificates", certificateRoutes);
 app.use("/api/escalation", escalationRoutes);
 app.use("/api/graduation", graduationRoutes);
 app.use("/api/admin", adminAccountRoutes);
+app.use("/api/admin/secret-codes", secretCodeRoutes);
 
 app.get("/", (req, res) => {
   res.send("Smart Clearance System backend running!");

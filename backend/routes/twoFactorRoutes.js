@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const crypto = require("crypto");
 const rateLimit = require("express-rate-limit");
 const { generateSecret, verifySync, generateURI } = require("otplib");
 const QRCode = require("qrcode");
@@ -13,6 +14,33 @@ const OTP_MAX_ATTEMPTS = 5;
 const OTP_COOLDOWN_MS = 60 * 1000;
 
 const emailOTPs = new Map();
+
+// ── Signup tokens: short-lived, single-use tokens issued after account creation ──
+// Prevents unauthenticated 2FA setup by requiring proof of recent signup.
+const SIGNUP_TOKEN_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
+const signupTokens = new Map();
+
+function generateSignupToken(userId) {
+  const token = crypto.randomBytes(32).toString("hex");
+  signupTokens.set(userId, { token, createdAt: Date.now(), setupUsed: false });
+  // Auto-cleanup after expiry
+  setTimeout(() => signupTokens.delete(userId), SIGNUP_TOKEN_EXPIRY_MS);
+  return token;
+}
+
+function validateSignupToken(userId, token) {
+  const stored = signupTokens.get(userId);
+  if (!stored) return { valid: false, reason: "No signup token found. Please sign up again." };
+  if (Date.now() - stored.createdAt > SIGNUP_TOKEN_EXPIRY_MS) {
+    signupTokens.delete(userId);
+    return { valid: false, reason: "Signup token expired. Please sign up again." };
+  }
+  if (stored.token !== token) return { valid: false, reason: "Invalid signup token." };
+  return { valid: true };
+}
+
+// Expose for authRoutes to call after signup
+router.generateSignupToken = generateSignupToken;
 
 const sendOtpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -51,11 +79,28 @@ function getTransporter() {
 
 router.post("/setup", async (req, res) => {
   try {
-    const { userId, email } = req.body;
+    const { userId, email, signupToken } = req.body;
 
     if (!userId || !email) {
       return res.status(400).json({ success: false, error: "User ID and email are required" });
     }
+
+    if (!signupToken) {
+      return res.status(401).json({ success: false, error: "Signup token is required" });
+    }
+
+    // Validate the short-lived signup token
+    const tokenCheck = validateSignupToken(userId, signupToken);
+    if (!tokenCheck.valid) {
+      return res.status(401).json({ success: false, error: tokenCheck.reason });
+    }
+
+    // Mark setup as used — only one /setup call per signup token
+    const stored = signupTokens.get(userId);
+    if (stored.setupUsed) {
+      return res.status(401).json({ success: false, error: "2FA setup already initiated. Please verify your code." });
+    }
+    stored.setupUsed = true;
 
     const secret = generateSecret();
     const otpauthUrl = generateURI({
@@ -90,10 +135,20 @@ router.post("/setup", async (req, res) => {
 
 router.post("/verify-setup", async (req, res) => {
   try {
-    const { userId, token } = req.body;
+    const { userId, token, signupToken } = req.body;
 
     if (!userId || !token) {
       return res.status(400).json({ success: false, error: "User ID and token are required" });
+    }
+
+    if (!signupToken) {
+      return res.status(401).json({ success: false, error: "Signup token is required" });
+    }
+
+    // Validate the signup token (must be same one used for /setup)
+    const tokenCheck = validateSignupToken(userId, signupToken);
+    if (!tokenCheck.valid) {
+      return res.status(401).json({ success: false, error: tokenCheck.reason });
     }
 
     const { data: profile, error: profileError } = await supabase
@@ -116,6 +171,9 @@ router.post("/verify-setup", async (req, res) => {
       .from("profiles")
       .update({ totp_enabled: true })
       .eq("id", userId);
+
+    // Cleanup: signup token is no longer needed
+    signupTokens.delete(userId);
 
     res.json({ success: true, message: "2FA enabled successfully" });
   } catch (error) {

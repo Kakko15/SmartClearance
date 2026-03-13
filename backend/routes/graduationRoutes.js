@@ -1,8 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const supabase = require("../supabaseClient");
+const { requireAuth } = require("../middleware/authMiddleware");
 
-router.post("/apply", async (req, res) => {
+router.post("/apply", requireAuth, async (req, res) => {
   try {
     const { student_id, portion } = req.body;
 
@@ -147,7 +148,7 @@ router.post("/apply", async (req, res) => {
   }
 });
 
-router.delete("/cancel/:studentId", async (req, res) => {
+router.delete("/cancel/:studentId", requireAuth, async (req, res) => {
   try {
     const { studentId } = req.params;
 
@@ -198,7 +199,7 @@ router.delete("/cancel/:studentId", async (req, res) => {
   }
 });
 
-router.get("/status/:studentId", async (req, res) => {
+router.get("/status/:studentId", requireAuth, async (req, res) => {
   try {
     const { studentId } = req.params;
 
@@ -338,7 +339,7 @@ router.get("/status/:studentId", async (req, res) => {
   }
 });
 
-router.get("/professor/students/:professorId", async (req, res) => {
+router.get("/professor/students/:professorId", requireAuth, async (req, res) => {
   try {
     const { professorId } = req.params;
 
@@ -440,7 +441,7 @@ router.get("/professor/students/:professorId", async (req, res) => {
   }
 });
 
-router.post("/professor/approve", async (req, res) => {
+router.post("/professor/approve", requireAuth, async (req, res) => {
   try {
     const { approval_id, professor_id, comments } = req.body;
 
@@ -528,7 +529,7 @@ router.post("/professor/approve", async (req, res) => {
   }
 });
 
-router.post("/professor/reject", async (req, res) => {
+router.post("/professor/reject", requireAuth, async (req, res) => {
   try {
     const { approval_id, professor_id, comments } = req.body;
 
@@ -567,7 +568,7 @@ router.post("/professor/reject", async (req, res) => {
   }
 });
 
-router.get("/library/pending", async (req, res) => {
+router.get("/library/pending", requireAuth, async (req, res) => {
   try {
     const { data: requests, error } = await supabase
       .from("requests")
@@ -624,7 +625,7 @@ router.get("/library/pending", async (req, res) => {
   }
 });
 
-router.post("/library/approve", async (req, res) => {
+router.post("/library/approve", requireAuth, async (req, res) => {
   try {
     const { request_id, admin_id, comments } = req.body;
 
@@ -657,7 +658,7 @@ router.post("/library/approve", async (req, res) => {
   }
 });
 
-router.post("/library/reject", async (req, res) => {
+router.post("/library/reject", requireAuth, async (req, res) => {
   try {
     const { request_id, admin_id, comments } = req.body;
 
@@ -696,7 +697,7 @@ router.post("/library/reject", async (req, res) => {
   }
 });
 
-router.get("/cashier/pending", async (req, res) => {
+router.get("/cashier/pending", requireAuth, async (req, res) => {
   try {
     const { data: requests, error } = await supabase
       .from("requests")
@@ -752,7 +753,7 @@ router.get("/cashier/pending", async (req, res) => {
   }
 });
 
-router.post("/cashier/approve", async (req, res) => {
+router.post("/cashier/approve", requireAuth, async (req, res) => {
   try {
     const { request_id, admin_id, comments } = req.body;
 
@@ -785,7 +786,7 @@ router.post("/cashier/approve", async (req, res) => {
   }
 });
 
-router.post("/cashier/reject", async (req, res) => {
+router.post("/cashier/reject", requireAuth, async (req, res) => {
   try {
     const { request_id, admin_id, comments } = req.body;
 
@@ -824,7 +825,7 @@ router.post("/cashier/reject", async (req, res) => {
   }
 });
 
-router.get("/registrar/pending", async (req, res) => {
+router.get("/registrar/pending", requireAuth, async (req, res) => {
   try {
     const { data: requests, error } = await supabase
       .from("requests")
@@ -883,7 +884,7 @@ router.get("/registrar/pending", async (req, res) => {
   }
 });
 
-router.post("/registrar/approve", async (req, res) => {
+router.post("/registrar/approve", requireAuth, async (req, res) => {
   try {
     const { request_id, admin_id, comments } = req.body;
 
@@ -953,7 +954,7 @@ router.post("/registrar/approve", async (req, res) => {
   }
 });
 
-router.post("/registrar/reject", async (req, res) => {
+router.post("/registrar/reject", requireAuth, async (req, res) => {
   try {
     const { request_id, admin_id, comments } = req.body;
 
@@ -992,7 +993,7 @@ router.post("/registrar/reject", async (req, res) => {
   }
 });
 
-router.post("/admin/assign-professor", async (req, res) => {
+router.post("/admin/assign-professor", requireAuth, async (req, res) => {
   try {
     const {
       student_id,
@@ -1033,7 +1034,7 @@ router.post("/admin/assign-professor", async (req, res) => {
   }
 });
 
-router.get("/admin/professors", async (req, res) => {
+router.get("/admin/professors", requireAuth, async (req, res) => {
   try {
     const { data: professors, error } = await supabase
       .from("profiles")

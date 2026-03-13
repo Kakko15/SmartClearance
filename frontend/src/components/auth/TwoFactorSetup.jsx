@@ -4,13 +4,14 @@ import { motion } from "framer-motion";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
-export default function TwoFactorSetup({ userId, email, isDark, onComplete }) {
+export default function TwoFactorSetup({ userId, email, signupToken, isDark, onComplete }) {
   const [qrCode, setQrCode] = useState(null);
   const [manualKey, setManualKey] = useState("");
   const [loading, setLoading] = useState(true);
   const [verifyCode, setVerifyCode] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showKey, setShowKey] = useState(false);
   const inputRefs = useRef([]);
 
   useEffect(() => {
@@ -19,7 +20,7 @@ export default function TwoFactorSetup({ userId, email, isDark, onComplete }) {
         const res = await fetch(`${API_URL}/auth/2fa/setup`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId, email }),
+          body: JSON.stringify({ userId, email, signupToken }),
         });
         const data = await res.json();
         if (data.success) {
@@ -35,7 +36,7 @@ export default function TwoFactorSetup({ userId, email, isDark, onComplete }) {
       }
     };
     setup();
-  }, [userId, email]);
+  }, [userId, email, signupToken]);
 
   const handleCodeChange = (index, value) => {
     if (!/^\d*$/.test(value)) return;
@@ -74,7 +75,7 @@ export default function TwoFactorSetup({ userId, email, isDark, onComplete }) {
       const res = await fetch(`${API_URL}/auth/2fa/verify-setup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, token: verifyCode }),
+        body: JSON.stringify({ userId, token: verifyCode, signupToken }),
       });
       const data = await res.json();
       if (data.success) {
@@ -144,12 +145,32 @@ export default function TwoFactorSetup({ userId, email, isDark, onComplete }) {
               Or enter this key manually
             </p>
             <div className={`flex items-center justify-center gap-2 p-3 rounded-xl ${isDark ? "bg-slate-900 border border-slate-700" : "bg-gray-50 border border-gray-200"}`}>
-              <code className={`text-sm font-mono font-bold tracking-wider ${isDark ? "text-green-400" : "text-green-700"}`}>
-                {manualKey}
+              <code className={`text-sm font-mono font-bold tracking-wider select-none ${isDark ? "text-green-400" : "text-green-700"}`}>
+                {showKey ? manualKey : "••••  ••••  ••••  ••••"}
               </code>
               <button
                 type="button"
+                onClick={() => setShowKey((v) => !v)}
+                title={showKey ? "Hide key" : "Reveal key"}
+                aria-label={showKey ? "Hide secret key" : "Reveal secret key"}
+                className={`p-1.5 rounded-lg transition-colors ${isDark ? "hover:bg-slate-700 text-gray-400 hover:text-white" : "hover:bg-gray-200 text-gray-500 hover:text-gray-900"}`}
+              >
+                {showKey ? (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-5 0-9.27-3.11-11-7.5a11.72 11.72 0 013.168-4.477M6.343 6.343A9.97 9.97 0 0112 5c5 0 9.27 3.11 11 7.5a11.72 11.72 0 01-4.168 4.477M6.343 6.343L3 3m3.343 3.343l2.829 2.829m4.243 4.243l2.829 2.829M6.343 6.343l11.314 11.314M14.121 14.121A3 3 0 009.879 9.879" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                )}
+              </button>
+              <button
+                type="button"
                 onClick={copyKey}
+                title="Copy key"
+                aria-label="Copy secret key to clipboard"
                 className={`p-1.5 rounded-lg transition-colors ${isDark ? "hover:bg-slate-700 text-gray-400 hover:text-white" : "hover:bg-gray-200 text-gray-500 hover:text-gray-900"}`}
               >
                 {copied ? (

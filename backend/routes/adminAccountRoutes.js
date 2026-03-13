@@ -1,8 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const supabase = require("../supabaseClient");
+const { requireAuth } = require("../middleware/authMiddleware");
 
-router.get("/pending-accounts", async (req, res) => {
+router.get("/pending-accounts", requireAuth, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from("profiles")
@@ -26,11 +27,12 @@ router.get("/pending-accounts", async (req, res) => {
   }
 });
 
-router.post("/approve-account", async (req, res) => {
+router.post("/approve-account", requireAuth, async (req, res) => {
   try {
-    const { userId, adminId } = req.body;
+    const { userId } = req.body;
+    const adminId = req.user.id;
 
-    if (!userId || !adminId) {
+    if (!userId) {
       return res.status(400).json({
         success: false,
         error: "Missing required fields",
@@ -98,11 +100,12 @@ router.post("/approve-account", async (req, res) => {
   }
 });
 
-router.post("/reject-account", async (req, res) => {
+router.post("/reject-account", requireAuth, async (req, res) => {
   try {
-    const { userId, adminId, reason } = req.body;
+    const { userId, reason } = req.body;
+    const adminId = req.user.id;
 
-    if (!userId || !adminId || !reason) {
+    if (!userId || !reason) {
       return res.status(400).json({
         success: false,
         error: "Missing required fields",
@@ -174,7 +177,7 @@ router.post("/reject-account", async (req, res) => {
   }
 });
 
-router.get("/account-stats", async (req, res) => {
+router.get("/account-stats", requireAuth, async (req, res) => {
   try {
     const { data: pending } = await supabase
       .from("profiles")

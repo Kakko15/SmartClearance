@@ -6,6 +6,7 @@ import PasswordStrengthMeter from "../ui/PasswordStrengthMeter";
 import CustomSelect from "../ui/CustomSelect";
 import SpotlightBorder from "../ui/SpotlightBorder";
 import TwoFactorSetup from "./TwoFactorSetup";
+import EmailVerification from "./EmailVerification";
 
 
 const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
@@ -21,8 +22,10 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
   const [recaptchaToken, setRecaptchaToken] = useState(null);
   const [adminSecretCode, setAdminSecretCode] = useState("");
   const [show2FASetup, setShow2FASetup] = useState(false);
+  const [showEmailVerification, setShowEmailVerification] = useState(false);
   const [signupUserId, setSignupUserId] = useState(null);
   const [signupEmail, setSignupEmail] = useState("");
+  const [signupToken, setSignupToken] = useState(null);
 
   const [signUpData, setSignUpData] = useState({
     firstName: "",
@@ -174,7 +177,8 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
 
       toast.success("Account created! Now set up 2FA.");
       setSignupUserId(result.user.id);
-      setSignupEmail(email);
+      setSignupEmail(email.trim().toLowerCase());
+      setSignupToken(result.signupToken);
       setShow2FASetup(true);
     } catch (error) {
       toast.error(error.message);
@@ -190,12 +194,31 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
       <TwoFactorSetup
         userId={signupUserId}
         email={signupEmail}
+        signupToken={signupToken}
         isDark={isDark}
         onComplete={() => {
+          toast.success("2FA enabled! Now verify your email.");
+          setShow2FASetup(false);
+          setShowEmailVerification(true);
+        }}
+      />
+    );
+  }
+
+  if (showEmailVerification && signupUserId) {
+    return (
+      <EmailVerification
+        email={signupEmail}
+        userId={signupUserId}
+        isDark={isDark}
+        onVerified={() => {
           toast.success("You're all set! Please sign in.");
           setTimeout(() => {
             if (onSwitchMode) onSwitchMode();
           }, 1000);
+        }}
+        onSwitchToLogin={() => {
+          if (onSwitchMode) onSwitchMode();
         }}
       />
     );

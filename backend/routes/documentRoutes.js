@@ -2,8 +2,9 @@ const express = require("express");
 const router = express.Router();
 const supabase = require("../supabaseClient");
 const upload = require("../middleware/uploadMiddleware");
+const { requireAuth } = require("../middleware/authMiddleware");
 
-router.post("/upload", upload.single("file"), async (req, res) => {
+router.post("/upload", requireAuth, upload.single("file"), async (req, res) => {
   try {
     const { request_id, user_id } = req.body;
     const file = req.file;
@@ -19,6 +20,14 @@ router.post("/upload", upload.single("file"), async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Missing request_id or user_id",
+      });
+    }
+
+    // Verify the authenticated user matches the claimed user_id
+    if (req.user.id !== user_id) {
+      return res.status(403).json({
+        success: false,
+        error: "User ID mismatch",
       });
     }
 
@@ -107,17 +116,10 @@ router.post("/upload", upload.single("file"), async (req, res) => {
   }
 });
 
-router.get("/request/:request_id", async (req, res) => {
+router.get("/request/:request_id", requireAuth, async (req, res) => {
   try {
     const { request_id } = req.params;
-    const { user_id } = req.query;
-
-    if (!user_id) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing user_id",
-      });
-    }
+    const user_id = req.user.id;
 
     const { data: request } = await supabase
       .from("requests")
@@ -169,17 +171,10 @@ router.get("/request/:request_id", async (req, res) => {
   }
 });
 
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { user_id } = req.body;
-
-    if (!user_id) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing user_id",
-      });
-    }
+    const user_id = req.user.id;
 
     const { data: document, error: docError } = await supabase
       .from("request_documents")

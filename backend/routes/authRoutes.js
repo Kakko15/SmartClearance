@@ -2,7 +2,27 @@ const express = require("express");
 const router = express.Router();
 const axios = require("axios");
 const rateLimit = require("express-rate-limit");
+const nodemailer = require("nodemailer");
 const supabase = require("../supabaseClient");
+const twoFactorRoutes = require("./twoFactorRoutes");
+
+// ── Email verification OTP store (in-memory, same pattern as 2FA OTPs) ──
+const EMAIL_VERIFY_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
+const EMAIL_VERIFY_COOLDOWN_MS = 60 * 1000; // 60 seconds between resends
+const EMAIL_VERIFY_MAX_ATTEMPTS = 5;
+const emailVerifyOTPs = new Map();
+
+function getEmailTransporter() {
+  return nodemailer.createTransport({
+    host: process.env.EMAIL_HOST,
+    port: parseInt(process.env.EMAIL_PORT),
+    secure: process.env.EMAIL_SECURE === "true",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASSWORD,
+    },
+  });
+}
 
 const isDev = process.env.NODE_ENV !== "production";
 const DEFAULT_LOGIN_WINDOW_MINUTES = 15;
@@ -196,6 +216,18 @@ router.post(
       });
     }
 
+    // Check if email is verified
+    const user = data.user;
+    if (!user.email_confirmed_at) {
+      return res.status(403).json({
+        success: false,
+        error: "Please verify your email before signing in. Check your inbox for the verification code.",
+        emailNotVerified: true,
+        userId: user.id,
+        email: user.email,
+      });
+    }
+
     res.json({
       success: true,
       session: {
@@ -218,32 +250,37 @@ const checkEmailLimiter = rateLimit({
 });
 
 router.post("/check-email", checkEmailLimiter, async (req, res) => {
+  const start = Date.now();
+  // Constant-time floor: every response takes at least this many ms,
+  // preventing timing-based email enumeration.
+  const MIN_RESPONSE_MS = 200;
+
   try {
     const email = normalizeEmail(req.body?.email);
     if (!email) {
       return res.status(400).json({ success: false, error: "Email is required" });
     }
 
-    // Paginate through users to find a match
-    let page = 1;
-    const perPage = 100;
-    let found = false;
+    // O(1) lookup via Postgres function on auth.users (indexed by email).
+    // Requires migration: backend/migrations/add_check_email_function.sql
+    const { data, error } = await supabase
+      .rpc("check_email_exists", { email_input: email });
 
-    while (true) {
-      const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
-      if (error) {
-        console.error("Check email listUsers error:", error);
-        return res.status(500).json({ success: false, error: "Server error" });
-      }
-      if (data.users.some((u) => u.email?.toLowerCase() === email)) {
-        found = true;
-        break;
-      }
-      if (data.users.length < perPage) break;
-      page++;
+    if (error) {
+      console.error("check_email_exists RPC error:", error.message);
+      return res.status(500).json({ success: false, error: "Server error" });
     }
 
-    return res.json({ success: true, exists: found });
+    const exists = !!data;
+
+    // Pad response time to a constant floor so "exists" vs "not exists"
+    // can't be distinguished by network timing.
+    const elapsed = Date.now() - start;
+    if (elapsed < MIN_RESPONSE_MS) {
+      await new Promise((r) => setTimeout(r, MIN_RESPONSE_MS - elapsed));
+    }
+
+    return res.json({ success: true, exists });
   } catch (error) {
     console.error("Check email error:", error);
     return res.status(500).json({ success: false, error: "Server error" });
@@ -376,7 +413,7 @@ router.post("/signup", signupLimiter, async (req, res) => {
       await supabase.auth.admin.createUser({
         email,
         password,
-        email_confirm: true,
+        email_confirm: false,
       });
 
     if (authError) {
@@ -439,9 +476,17 @@ router.post("/signup", signupLimiter, async (req, res) => {
       );
     }
 
+    // Send email verification code
+    await sendVerificationEmail(authData.user.id, email);
+
+    // Generate a short-lived signup token for 2FA setup authentication
+    const signupToken = twoFactorRoutes.generateSignupToken(authData.user.id);
+
     res.json({
       success: true,
-      message: "Admin account created successfully! You can now sign in.",
+      message: "Account created successfully! Please verify your email.",
+      emailVerificationRequired: true,
+      signupToken,
       user: {
         id: authData.user.id,
         email: authData.user.email,
@@ -582,7 +627,7 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
       await supabase.auth.admin.createUser({
         email,
         password,
-        email_confirm: true,
+        email_confirm: false,
       });
 
     if (authError) {
@@ -654,13 +699,21 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
       );
     }
 
+    // Send email verification code
+    await sendVerificationEmail(authData.user.id, email);
+
+    // Generate a short-lived signup token for 2FA setup authentication
+    const signupToken = twoFactorRoutes.generateSignupToken(authData.user.id);
+
     res.json({
       success: true,
       autoApproved: isAutoApproved,
       similarity: similarity,
+      emailVerificationRequired: true,
+      signupToken,
       message: isAutoApproved
-        ? "Account approved! You can login now."
-        : "Account pending review. Admin will verify manually.",
+        ? "Account approved! Please verify your email."
+        : "Account pending review. Please verify your email.",
       user: {
         id: authData.user.id,
         email: authData.user.email,
@@ -677,6 +730,169 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
     });
   }
 });
+
+// ── Email Verification ──────────────────────────────────────────────────────
+
+async function sendVerificationEmail(userId, email) {
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const now = Date.now();
+
+  emailVerifyOTPs.set(userId, {
+    otp,
+    email,
+    expiresAt: now + EMAIL_VERIFY_EXPIRY_MS,
+    createdAt: now,
+    attempts: 0,
+  });
+
+  const transporter = getEmailTransporter();
+  await transporter.sendMail({
+    from: process.env.EMAIL_FROM,
+    to: email,
+    subject: "Verify Your Email - SmartClearance",
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #22c55e; margin: 0;">SmartClearance</h1>
+        </div>
+        <h2 style="color: #1f2937;">Verify Your Email Address</h2>
+        <p style="color: #4b5563; font-size: 16px;">
+          Use the code below to verify your email and activate your account:
+        </p>
+        <div style="text-align: center; margin: 30px 0;">
+          <div style="display: inline-block; background: #f3f4f6; border-radius: 12px; padding: 20px 40px; letter-spacing: 8px; font-size: 32px; font-weight: bold; color: #1f2937; border: 2px solid #e5e7eb;">
+            ${otp}
+          </div>
+        </div>
+        <p style="color: #6b7280; font-size: 14px;">
+          This code expires in 10 minutes. If you didn't create an account, you can safely ignore this email.
+        </p>
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;" />
+        <p style="color: #9ca3af; font-size: 12px; text-align: center;">
+          SmartClearance - Isabela State University
+        </p>
+      </div>
+    `,
+  });
+}
+
+const verifyEmailLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 30 : 10,
+  message: { success: false, error: "Too many attempts. Please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const sendVerifyEmailLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 20 : 5,
+  message: { success: false, error: "Too many requests. Please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+router.post("/send-verification-email", sendVerifyEmailLimiter, async (req, res) => {
+  try {
+    const { userId, email } = req.body;
+
+    if (!userId || !email) {
+      return res.status(400).json({ success: false, error: "User ID and email are required" });
+    }
+
+    // Enforce cooldown
+    const existing = emailVerifyOTPs.get(userId);
+    if (existing && (Date.now() - existing.createdAt) < EMAIL_VERIFY_COOLDOWN_MS) {
+      const waitSec = Math.ceil((EMAIL_VERIFY_COOLDOWN_MS - (Date.now() - existing.createdAt)) / 1000);
+      return res.status(429).json({
+        success: false,
+        error: `Please wait ${waitSec} seconds before requesting a new code.`,
+      });
+    }
+
+    // Verify the user actually exists and email matches
+    const { data: { user }, error } = await supabase.auth.admin.getUserById(userId);
+    if (error || !user || user.email?.toLowerCase() !== email.trim().toLowerCase()) {
+      return res.status(400).json({ success: false, error: "Invalid request" });
+    }
+
+    // Already verified
+    if (user.email_confirmed_at) {
+      return res.json({ success: true, alreadyVerified: true, message: "Email is already verified. You can sign in." });
+    }
+
+    await sendVerificationEmail(userId, email);
+    res.json({ success: true, message: "Verification code sent" });
+  } catch (error) {
+    console.error("Send verification email error:", error);
+    res.status(500).json({ success: false, error: "Failed to send verification email" });
+  }
+});
+
+router.post("/verify-email", verifyEmailLimiter, async (req, res) => {
+  try {
+    const { userId, code } = req.body;
+
+    if (!userId || !code) {
+      return res.status(400).json({ success: false, error: "User ID and code are required" });
+    }
+
+    const stored = emailVerifyOTPs.get(userId);
+    if (!stored) {
+      return res.status(400).json({ success: false, error: "No verification code found. Please request a new one." });
+    }
+
+    if (Date.now() > stored.expiresAt) {
+      emailVerifyOTPs.delete(userId);
+      return res.status(400).json({ success: false, error: "Code expired. Please request a new one." });
+    }
+
+    if (stored.attempts >= EMAIL_VERIFY_MAX_ATTEMPTS) {
+      emailVerifyOTPs.delete(userId);
+      return res.status(429).json({ success: false, error: "Too many failed attempts. Please request a new code." });
+    }
+
+    if (stored.otp !== code.toString().trim()) {
+      stored.attempts += 1;
+      const remaining = EMAIL_VERIFY_MAX_ATTEMPTS - stored.attempts;
+      return res.status(400).json({
+        success: false,
+        error: `Invalid code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`,
+      });
+    }
+
+    // Code is correct — confirm the email in Supabase
+    const { error: updateError } = await supabase.auth.admin.updateUserById(userId, {
+      email_confirm: true,
+    });
+
+    if (updateError) {
+      console.error("Email confirm error:", updateError);
+      return res.status(500).json({ success: false, error: "Failed to verify email. Please try again." });
+    }
+
+    emailVerifyOTPs.delete(userId);
+
+    // Audit log
+    try {
+      await supabase.from("auth_audit_log").insert({
+        user_id: userId,
+        action: "email_verified",
+        success: true,
+        metadata: { email: stored.email },
+      });
+    } catch (logError) {
+      console.warn("Auth audit log insert failed:", logError.message);
+    }
+
+    res.json({ success: true, message: "Email verified successfully! You can now sign in." });
+  } catch (error) {
+    console.error("Verify email error:", error);
+    res.status(500).json({ success: false, error: "Verification failed" });
+  }
+});
+
+// ── Forgot Password ─────────────────────────────────────────────────────────
 
 router.post("/forgot-password", async (req, res) => {
   try {
@@ -705,16 +921,7 @@ router.post("/forgot-password", async (req, res) => {
       return res.json({ success: true, message: "If an account exists, a reset link has been sent." });
     }
 
-    const nodemailer = require("nodemailer");
-    const transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST,
-      port: parseInt(process.env.EMAIL_PORT),
-      secure: process.env.EMAIL_SECURE === "true",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD,
-      },
-    });
+    const transporter = getEmailTransporter();
 
     await transporter.sendMail({
       from: process.env.EMAIL_FROM,

@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../../lib/supabase";
 import SpotlightBorder from "../ui/SpotlightBorder";
+import EmailVerification from "./EmailVerification";
 
 const SAVED_LOGIN_EMAILS_KEY = "saved_login_emails";
 const MAX_SAVED_LOGIN_EMAILS = 5;
@@ -52,6 +53,9 @@ export default function LoginForm({ isDark, onLoginSuccess, selectedRole }) {
   const [resetEmail, setResetEmail] = useState("");
   const [resettingPassword, setResettingPassword] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  const [showEmailVerification, setShowEmailVerification] = useState(false);
+  const [unverifiedUserId, setUnverifiedUserId] = useState(null);
+  const [unverifiedEmail, setUnverifiedEmail] = useState("");
 
   const [touched, setTouched] = useState({});
   const [loginFeedback, setLoginFeedback] = useState(null);
@@ -274,6 +278,19 @@ export default function LoginForm({ isDark, onLoginSuccess, selectedRole }) {
           return;
         }
 
+        if (res.status === 403 && data.emailNotVerified) {
+          setLoginFeedback({
+            tone: "warning",
+            message: "Email not verified",
+            detail: "Check your inbox for the verification code, or request a new one.",
+            rateLimit: null,
+            emailNotVerified: true,
+            unverifiedUserId: data.userId,
+            unverifiedEmail: data.email,
+          });
+          return;
+        }
+
         if (res.status === 401) {
           const remaining = rateLimit?.remaining;
           const remainingDetail =
@@ -358,6 +375,29 @@ export default function LoginForm({ isDark, onLoginSuccess, selectedRole }) {
       setResettingPassword(false);
     }
   };
+
+  if (showEmailVerification && unverifiedUserId) {
+    return (
+      <EmailVerification
+        email={unverifiedEmail}
+        userId={unverifiedUserId}
+        isDark={isDark}
+        onVerified={() => {
+          toast.success("Email verified! You can now sign in.");
+          setShowEmailVerification(false);
+          setUnverifiedUserId(null);
+          setUnverifiedEmail("");
+          setLoginFeedback(null);
+        }}
+        onSwitchToLogin={() => {
+          setShowEmailVerification(false);
+          setUnverifiedUserId(null);
+          setUnverifiedEmail("");
+          setLoginFeedback(null);
+        }}
+      />
+    );
+  }
 
   if (view === "forgot") {
     return (
@@ -808,6 +848,19 @@ export default function LoginForm({ isDark, onLoginSuccess, selectedRole }) {
               ) : loginFeedback.detail ? (
                 <p className="mt-1 text-xs font-medium">{loginFeedback.detail}</p>
               ) : null}
+              {loginFeedback.emailNotVerified && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUnverifiedUserId(loginFeedback.unverifiedUserId);
+                    setUnverifiedEmail(loginFeedback.unverifiedEmail);
+                    setShowEmailVerification(true);
+                  }}
+                  className={`mt-2 text-xs font-bold underline transition-colors ${isDark ? "text-green-400 hover:text-green-300" : "text-green-600 hover:text-green-700"}`}
+                >
+                  Verify email now →
+                </button>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

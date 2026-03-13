@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const supabase = require("../supabaseClient");
+const { requireAuth } = require("../middleware/authMiddleware");
 
 const getUserProfile = async (userId) => {
   const { data, error } = await supabase
@@ -30,7 +31,7 @@ const filterByVisibility = (comments, userRole) => {
   });
 };
 
-router.post("/:clearanceId/comments", async (req, res) => {
+router.post("/:clearanceId/comments", requireAuth, async (req, res) => {
   try {
     const { clearanceId } = req.params;
     const { user_id, comment_text, visibility = "all" } = req.body;
@@ -39,6 +40,14 @@ router.post("/:clearanceId/comments", async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Missing required fields: user_id and comment_text",
+      });
+    }
+
+    // Verify the authenticated user matches the claimed user_id
+    if (req.user.id !== user_id) {
+      return res.status(403).json({
+        success: false,
+        error: "User ID mismatch",
       });
     }
 
@@ -109,17 +118,10 @@ router.post("/:clearanceId/comments", async (req, res) => {
   }
 });
 
-router.get("/:clearanceId/comments", async (req, res) => {
+router.get("/:clearanceId/comments", requireAuth, async (req, res) => {
   try {
     const { clearanceId } = req.params;
-    const { user_id } = req.query;
-
-    if (!user_id) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing user_id query parameter",
-      });
-    }
+    const user_id = req.user.id;
 
     await getUserProfile(user_id);
 
@@ -144,7 +146,7 @@ router.get("/:clearanceId/comments", async (req, res) => {
   }
 });
 
-router.put("/comments/:commentId", async (req, res) => {
+router.put("/comments/:commentId", requireAuth, async (req, res) => {
   try {
     const { commentId } = req.params;
     const { user_id, comment_text } = req.body;
@@ -153,6 +155,14 @@ router.put("/comments/:commentId", async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Missing user_id or comment_text",
+      });
+    }
+
+    // Verify the authenticated user matches the claimed user_id
+    if (req.user.id !== user_id) {
+      return res.status(403).json({
+        success: false,
+        error: "User ID mismatch",
       });
     }
 
@@ -202,17 +212,10 @@ router.put("/comments/:commentId", async (req, res) => {
   }
 });
 
-router.delete("/comments/:commentId", async (req, res) => {
+router.delete("/comments/:commentId", requireAuth, async (req, res) => {
   try {
     const { commentId } = req.params;
-    const { user_id } = req.body;
-
-    if (!user_id) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing user_id",
-      });
-    }
+    const user_id = req.user.id;
 
     const userProfile = await getUserProfile(user_id);
 
@@ -256,7 +259,7 @@ router.delete("/comments/:commentId", async (req, res) => {
   }
 });
 
-router.post("/create", async (req, res) => {
+router.post("/create", requireAuth, async (req, res) => {
   try {
     const { request_id, user_id, comment_text } = req.body;
 
@@ -264,6 +267,14 @@ router.post("/create", async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Missing required fields",
+      });
+    }
+
+    // Verify the authenticated user matches the claimed user_id
+    if (req.user.id !== user_id) {
+      return res.status(403).json({
+        success: false,
+        error: "User ID mismatch",
       });
     }
 
@@ -305,17 +316,10 @@ router.post("/create", async (req, res) => {
   }
 });
 
-router.get("/request/:request_id", async (req, res) => {
+router.get("/request/:request_id", requireAuth, async (req, res) => {
   try {
     const { request_id } = req.params;
-    const { user_id } = req.query;
-
-    if (!user_id) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing user_id",
-      });
-    }
+    const user_id = req.user.id;
 
     const userProfile = await getUserProfile(user_id);
 
@@ -355,17 +359,10 @@ router.get("/request/:request_id", async (req, res) => {
   }
 });
 
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { user_id } = req.body;
-
-    if (!user_id) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing user_id",
-      });
-    }
+    const user_id = req.user.id;
 
     const userProfile = await getUserProfile(user_id);
 

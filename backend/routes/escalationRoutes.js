@@ -1,22 +1,16 @@
 const express = require("express");
 const router = express.Router();
 const supabase = require("../supabaseClient");
+const { requireAuth } = require("../middleware/authMiddleware");
 const {
   checkAndEscalateRequests,
   getEscalationStats,
   manuallyEscalateRequest,
 } = require("../services/escalationService");
 
-router.post("/check", async (req, res) => {
+router.post("/check", requireAuth, async (req, res) => {
   try {
-    const { admin_id } = req.body;
-
-    if (!admin_id) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing admin_id",
-      });
-    }
+    const admin_id = req.user.id;
 
     const { data: admin } = await supabase
       .from("profiles")
@@ -43,16 +37,9 @@ router.post("/check", async (req, res) => {
   }
 });
 
-router.get("/stats", async (req, res) => {
+router.get("/stats", requireAuth, async (req, res) => {
   try {
-    const { admin_id } = req.query;
-
-    if (!admin_id) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing admin_id",
-      });
-    }
+    const admin_id = req.user.id;
 
     const { data: admin } = await supabase
       .from("profiles")
@@ -79,11 +66,12 @@ router.get("/stats", async (req, res) => {
   }
 });
 
-router.post("/manual", async (req, res) => {
+router.post("/manual", requireAuth, async (req, res) => {
   try {
-    const { request_id, admin_id, reason } = req.body;
+    const { request_id, reason } = req.body;
+    const admin_id = req.user.id;
 
-    if (!request_id || !admin_id) {
+    if (!request_id) {
       return res.status(400).json({
         success: false,
         error: "Missing required fields",
@@ -115,17 +103,10 @@ router.post("/manual", async (req, res) => {
   }
 });
 
-router.get("/history/:request_id", async (req, res) => {
+router.get("/history/:request_id", requireAuth, async (req, res) => {
   try {
     const { request_id } = req.params;
-    const { user_id } = req.query;
-
-    if (!user_id) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing user_id",
-      });
-    }
+    const user_id = req.user.id;
 
     const { data: request } = await supabase
       .from("requests")
