@@ -4,17 +4,17 @@ import toast from "react-hot-toast";
 import { getSecretCodes, createSecretCode, toggleSecretCode, deleteSecretCode } from "../../services/api";
 
 const ROLE_LABELS = {
-  professor: "Professor",
-  library_admin: "Library Admin",
-  cashier_admin: "Cashier Admin",
-  registrar_admin: "Registrar Admin",
+  signatory: "Signatory",
+  librarian: "Librarian",
+  cashier: "Cashier",
+  registrar: "Registrar",
 };
 
 const ROLE_COLORS = {
-  professor: "bg-blue-500/20 text-blue-300 border-blue-500/30",
-  library_admin: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-  cashier_admin: "bg-amber-500/20 text-amber-300 border-amber-500/30",
-  registrar_admin: "bg-violet-500/20 text-violet-300 border-violet-500/30",
+  signatory: "bg-blue-500/20 text-blue-300 border-blue-500/30",
+  librarian: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+  cashier: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+  registrar: "bg-violet-500/20 text-violet-300 border-violet-500/30",
 };
 
 export default function SecretCodesManager() {
@@ -25,7 +25,7 @@ export default function SecretCodesManager() {
   const [confirmDelete, setConfirmDelete] = useState(null);
 
   const [newCode, setNewCode] = useState({
-    role: "professor",
+    role: "signatory",
     description: "",
     maxUses: 50,
     expiresAt: "",
@@ -59,7 +59,7 @@ export default function SecretCodesManager() {
         toast.success(`Code created: ${res.code.code}`);
         setCodes((prev) => [res.code, ...prev]);
         setShowCreate(false);
-        setNewCode({ role: "professor", description: "", maxUses: 50, expiresAt: "" });
+        setNewCode({ role: "signatory", description: "", maxUses: 50, expiresAt: "" });
       } else {
         toast.error(res.error || "Failed to create code");
       }
@@ -122,7 +122,7 @@ export default function SecretCodesManager() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-white">Secret Codes</h2>
-          <p className="text-slate-400 text-sm mt-1">Generate, manage, and revoke signup codes for admin and professor accounts</p>
+          <p className="text-slate-400 text-sm mt-1">Generate, manage, and revoke signup codes for staff and signatory accounts</p>
         </div>
         <button
           onClick={() => setShowCreate(!showCreate)}

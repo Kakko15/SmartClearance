@@ -4,15 +4,17 @@ const crypto = require("crypto");
 const supabase = require("../supabaseClient");
 const { requireAuth } = require("../middleware/authMiddleware");
 
-// Only registrar_admin or super_admin can manage secret codes
-async function requireRegistrarOrSuper(req, res, next) {
+const { ROLES, isStaffRole, isManagementRole } = require("../constants/roles");
+
+// Only super_admin can manage secret codes
+async function requireSuperAdmin(req, res, next) {
   const { data: profile } = await supabase
     .from("profiles")
     .select("role")
     .eq("id", req.user.id)
     .single();
 
-  if (!profile || !["registrar_admin", "super_admin"].includes(profile.role)) {
+  if (!profile || profile.role !== ROLES.SUPER_ADMIN) {
     return res.status(403).json({ success: false, error: "Insufficient permissions" });
   }
   req.adminRole = profile.role;
@@ -20,7 +22,7 @@ async function requireRegistrarOrSuper(req, res, next) {
 }
 
 // List all secret codes
-router.get("/", requireAuth, requireRegistrarOrSuper, async (req, res) => {
+router.get("/", requireAuth, requireSuperAdmin, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from("admin_secret_codes")
@@ -36,17 +38,17 @@ router.get("/", requireAuth, requireRegistrarOrSuper, async (req, res) => {
 });
 
 // Generate a new secret code
-router.post("/", requireAuth, requireRegistrarOrSuper, async (req, res) => {
+router.post("/", requireAuth, requireSuperAdmin, async (req, res) => {
   try {
     const { role, description, max_uses = 50, expires_at } = req.body;
 
-    const validRoles = ["professor", "library_admin", "cashier_admin", "registrar_admin"];
+    const validRoles = ["signatory", "librarian", "cashier", "registrar"];
     if (!role || !validRoles.includes(role)) {
       return res.status(400).json({ success: false, error: "Invalid role" });
     }
 
     // Generate a secure random code: PREFIX-XXXX-XXXX
-    const prefix = { professor: "PROF", library_admin: "LIB", cashier_admin: "CASH", registrar_admin: "REG" }[role];
+    const prefix = { signatory: "SIGN", librarian: "LIB", cashier: "CASH", registrar: "REG" }[role];
     const random = crypto.randomBytes(4).toString("hex").toUpperCase();
     const code = `${prefix}-${random.slice(0, 4)}-${random.slice(4)}`;
 
@@ -73,7 +75,7 @@ router.post("/", requireAuth, requireRegistrarOrSuper, async (req, res) => {
 });
 
 // Toggle active/revoked status
-router.patch("/:id/toggle", requireAuth, requireRegistrarOrSuper, async (req, res) => {
+router.patch("/:id/toggle", requireAuth, requireSuperAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -103,7 +105,7 @@ router.patch("/:id/toggle", requireAuth, requireRegistrarOrSuper, async (req, re
 });
 
 // Delete a secret code
-router.delete("/:id", requireAuth, requireRegistrarOrSuper, async (req, res) => {
+router.delete("/:id", requireAuth, requireSuperAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 

@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { motion } from "framer-motion";
-import axios from "axios";
 import RequestComments from "../components/features/RequestComments";
 import DashboardLayout, {
   GlassCard,
@@ -16,8 +15,7 @@ import {
   DocumentCheckIcon,
   UsersIcon,
 } from "../components/ui/Icons";
-
-const API_URL = import.meta.env.VITE_API_URL;
+import { authAxios } from "../services/api";
 
 export default function RegistrarAdminDashboard({
   adminId,
@@ -48,8 +46,8 @@ export default function RegistrarAdminDashboard({
   const fetchPendingRequests = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(
-        `${API_URL}/graduation/registrar/pending`,
+      const response = await authAxios.get(
+        `graduation/registrar/pending`,
       );
       if (response.data.success) setRequests(response.data.requests);
     } catch (error) {
@@ -63,7 +61,7 @@ export default function RegistrarAdminDashboard({
   const fetchPendingAccounts = async () => {
     setAccountsLoading(true);
     try {
-      const response = await axios.get(`${API_URL}/admin/pending-accounts`);
+      const response = await authAxios.get(`admin/pending-accounts`);
       if (response.data.success) setPendingAccounts(response.data.accounts);
     } catch (error) {
       console.error("Error fetching pending accounts:", error);
@@ -75,7 +73,7 @@ export default function RegistrarAdminDashboard({
   const handleApproveAccount = async (userId) => {
     setActionLoading(true);
     try {
-      const response = await axios.post(`${API_URL}/admin/approve-account`, {
+      const response = await authAxios.post(`admin/approve-account`, {
         userId,
         adminId,
       });
@@ -98,7 +96,7 @@ export default function RegistrarAdminDashboard({
     }
     setActionLoading(true);
     try {
-      const response = await axios.post(`${API_URL}/admin/reject-account`, {
+      const response = await authAxios.post(`admin/reject-account`, {
         userId,
         adminId,
         reason: rejectReason.trim(),
@@ -120,8 +118,8 @@ export default function RegistrarAdminDashboard({
     if (!selectedRequest) return;
     setActionLoading(true);
     try {
-      const response = await axios.post(
-        `${API_URL}/graduation/registrar/approve`,
+      const response = await authAxios.post(
+        `graduation/registrar/approve`,
         {
           request_id: selectedRequest.id,
           admin_id: adminId,
@@ -149,8 +147,8 @@ export default function RegistrarAdminDashboard({
     }
     setActionLoading(true);
     try {
-      const response = await axios.post(
-        `${API_URL}/graduation/registrar/reject`,
+      const response = await authAxios.post(
+        `graduation/registrar/reject`,
         {
           request_id: selectedRequest.id,
           admin_id: adminId,
@@ -402,7 +400,7 @@ export default function RegistrarAdminDashboard({
                         <div className="mb-4">
                           <RequestComments
                             requestId={selectedRequest.id}
-                            userRole="registrar_admin"
+                            userRole="registrar"
                             userId={adminId}
                           />
                         </div>

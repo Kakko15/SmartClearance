@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const supabase = require("../supabaseClient");
 const { requireAuth } = require("../middleware/authMiddleware");
+const { isStaffRole, isManagementRole } = require("../constants/roles");
 const {
   generateCertificate,
   verifyCertificate,
@@ -39,7 +40,7 @@ router.post("/generate", requireAuth, async (req, res) => {
       .single();
 
     const isOwner = request.student_id === user_id;
-    const isAdmin = userProfile?.role?.includes("admin");
+    const isAdmin = isStaffRole(userProfile?.role) || isManagementRole(userProfile?.role);
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({
@@ -89,7 +90,7 @@ router.get("/request/:request_id", requireAuth, async (req, res) => {
       .single();
 
     const isOwner = request.student_id === user_id;
-    const isAdmin = userProfile?.role?.includes("admin");
+    const isAdmin = isStaffRole(userProfile?.role) || isManagementRole(userProfile?.role);
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({

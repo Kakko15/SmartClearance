@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import axios from "axios";
 import RequestComments from "../components/features/RequestComments";
 import DashboardLayout, {
   GlassCard,
@@ -16,8 +15,7 @@ import {
   ChatBubbleIcon,
   InboxStackIcon,
 } from "../components/ui/Icons";
-
-const API_URL = import.meta.env.VITE_API_URL;
+import { authAxios } from "../services/api";
 
 export default function ProfessorDashboard({
   professorId,
@@ -44,8 +42,8 @@ export default function ProfessorDashboard({
   const fetchStudents = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(
-        `${API_URL}/graduation/professor/students/${professorId}`,
+      const response = await authAxios.get(
+        `graduation/professor/students/${professorId}`,
       );
       if (response.data.success) setStudents(response.data.approvals || []);
     } catch (error) {
@@ -59,8 +57,8 @@ export default function ProfessorDashboard({
   const handleApprove = async (approvalId) => {
     setActionLoading(true);
     try {
-      const response = await axios.post(
-        `${API_URL}/graduation/professor/approve`,
+      const response = await authAxios.post(
+        `graduation/professor/approve`,
         {
           approval_id: approvalId,
           professor_id: professorId,
@@ -84,8 +82,8 @@ export default function ProfessorDashboard({
     }
     setActionLoading(true);
     try {
-      const response = await axios.post(
-        `${API_URL}/graduation/professor/reject`,
+      const response = await authAxios.post(
+        `graduation/professor/reject`,
         {
           approval_id: approvalId,
           professor_id: professorId,
@@ -177,7 +175,7 @@ export default function ProfessorDashboard({
       menuItems={menuItems}
       activeView={activeView}
       setActiveView={setActiveView}
-      userInfo={{ name: professorInfo?.full_name, subtitle: "Professor" }}
+      userInfo={{ name: professorInfo?.full_name, subtitle: "Signatory" }}
       onSignOut={onSignOut}
       onOpenSettings={onOpenSettings}
       onManageAccount={onManageAccount}
@@ -422,7 +420,7 @@ export default function ProfessorDashboard({
                             <div className="mt-5">
                               <RequestComments
                                 requestId={student.request_id}
-                                userRole="professor"
+                                userRole="signatory"
                                 userId={professorId}
                                 isDarkMode={isDarkMode}
                               />

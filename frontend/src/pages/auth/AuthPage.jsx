@@ -9,11 +9,11 @@ import logo from "../../assets/logo.png";
 
 const ROLE_LABELS = {
   student: "Student",
-  professor: "Professor",
-  admin: "Admin",
-  library_admin: "Library Admin",
-  cashier_admin: "Cashier Admin",
-  registrar_admin: "Registrar Admin",
+  signatory: "Signatory",
+  staff: "Staff",
+  librarian: "Librarian",
+  cashier: "Cashier",
+  registrar: "Registrar",
   super_admin: "Super Admin",
 };
 
@@ -38,7 +38,7 @@ export default function AuthPage({
   const canSignUp = true;
   const selectedRoleLabel = formatRoleLabel(selectedRole);
   const selectedRoleIsAdmin =
-    selectedRole === "admin" || selectedRole?.includes("admin");
+    selectedRole === "staff" || ["librarian", "cashier", "registrar", "super_admin"].includes(selectedRole);
   const navigate = useNavigate();
 
   const [isSignUp, setIsSignUp] = useState(() => {

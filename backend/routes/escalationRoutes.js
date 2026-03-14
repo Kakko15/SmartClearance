@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const supabase = require("../supabaseClient");
 const { requireAuth } = require("../middleware/authMiddleware");
+const { isStaffRole, isManagementRole } = require("../constants/roles");
 const {
   checkAndEscalateRequests,
   getEscalationStats,
@@ -18,7 +19,7 @@ router.post("/check", requireAuth, async (req, res) => {
       .eq("id", admin_id)
       .single();
 
-    if (!admin || !admin.role.includes("admin")) {
+    if (!admin || !isManagementRole(admin.role)) {
       return res.status(403).json({
         success: false,
         error: "Unauthorized - admin access required",
@@ -47,7 +48,7 @@ router.get("/stats", requireAuth, async (req, res) => {
       .eq("id", admin_id)
       .single();
 
-    if (!admin || !admin.role.includes("admin")) {
+    if (!admin || !isManagementRole(admin.role)) {
       return res.status(403).json({
         success: false,
         error: "Unauthorized - admin access required",
@@ -84,7 +85,7 @@ router.post("/manual", requireAuth, async (req, res) => {
       .eq("id", admin_id)
       .single();
 
-    if (!admin || !admin.role.includes("admin")) {
+    if (!admin || !isManagementRole(admin.role)) {
       return res.status(403).json({
         success: false,
         error: "Unauthorized - admin access required",
@@ -128,7 +129,7 @@ router.get("/history/:request_id", requireAuth, async (req, res) => {
       .single();
 
     const isOwner = request.student_id === user_id;
-    const isAdmin = userProfile?.role?.includes("admin");
+    const isAdmin = isStaffRole(userProfile?.role) || isManagementRole(userProfile?.role);
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({

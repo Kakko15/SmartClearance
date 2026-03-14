@@ -7,6 +7,7 @@ export default function Topbar({
   onOpenSettings,
   theme = "light",
   sidebarCollapsed,
+  notifications: externalNotifications,
 }) {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -14,6 +15,11 @@ export default function Topbar({
   const notifRef = useRef(null);
 
   const isDark = theme === "dark";
+  const isSuperAdmin = user?.role === "super_admin";
+
+  // Use external notifications if provided, otherwise show empty state
+  const notifications = externalNotifications || [];
+  const unreadCount = notifications.filter((n) => n.unread).length;
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -28,32 +34,6 @@ export default function Topbar({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  const notifications = [
-    {
-      id: 1,
-      title: "Request Approved",
-      message: "Your clearance request has been approved",
-      time: "5m ago",
-      unread: true,
-    },
-    {
-      id: 2,
-      title: "New Announcement",
-      message: "System maintenance scheduled",
-      time: "1h ago",
-      unread: true,
-    },
-    {
-      id: 3,
-      title: "Document Uploaded",
-      message: "Admin uploaded a new document",
-      time: "2h ago",
-      unread: false,
-    },
-  ];
-
-  const unreadCount = notifications.filter((n) => n.unread).length;
 
   return (
     <motion.header
@@ -81,7 +61,7 @@ export default function Topbar({
           <p
             className={`text-sm ${isDark ? "text-slate-400" : "text-gray-500"}`}
           >
-            Welcome back, {user?.full_name?.split(" ")[0]}!
+            Welcome back, {user?.full_name?.split(" ")[0] || "User"}!
           </p>
         </div>
 
@@ -137,52 +117,48 @@ export default function Topbar({
                     </h3>
                   </div>
                   <div className="max-h-96 overflow-y-auto custom-scrollbar">
-                    {notifications.map((notif) => (
-                      <div
-                        key={notif.id}
-                        className={`p-4 border-b transition-colors ${
-                          isDark
-                            ? "border-white/5 hover:bg-white/5"
-                            : "border-gray-100 hover:bg-gray-50"
-                        } ${notif.unread ? (isDark ? "bg-white/5" : "bg-blue-50") : ""}`}
-                      >
-                        <div className="flex items-start gap-3">
-                          {notif.unread && (
-                            <span className="w-2 h-2 rounded-full bg-blue-500 mt-2"></span>
-                          )}
-                          <div className="flex-1">
-                            <h4
-                              className={`font-semibold text-sm ${isDark ? "text-white" : "text-gray-900"}`}
-                            >
-                              {notif.title}
-                            </h4>
-                            <p
-                              className={`text-xs mt-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}
-                            >
-                              {notif.message}
-                            </p>
-                            <p
-                              className={`text-xs mt-1 ${isDark ? "text-slate-500" : "text-gray-500"}`}
-                            >
-                              {notif.time}
-                            </p>
+                    {notifications.length === 0 ? (
+                      <div className={`p-8 text-center ${isDark ? "text-slate-500" : "text-gray-400"}`}>
+                        <svg className={`w-10 h-10 mx-auto mb-2 ${isDark ? "text-slate-600" : "text-gray-300"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                        </svg>
+                        <p className="text-sm">No notifications</p>
+                      </div>
+                    ) : (
+                      notifications.map((notif) => (
+                        <div
+                          key={notif.id}
+                          className={`p-4 border-b transition-colors ${
+                            isDark
+                              ? "border-white/5 hover:bg-white/5"
+                              : "border-gray-100 hover:bg-gray-50"
+                          } ${notif.unread ? (isDark ? "bg-white/5" : "bg-blue-50") : ""}`}
+                        >
+                          <div className="flex items-start gap-3">
+                            {notif.unread && (
+                              <span className="w-2 h-2 rounded-full bg-blue-500 mt-2 flex-shrink-0"></span>
+                            )}
+                            <div className="flex-1">
+                              <h4
+                                className={`font-semibold text-sm ${isDark ? "text-white" : "text-gray-900"}`}
+                              >
+                                {notif.title}
+                              </h4>
+                              <p
+                                className={`text-xs mt-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}
+                              >
+                                {notif.message}
+                              </p>
+                              <p
+                                className={`text-xs mt-1 ${isDark ? "text-slate-500" : "text-gray-500"}`}
+                              >
+                                {notif.time}
+                              </p>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div
-                    className={`p-3 text-center border-t ${isDark ? "border-white/10" : "border-gray-200"}`}
-                  >
-                    <button
-                      className={`text-sm font-semibold ${
-                        isDark
-                          ? "text-indigo-400 hover:text-indigo-300"
-                          : "text-green-600 hover:text-green-700"
-                      }`}
-                    >
-                      View All Notifications
-                    </button>
+                      ))
+                    )}
                   </div>
                 </motion.div>
               )}
@@ -264,97 +240,66 @@ export default function Topbar({
                         <p
                           className={`text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}
                         >
-                          {user?.student_number || user?.role}
+                          {user?.student_number || user?.role?.replace("_", " ")}
                         </p>
                       </div>
                     </div>
                   </div>
 
                   <div className="py-2">
-                    <button
-                      onClick={() => {
-                        setShowProfileMenu(false);
-                      }}
-                      className={`w-full flex items-center gap-3 px-4 py-3 transition-colors ${
-                        isDark
-                          ? "hover:bg-white/5 text-slate-300"
-                          : "hover:bg-gray-50 text-gray-700"
-                      }`}
-                    >
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                        />
-                      </svg>
-                      <span className="font-medium">View Profile</span>
-                    </button>
+                    {!isSuperAdmin && (
+                      <>
+                        <button
+                          onClick={() => {
+                            setShowProfileMenu(false);
+                          }}
+                          className={`w-full flex items-center gap-3 px-4 py-3 transition-colors ${
+                            isDark
+                              ? "hover:bg-white/5 text-slate-300"
+                              : "hover:bg-gray-50 text-gray-700"
+                          }`}
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                          <span className="font-medium">View Profile</span>
+                        </button>
 
-                    <button
-                      onClick={() => {
-                        setShowProfileMenu(false);
-                        onOpenSettings();
-                      }}
-                      className={`w-full flex items-center gap-3 px-4 py-3 transition-colors ${
-                        isDark
-                          ? "hover:bg-white/5 text-slate-300"
-                          : "hover:bg-gray-50 text-gray-700"
-                      }`}
-                    >
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                        />
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                        />
-                      </svg>
-                      <span className="font-medium">Settings</span>
-                    </button>
+                        <button
+                          onClick={() => {
+                            setShowProfileMenu(false);
+                            onOpenSettings();
+                          }}
+                          className={`w-full flex items-center gap-3 px-4 py-3 transition-colors ${
+                            isDark
+                              ? "hover:bg-white/5 text-slate-300"
+                              : "hover:bg-gray-50 text-gray-700"
+                          }`}
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          <span className="font-medium">Settings</span>
+                        </button>
 
-                    <button
-                      onClick={() => {
-                        setShowProfileMenu(false);
-                      }}
-                      className={`w-full flex items-center gap-3 px-4 py-3 transition-colors ${
-                        isDark
-                          ? "hover:bg-white/5 text-slate-300"
-                          : "hover:bg-gray-50 text-gray-700"
-                      }`}
-                    >
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
-                        />
-                      </svg>
-                      <span className="font-medium">Change Password</span>
-                    </button>
+                        <button
+                          onClick={() => {
+                            setShowProfileMenu(false);
+                          }}
+                          className={`w-full flex items-center gap-3 px-4 py-3 transition-colors ${
+                            isDark
+                              ? "hover:bg-white/5 text-slate-300"
+                              : "hover:bg-gray-50 text-gray-700"
+                          }`}
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                          </svg>
+                          <span className="font-medium">Change Password</span>
+                        </button>
+                      </>
+                    )}
                   </div>
 
                   <div
@@ -367,18 +312,8 @@ export default function Topbar({
                       }}
                       className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-colors font-semibold"
                     >
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                        />
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                       </svg>
                       <span>Logout</span>
                     </button>
@@ -392,3 +327,4 @@ export default function Topbar({
     </motion.header>
   );
 }
+

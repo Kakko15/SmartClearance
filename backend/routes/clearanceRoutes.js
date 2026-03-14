@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const supabase = require("../supabaseClient");
 const { requireAuth } = require("../middleware/authMiddleware");
+const { isStaffRole, isManagementRole, ROLES } = require("../constants/roles");
 
 const getUserProfile = async (userId) => {
   const { data, error } = await supabase
@@ -14,11 +15,11 @@ const getUserProfile = async (userId) => {
 };
 
 const isAdminRole = (role) => {
-  return role && (role.includes("admin") || role === "super_admin");
+  return isStaffRole(role) || isManagementRole(role);
 };
 
-const isProfessorRole = (role) => {
-  return role && (role === "professor" || role === "department_head");
+const isSignatoryRole = (role) => {
+  return role === ROLES.SIGNATORY;
 };
 
 const filterByVisibility = (comments, userRole) => {
@@ -26,7 +27,7 @@ const filterByVisibility = (comments, userRole) => {
     if (comment.visibility === "all") return true;
     if (comment.visibility === "admins_only") return isAdminRole(userRole);
     if (comment.visibility === "professors_only")
-      return isProfessorRole(userRole);
+      return isSignatoryRole(userRole);
     return true;
   });
 };

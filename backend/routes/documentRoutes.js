@@ -3,6 +3,7 @@ const router = express.Router();
 const supabase = require("../supabaseClient");
 const upload = require("../middleware/uploadMiddleware");
 const { requireAuth } = require("../middleware/authMiddleware");
+const { isStaffRole, isManagementRole } = require("../constants/roles");
 
 router.post("/upload", requireAuth, upload.single("file"), async (req, res) => {
   try {
@@ -51,7 +52,7 @@ router.post("/upload", requireAuth, upload.single("file"), async (req, res) => {
       .single();
 
     const isOwner = request.student_id === user_id;
-    const isAdmin = userProfile?.role?.includes("admin");
+    const isAdmin = isStaffRole(userProfile?.role) || isManagementRole(userProfile?.role);
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({
@@ -141,7 +142,7 @@ router.get("/request/:request_id", requireAuth, async (req, res) => {
       .single();
 
     const isOwner = request.student_id === user_id;
-    const isAdmin = userProfile?.role?.includes("admin");
+    const isAdmin = isStaffRole(userProfile?.role) || isManagementRole(userProfile?.role);
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({
@@ -196,7 +197,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
       .single();
 
     const isUploader = document.uploaded_by === user_id;
-    const isAdmin = userProfile?.role?.includes("admin");
+    const isAdmin = isStaffRole(userProfile?.role) || isManagementRole(userProfile?.role);
 
     if (!isUploader && !isAdmin) {
       return res.status(403).json({

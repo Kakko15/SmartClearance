@@ -9,8 +9,9 @@ const {
 const { generateCertificate } = require("../services/certificateService");
 const { classifyAndRouteRequest } = require("../services/aiRequestRouter");
 const { requireAuth } = require("../middleware/authMiddleware");
+const { ROLES, isClearanceRole, isManagementRole } = require("../constants/roles");
 
-async function getAdminRole(userId) {
+async function getUserRole(userId) {
   const { data, error } = await supabase
     .from("profiles")
     .select("role")
@@ -21,15 +22,26 @@ async function getAdminRole(userId) {
   return data.role;
 }
 
-function formatAdminRole(role) {
-  if (!role) return "Admin";
+/** Map role key to display name for history logs */
+const ROLE_DISPLAY = {
+  [ROLES.LIBRARIAN]: "Librarian",
+  [ROLES.CASHIER]: "Cashier",
+  [ROLES.REGISTRAR]: "Registrar",
+  [ROLES.SIGNATORY]: "Signatory",
+  [ROLES.SUPER_ADMIN]: "Super Admin",
+};
 
-  return role
-    .replace("_admin", "")
-    .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
+function formatRoleDisplay(role) {
+  if (!role) return "Staff";
+  return ROLE_DISPLAY[role] || role.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
+
+/** Map a clearance stage name to the role that handles it */
+const STAGE_TO_ROLE = {
+  library: ROLES.LIBRARIAN,
+  cashier: ROLES.CASHIER,
+  registrar: ROLES.REGISTRAR,
+};
 
 async function logHistory(
   requestId,
@@ -131,8 +143,8 @@ router.post("/:id/approve", requireAuth, async (req, res) => {
     const { id } = req.params;
     const admin_id = req.user.id;
 
-    const adminRole = await getAdminRole(admin_id);
-    if (!adminRole || !adminRole.includes("admin")) {
+    const userRole = await getUserRole(admin_id);
+    if (!userRole || !isClearanceRole(userRole)) {
       return res.status(403).json({ success: false, error: "Unauthorized" });
     }
 
@@ -147,11 +159,11 @@ router.post("/:id/approve", requireAuth, async (req, res) => {
     const currentStage =
       request.document_types.required_stages[request.current_stage_index];
 
-    const requiredRole = `${currentStage}_admin`;
-    if (adminRole !== requiredRole && adminRole !== "super_admin") {
+    const requiredRole = STAGE_TO_ROLE[currentStage];
+    if (userRole !== requiredRole && userRole !== ROLES.SUPER_ADMIN) {
       return res.status(403).json({
         success: false,
-        error: `Only ${requiredRole} can approve this stage`,
+        error: `Only ${formatRoleDisplay(requiredRole)} can approve this stage`,
       });
     }
 
@@ -185,7 +197,7 @@ router.post("/:id/approve", requireAuth, async (req, res) => {
       request.current_status,
       isLastStage ? "completed" : "approved",
       "approved",
-      `Approved by ${formatAdminRole(adminRole)} at ${currentStage} stage`,
+      `Approved by ${formatRoleDisplay(userRole)} at ${currentStage} stage`,
     );
 
     await notifyRequestApproved(
@@ -221,8 +233,8 @@ router.post("/:id/reject", requireAuth, async (req, res) => {
         .json({ success: false, error: "Rejection reason required" });
     }
 
-    const adminRole = await getAdminRole(admin_id);
-    if (!adminRole || !adminRole.includes("admin")) {
+    const userRole = await getUserRole(admin_id);
+    if (!userRole || !isClearanceRole(userRole)) {
       return res.status(403).json({ success: false, error: "Unauthorized" });
     }
 
@@ -236,11 +248,11 @@ router.post("/:id/reject", requireAuth, async (req, res) => {
 
     const currentStage =
       request.document_types.required_stages[request.current_stage_index];
-    const requiredRole = `${currentStage}_admin`;
-    if (adminRole !== requiredRole && adminRole !== "super_admin") {
+    const requiredRole = STAGE_TO_ROLE[currentStage];
+    if (userRole !== requiredRole && userRole !== ROLES.SUPER_ADMIN) {
       return res.status(403).json({
         success: false,
-        error: `Only ${requiredRole} can reject this stage`,
+        error: `Only ${formatRoleDisplay(requiredRole)} can reject this stage`,
       });
     }
 
@@ -359,7 +371,17 @@ router.get("/admin/:role", requireAuth, async (req, res) => {
   try {
     const { role } = req.params;
 
-    const stageName = role.replace("_admin", "");
+    // Support both old format (library_admin) and new format (librarian)
+    const ROLE_TO_STAGE = {
+      [ROLES.LIBRARIAN]: "library",
+      [ROLES.CASHIER]: "cashier",
+      [ROLES.REGISTRAR]: "registrar",
+      // Legacy support
+      library_admin: "library",
+      cashier_admin: "cashier",
+      registrar_admin: "registrar",
+    };
+    const stageName = ROLE_TO_STAGE[role] || role.replace("_admin", "");
 
     const { data: docTypes, error: docError } = await supabase
       .from("document_types")

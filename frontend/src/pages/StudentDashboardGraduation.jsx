@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import axios from "axios";
-import { getClearanceComments } from "../services/api";
+import { getClearanceComments, authAxios } from "../services/api";
 import GraduationCertificate from "../components/features/GraduationCertificate";
 import DashboardLayout, {
   GlassCard,
@@ -22,8 +21,6 @@ import {
   DocumentCheckIcon,
   ChatBubbleIcon,
 } from "../components/ui/Icons";
-
-const API_URL = import.meta.env.VITE_API_URL;
 
 const UnresolvedBadge = ({ count = 0 }) => {
   if (count <= 0) return null;
@@ -259,7 +256,7 @@ const ProfessorCard = ({
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <p className={`font-medium text-sm transition-colors ${isDarkMode ? 'text-[#e8eaed] group-hover:text-white' : 'text-gray-800 group-hover:text-gray-900'}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
-              {approval.professor?.full_name || "Unknown Professor"}
+              {approval.professor?.full_name || "Unknown Signatory"}
             </p>
             <CommentIndicator hasComment={hasComment} />
           </div>
@@ -344,8 +341,8 @@ const CommentPopupModal = ({
                 {target.title}
               </h4>
               <p className="text-xs text-gray-500">
-                {target.type === "professor"
-                  ? "Professor feedback & comments"
+                {target.type === "signatory"
+                  ? "Signatory feedback & comments"
                   : "Stage comments & discussion"}
               </p>
             </div>
@@ -364,7 +361,7 @@ const CommentPopupModal = ({
           {(() => {
             let specificComments = [];
 
-            if (target.type === "professor" && target.approval) {
+            if (target.type === "signatory" && target.approval) {
               specificComments = clearanceComments.filter(
                 (c) => c.commenter_id === target.approval.professor_id,
               );
@@ -374,8 +371,8 @@ const CommentPopupModal = ({
                   {
                     id: `approval-${target.approval.id}`,
                     commenter_name:
-                      target.approval.professor?.full_name || "Professor",
-                    commenter_role: "professor",
+                      target.approval.professor?.full_name || "Signatory",
+                    commenter_role: "signatory",
                     comment_text: target.approval.comments,
                     created_at:
                       target.approval.approved_at || target.approval.created_at,
@@ -387,9 +384,9 @@ const CommentPopupModal = ({
               }
             } else if (target.type === "stage") {
               const roleMap = {
-                library: "library_admin",
-                cashier: "cashier_admin",
-                registrar: "registrar_admin",
+                library: "librarian",
+                cashier: "cashier",
+                registrar: "registrar",
               };
               const role = roleMap[target.key];
               specificComments = clearanceComments.filter(
@@ -425,8 +422,8 @@ const CommentPopupModal = ({
                     No comments yet
                   </p>
                   <p className="text-xs text-gray-300 mt-1">
-                    {target.type === "professor"
-                      ? "This professor hasn't left any feedback"
+                    {target.type === "signatory"
+                      ? "This signatory hasn't left any feedback"
                       : "This office hasn't left any feedback"}
                   </p>
                 </div>
@@ -450,7 +447,7 @@ const CommentPopupModal = ({
                     key={comment.id}
                     className={`border-l-4 pl-4 py-3 rounded-r-xl bg-white shadow-sm ${comment.is_resolved
                       ? "border-green-300 opacity-60"
-                      : target.type === "professor"
+                      : target.type === "signatory"
                         ? "border-purple-400"
                         : "border-blue-400"
                       }`}
@@ -459,7 +456,7 @@ const CommentPopupModal = ({
                       <div
                         className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${comment.is_resolved
                           ? "bg-green-400"
-                          : target.type === "professor"
+                          : target.type === "signatory"
                             ? "bg-gradient-to-br from-purple-400 to-indigo-500"
                             : "bg-gradient-to-br from-blue-400 to-indigo-500"
                           }`}
@@ -474,21 +471,21 @@ const CommentPopupModal = ({
                             {comment.commenter_name}
                           </span>
                           <span
-                            className={`text-xs px-2 py-0.5 rounded-full border font-medium ${comment.commenter_role === "professor" ||
+                            className={`text-xs px-2 py-0.5 rounded-full border font-medium ${comment.commenter_role === "signatory" ||
                               comment.commenter_role === "department_head"
                               ? "bg-purple-50 text-purple-700 border-purple-200"
                               : "bg-blue-50 text-blue-700 border-blue-200"
                               }`}
                           >
-                            {comment.commenter_role === "professor"
-                              ? "Professor"
-                              : comment.commenter_role === "library_admin"
+                            {comment.commenter_role === "signatory"
+                              ? "Signatory"
+                              : comment.commenter_role === "librarian"
                                 ? "Library"
-                                : comment.commenter_role === "cashier_admin"
+                                : comment.commenter_role === "cashier"
                                   ? "Cashier"
-                                  : comment.commenter_role === "registrar_admin"
+                                  : comment.commenter_role === "registrar"
                                     ? "Registrar"
-                                    : "Admin"}
+                                    : "Staff"}
                           </span>
                           {comment.is_resolved ? (
                             <span className="text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200 font-medium">
@@ -680,8 +677,8 @@ export default function StudentDashboardGraduation({
   const fetchClearanceStatus = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(
-        `${API_URL}/graduation/status/${studentId}`,
+      const response = await authAxios.get(
+        `/graduation/status/${studentId}`,
       );
       if (response.data.success) {
         setClearanceStatus(response.data);
@@ -701,7 +698,7 @@ export default function StudentDashboardGraduation({
   const handleApply = async (portion) => {
     setApplying(portion);
     try {
-      const response = await axios.post(`${API_URL}/graduation/apply`, {
+      const response = await authAxios.post(`/graduation/apply`, {
         student_id: studentId,
         portion,
       });
@@ -724,8 +721,8 @@ export default function StudentDashboardGraduation({
     setShowCancelModal(false);
     setCancelling(true);
     try {
-      const response = await axios.delete(
-        `${API_URL}/graduation/cancel/${studentId}`,
+      const response = await authAxios.delete(
+        `/graduation/cancel/${studentId}`,
       );
       if (response.data.success) {
         toast.success("Request cancelled successfully");
@@ -743,15 +740,15 @@ export default function StudentDashboardGraduation({
   const toggleStage = (key) =>
     setExpandedStages((prev) => ({ ...prev, [key]: !prev[key] }));
 
-  const openProfessorComments = async (approval) => {
+  const openSignatoryComments = async (approval) => {
     const reqId =
       clearanceStatus?.request?.request_id || clearanceStatus?.request?.id;
 
     await fetchClearanceComments(reqId);
     setCommentTarget({
-      type: "professor",
-      key: `professor-${approval.id}`,
-      title: approval.professor?.full_name || "Professor",
+      type: "signatory",
+      key: `signatory-${approval.id}`,
+      title: approval.professor?.full_name || "Signatory",
       requestId: reqId,
       approval,
     });
@@ -804,7 +801,7 @@ export default function StudentDashboardGraduation({
         hasComments,
         unresolvedCount,
         approval,
-        type: "professor",
+        type: "signatory",
       };
     };
 
@@ -1171,7 +1168,7 @@ export default function StudentDashboardGraduation({
                     Clearance Progress Tree
                   </h3>
                   <p className={`text-[14px] leading-relaxed ${isDarkMode ? 'text-[#9aa0a6]' : 'text-[#5f6368]'}`}>
-                    Track your graduation clearance step-by-step. Click any active stage to expand details and view specific requirements or professor notes.
+                    Track your graduation clearance step-by-step. Click any active stage to expand details and view specific requirements or signatory notes.
                   </p>
                 </div>
                 <div className="mb-6">
@@ -1194,8 +1191,8 @@ export default function StudentDashboardGraduation({
                       unresolvedCount={stage.unresolvedCount}
                       hasComments={stage.hasComments}
                       onViewComments={() => {
-                        if (stage.type === "professor") {
-                          openProfessorComments(stage.approval);
+                        if (stage.type === "signatory") {
+                          openSignatoryComments(stage.approval);
                         } else {
                           openStageComments(stage);
                         }

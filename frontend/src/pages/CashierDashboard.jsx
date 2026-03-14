@@ -1,24 +1,22 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { motion } from "framer-motion";
-import axios from "axios";
 import RequestComments from "../components/features/RequestComments";
 import DashboardLayout, {
   GlassCard,
   StatusBadge,
 } from "../components/ui/DashboardLayout";
 import {
-  BookOpenIcon,
+  BanknotesIcon,
   CheckIcon,
   XMarkIcon,
   ChatBubbleIcon,
   InboxStackIcon,
   UserIcon,
 } from "../components/ui/Icons";
+import { authAxios } from "../services/api";
 
-const API_URL = import.meta.env.VITE_API_URL;
-
-export default function LibraryAdminDashboard({
+export default function CashierAdminDashboard({
   adminId,
   onSignOut,
   onOpenSettings,
@@ -34,14 +32,14 @@ export default function LibraryAdminDashboard({
   const [activeView, setActiveView] = useState("pending");
 
   useEffect(() => {
-    document.title = "Library Dashboard | ISU Clearance System";
+    document.title = "Cashier Dashboard | ISU Clearance System";
     fetchPendingRequests();
   }, []);
 
   const fetchPendingRequests = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${API_URL}/graduation/library/pending`);
+      const response = await authAxios.get(`graduation/cashier/pending`);
       if (response.data.success) setRequests(response.data.requests);
     } catch (error) {
       console.error("Error fetching requests:", error);
@@ -55,8 +53,8 @@ export default function LibraryAdminDashboard({
     if (!selectedRequest) return;
     setActionLoading(true);
     try {
-      const response = await axios.post(
-        `${API_URL}/graduation/library/approve`,
+      const response = await authAxios.post(
+        `graduation/cashier/approve`,
         {
           request_id: selectedRequest.id,
           admin_id: adminId,
@@ -64,7 +62,7 @@ export default function LibraryAdminDashboard({
         },
       );
       if (response.data.success) {
-        toast.success("Library clearance approved!");
+        toast.success("Cashier clearance approved!");
         setComments("");
         setSelectedRequest(null);
         fetchPendingRequests();
@@ -84,8 +82,8 @@ export default function LibraryAdminDashboard({
     }
     setActionLoading(true);
     try {
-      const response = await axios.post(
-        `${API_URL}/graduation/library/reject`,
+      const response = await authAxios.post(
+        `graduation/cashier/reject`,
         {
           request_id: selectedRequest.id,
           admin_id: adminId,
@@ -93,7 +91,7 @@ export default function LibraryAdminDashboard({
         },
       );
       if (response.data.success) {
-        toast.success("Library clearance rejected");
+        toast.success("Cashier clearance rejected");
         setComments("");
         setSelectedRequest(null);
         fetchPendingRequests();
@@ -106,9 +104,9 @@ export default function LibraryAdminDashboard({
   };
 
   const theme = {
-    name: "Library Admin",
-    abbrev: "LA",
-    dashboardTitle: "Library Dashboard",
+    name: "Cashier Admin",
+    abbrev: "CA",
+    dashboardTitle: "Cashier Dashboard",
     sidebarGradient: isDarkMode ? "bg-slate-900 border-r border-slate-800" : "bg-white border-r border-slate-200",
     sidebarActive: isDarkMode ? "bg-primary-900/40 text-primary-400" : "bg-primary-50 text-primary-600",
     sidebarInactive: isDarkMode ? "text-slate-400 hover:bg-slate-800 hover:text-slate-200" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
@@ -125,7 +123,7 @@ export default function LibraryAdminDashboard({
     {
       id: "pending",
       label: "Pending Clearances",
-      icon: <BookOpenIcon className="w-5 h-5" />,
+      icon: <BanknotesIcon className="w-5 h-5" />,
       count: requests.length,
     },
   ];
@@ -136,7 +134,7 @@ export default function LibraryAdminDashboard({
       menuItems={menuItems}
       activeView={activeView}
       setActiveView={setActiveView}
-      userInfo={{ name: "Campus Librarian", subtitle: "Library Admin" }}
+      userInfo={{ name: "Chief Accountant", subtitle: "Cashier Admin" }}
       onSignOut={onSignOut}
       onOpenSettings={onOpenSettings}
       onManageAccount={onManageAccount}
@@ -147,17 +145,15 @@ export default function LibraryAdminDashboard({
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-3xl font-bold text-gray-900">
-              Library Clearance
+              Cashier Clearance
             </h2>
             <p className="text-gray-500 mt-1">
-              Review student library obligations and book returns
+              Review student financial obligations and payments
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="px-4 py-2 rounded-xl border text-amber-600 bg-amber-50 border-amber-200 text-center">
-              <div className="text-xl font-bold">{requests.length}</div>
-              <div className="text-xs font-medium">Pending</div>
-            </div>
+          <div className="px-4 py-2 rounded-xl border text-amber-600 bg-amber-50 border-amber-200 text-center">
+            <div className="text-xl font-bold">{requests.length}</div>
+            <div className="text-xs font-medium">Pending</div>
           </div>
         </div>
 
@@ -198,15 +194,15 @@ export default function LibraryAdminDashboard({
             <motion.div
               initial={{ scale: 0.8 }}
               animate={{ scale: 1 }}
-              className="w-20 h-20 rounded-2xl bg-violet-50 flex items-center justify-center mx-auto mb-5"
+              className="w-20 h-20 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto mb-5"
             >
-              <InboxStackIcon className="w-10 h-10 text-violet-400" />
+              <InboxStackIcon className="w-10 h-10 text-amber-400" />
             </motion.div>
             <h3 className="text-xl font-bold mb-2 text-gray-900">
               No Pending Clearances
             </h3>
             <p className="text-gray-500">
-              All library clearance requests have been processed.
+              All cashier clearance requests have been processed.
             </p>
           </GlassCard>
         ) : (
@@ -225,8 +221,8 @@ export default function LibraryAdminDashboard({
                   <div
                     className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
                       selectedRequest?.id === req.id
-                        ? "border-violet-400 bg-violet-50/50 shadow-lg shadow-violet-500/10"
-                        : "border-gray-100 bg-white/70 hover:border-violet-200 hover:shadow-md"
+                        ? "border-amber-400 bg-amber-50/50 shadow-lg shadow-amber-500/10"
+                        : "border-gray-100 bg-white/70 hover:border-amber-200 hover:shadow-md"
                     }`}
                     onClick={() => {
                       setSelectedRequest(req);
@@ -234,7 +230,7 @@ export default function LibraryAdminDashboard({
                     }}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-violet-500/20">
+                      <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-amber-500/20">
                         {req.student?.full_name?.charAt(0) || "?"}
                       </div>
                       <div className="flex-1">
@@ -259,7 +255,7 @@ export default function LibraryAdminDashboard({
               {selectedRequest ? (
                 <GlassCard className="p-5">
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                    <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg">
                       {selectedRequest.student?.full_name?.charAt(0) || "?"}
                     </div>
                     <div>
@@ -276,7 +272,7 @@ export default function LibraryAdminDashboard({
                     <div className="mb-4">
                       <RequestComments
                         requestId={selectedRequest.id}
-                        userRole="library_admin"
+                        userRole="cashier"
                         userId={adminId}
                       />
                     </div>
@@ -292,7 +288,7 @@ export default function LibraryAdminDashboard({
                       value={comments}
                       onChange={(e) => setComments(e.target.value)}
                       rows={3}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white/60 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all resize-none"
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white/60 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all resize-none"
                     />
                   </div>
 
@@ -321,8 +317,8 @@ export default function LibraryAdminDashboard({
                 </GlassCard>
               ) : (
                 <GlassCard className="p-8 text-center">
-                  <div className="w-16 h-16 rounded-2xl bg-violet-50 flex items-center justify-center mx-auto mb-4">
-                    <UserIcon className="w-8 h-8 text-violet-400" />
+                  <div className="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto mb-4">
+                    <UserIcon className="w-8 h-8 text-amber-400" />
                   </div>
                   <p className="text-gray-500 text-sm">
                     Select a student to review their request

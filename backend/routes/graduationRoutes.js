@@ -53,15 +53,15 @@ router.post("/apply", requireAuth, async (req, res) => {
 
     if (error) throw error;
 
-    // Fetch all professor accounts
-    let { data: allProfessors } = await supabase
+    // Fetch all signatory accounts
+    let { data: allSignatories } = await supabase
       .from("profiles")
       .select("id, full_name")
-      .eq("role", "professor")
+      .eq("role", "signatory")
       .eq("account_enabled", true);
 
-    // Determine which professors belong to this portion (REG Form 07)
-    let wantedProfessors = allProfessors || [];
+    // Determine which signatories belong to this portion (REG Form 07)
+    let wantedSignatories = allSignatories || [];
     if (portion === "undergraduate") {
       const undergradNames = [
         "Department Chairman",
@@ -70,12 +70,12 @@ router.post("/apply", requireAuth, async (req, res) => {
         "NSTP Director",
         "Executive Officer",
       ];
-      wantedProfessors = wantedProfessors.filter((p) => undergradNames.includes(p.full_name));
+      wantedSignatories = wantedSignatories.filter((p) => undergradNames.includes(p.full_name));
     } else if (portion === "graduate") {
-      wantedProfessors = wantedProfessors.filter((p) => p.full_name === "Dean Graduate School");
+      wantedSignatories = wantedSignatories.filter((p) => p.full_name === "Dean Graduate School");
     }
 
-    const wantedIds = wantedProfessors.map((p) => p.id);
+    const wantedIds = wantedSignatories.map((p) => p.id);
 
     // Step 1: Remove any auto-created professor_approvals that are NOT in our wanted list
     // (DB trigger may create approvals for ALL professors on request insert)
@@ -88,9 +88,9 @@ router.post("/apply", requireAuth, async (req, res) => {
     }
 
     // Step 2: Ensure wanted professor_approvals exist (upsert to handle both cases)
-    if (wantedProfessors.length > 0) {
-      // Link student to professors
-      const studentProfLinks = wantedProfessors.map((p) => ({
+    if (wantedSignatories.length > 0) {
+      // Link student to signatories
+      const studentSignatoryLinks = wantedSignatories.map((p) => ({
         student_id,
         professor_id: p.id,
         course_code: "GRAD",
@@ -100,13 +100,13 @@ router.post("/apply", requireAuth, async (req, res) => {
 
       await supabase
         .from("student_professors")
-        .upsert(studentProfLinks, {
+        .upsert(studentSignatoryLinks, {
           onConflict: "student_id,professor_id",
           ignoreDuplicates: true,
         });
 
       // Upsert professor approvals (trigger may have already created them)
-      const approvalRecords = wantedProfessors.map((p) => ({
+      const approvalRecords = wantedSignatories.map((p) => ({
         request_id: request.id,
         professor_id: p.id,
         status: "pending",
@@ -127,7 +127,7 @@ router.post("/apply", requireAuth, async (req, res) => {
       await supabase
         .from("requests")
         .update({
-          professors_total_count: wantedProfessors.length,
+          professors_total_count: wantedSignatories.length,
           professors_approved_count: 0,
         })
         .eq("id", request.id);
@@ -136,7 +136,7 @@ router.post("/apply", requireAuth, async (req, res) => {
     res.json({
       success: true,
       request,
-      professorsAssigned: wantedProfessors?.length || 0,
+      professorsAssigned: wantedSignatories?.length || 0,
       message: "Graduation clearance application submitted successfully",
     });
   } catch (error) {
@@ -1039,7 +1039,7 @@ router.get("/admin/professors", requireAuth, async (req, res) => {
     const { data: professors, error } = await supabase
       .from("profiles")
       .select("id, full_name, email, account_enabled")
-      .eq("role", "professor")
+      .eq("role", "signatory")
       .order("full_name");
 
     if (error) throw error;

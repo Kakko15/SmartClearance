@@ -309,10 +309,10 @@ router.post("/signup", signupLimiter, async (req, res) => {
     }
 
     const adminRoles = [
-      "professor",
-      "library_admin",
-      "cashier_admin",
-      "registrar_admin",
+      "signatory",
+      "librarian",
+      "cashier",
+      "registrar",
       "super_admin",
     ];
 

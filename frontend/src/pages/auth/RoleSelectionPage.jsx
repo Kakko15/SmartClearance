@@ -39,8 +39,8 @@ export default function RoleSelectionPage({
       color: "green",
     },
     {
-      id: "professor",
-      title: "Professor",
+      id: "signatory",
+      title: "Signatory",
       description: "Approve student clearances",
       icon: (
         <svg
@@ -60,8 +60,8 @@ export default function RoleSelectionPage({
       color: "green",
     },
     {
-      id: "admin",
-      title: "Admin",
+      id: "staff",
+      title: "Staff",
       description: "Process clearances & approvals",
       icon: (
         <svg
@@ -79,14 +79,14 @@ export default function RoleSelectionPage({
         </svg>
       ),
       color: "indigo",
-      isAdmin: true,
+      isStaff: true,
     },
   ];
 
-  const adminTypes = [
+  const staffTypes = [
     {
-      id: "library_admin",
-      title: "Library Admin",
+      id: "librarian",
+      title: "Librarian",
       description: "Process library clearances",
       icon: (
         <svg
@@ -105,8 +105,8 @@ export default function RoleSelectionPage({
       ),
     },
     {
-      id: "cashier_admin",
-      title: "Cashier Admin",
+      id: "cashier",
+      title: "Cashier",
       description: "Process financial clearances",
       icon: (
         <svg
@@ -125,8 +125,8 @@ export default function RoleSelectionPage({
       ),
     },
     {
-      id: "registrar_admin",
-      title: "Registrar Admin",
+      id: "registrar",
+      title: "Registrar",
       description: "Final approval & certificates",
       icon: (
         <svg
@@ -147,16 +147,16 @@ export default function RoleSelectionPage({
   ];
 
   const handleRoleClick = (roleId) => {
-    if (roleId === "admin") {
+    if (roleId === "staff") {
       setShowAdminModal(true);
     } else {
       onRoleSelect(roleId);
     }
   };
 
-  const handleAdminSelect = (adminType) => {
+  const handleStaffSelect = (staffType) => {
     setShowAdminModal(false);
-    onRoleSelect(adminType);
+    onRoleSelect(staffType);
   };
 
   return (
@@ -315,12 +315,12 @@ export default function RoleSelectionPage({
                       <h2
                         className={`text-2xl font-bold transition-colors ${isDark ? "text-white" : "text-gray-900"}`}
                       >
-                        Select Admin Type
+                        Select Staff Type
                       </h2>
                       <p
                         className={`text-sm mt-1 transition-colors ${isDark ? "text-slate-400" : "text-gray-600"}`}
                       >
-                        Choose your administrative role
+                        Choose your staff role
                       </p>
                     </div>
                     <button
@@ -345,13 +345,13 @@ export default function RoleSelectionPage({
                 </div>
 
                 <div className="p-6 space-y-3">
-                  {adminTypes.map((admin, index) => (
+                  {staffTypes.map((staff, index) => (
                     <motion.button
-                      key={admin.id}
+                      key={staff.id}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.1 }}
-                      onClick={() => handleAdminSelect(admin.id)}
+                      onClick={() => handleStaffSelect(staff.id)}
                       className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all ${
                         isDark
                           ? "bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700 hover:border-indigo-500"
@@ -361,18 +361,18 @@ export default function RoleSelectionPage({
                       <div
                         className={`p-3 rounded-xl ${isDark ? "bg-indigo-500/20 text-indigo-400" : "bg-indigo-100 text-indigo-600"}`}
                       >
-                        {admin.icon}
+                        {staff.icon}
                       </div>
                       <div className="flex-1 text-left">
                         <h3
                           className={`font-bold transition-colors ${isDark ? "text-white" : "text-gray-900"}`}
                         >
-                          {admin.title}
+                          {staff.title}
                         </h3>
                         <p
                           className={`text-sm transition-colors ${isDark ? "text-slate-400" : "text-gray-600"}`}
                         >
-                          {admin.description}
+                          {staff.description}
                         </p>
                       </div>
                       <svg

@@ -30,7 +30,7 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
   const [signUpData, setSignUpData] = useState({
     firstName: "",
     lastName: "",
-    role: selectedRole === "professor" ? "professor" : "library_admin",
+    role: selectedRole === "signatory" ? "signatory" : "librarian",
   });
 
   const recaptchaRef = useRef(null);
@@ -111,7 +111,7 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
 
     if (
       field === "adminSecretCode" &&
-      (selectedRole === "admin" || selectedRole === "professor") &&
+      (selectedRole === "staff" || selectedRole === "librarian" || selectedRole === "cashier" || selectedRole === "registrar" || selectedRole === "signatory") &&
       value.length < 8
     ) {
       return "Invalid secret code format.";
@@ -146,7 +146,7 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
         throw new Error("Password too weak");
       if (!recaptchaToken && !IS_LOCALHOST) throw new Error("Please verify reCAPTCHA");
 
-      if (selectedRole === "admin" || selectedRole === "professor") {
+      if (selectedRole === "staff" || selectedRole === "librarian" || selectedRole === "cashier" || selectedRole === "registrar" || selectedRole === "signatory") {
         if (!adminSecretCode || adminSecretCode.trim().length < 8) {
           throw new Error("Valid secret code is required");
         }
@@ -164,7 +164,7 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
             lastName: signUpData.lastName.trim(),
             role: signUpData.role,
             adminSecretCode:
-              selectedRole === "admin" || selectedRole === "professor"
+              selectedRole !== "student"
                 ? adminSecretCode
                 : null,
             recaptchaToken: recaptchaToken,
@@ -333,12 +333,12 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
         </AnimatePresence>
       </div>
 
-      {selectedRole !== "professor" && (
+      {selectedRole !== "signatory" && (
         <div className="relative z-20">
           <label
             className={`block text-sm font-bold mb-1.5 ml-1 ${isDark ? "text-slate-300" : "text-gray-700"}`}
           >
-            Admin Role <span className="text-red-500">*</span>
+            Staff Role <span className="text-red-500">*</span>
           </label>
           <SpotlightBorder isDark={isDark}>
             <CustomSelect
@@ -347,9 +347,9 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
               onChange={(val) => setSignUpData({ ...signUpData, role: val })}
               isDark={isDark}
               options={[
-                { value: "library_admin", label: "Library Admin" },
-                { value: "cashier_admin", label: "Cashier Admin" },
-                { value: "registrar_admin", label: "Registrar Admin" },
+                { value: "librarian", label: "Librarian" },
+                { value: "cashier", label: "Cashier" },
+                { value: "registrar", label: "Registrar" },
               ]}
             />
           </SpotlightBorder>
@@ -360,7 +360,7 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
         <label
           className={`block text-sm font-bold mb-1.5 ml-1 ${isDark ? "text-slate-300" : "text-gray-700"}`}
         >
-          {selectedRole === "professor" ? "Professor" : "Admin"} Secret Code{" "}
+          {selectedRole === "signatory" ? "Signatory" : "Staff"} Secret Code{" "}
           <span className="text-red-500">*</span>
         </label>
         <SpotlightBorder
@@ -374,9 +374,9 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
             onBlur={() => handleBlur("adminSecretCode")}
             required
             placeholder={
-              selectedRole === "professor"
-                ? "Enter professor secret code"
-                : "Enter admin secret code"
+              selectedRole === "signatory"
+                ? "Enter signatory secret code"
+                : "Enter staff secret code"
             }
             className={`w-full border rounded-xl px-4 py-3 outline-none transition-all font-medium ${isDark ? "bg-slate-900 border-slate-700 text-white focus:border-green-500 placeholder:text-slate-600" : "bg-white border-gray-200 text-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500 placeholder:text-gray-400"} ${getFieldError("adminSecretCode", adminSecretCode) ? "!border-red-500 focus:!border-red-500 !ring-red-500 bg-red-50 text-red-900" : ""}`}
           />
@@ -397,9 +397,9 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
         <p
           className={`text-xs mt-1.5 ml-1 ${isDark ? "text-slate-500" : "text-gray-500"}`}
         >
-          {selectedRole === "professor"
-            ? "Contact your department to obtain the professor secret code"
-            : "Contact your supervisor to obtain the admin secret code"}
+          {selectedRole === "signatory"
+            ? "Contact your department to obtain the signatory secret code"
+            : "Contact your supervisor to obtain the staff secret code"}
         </p>
       </div>
 

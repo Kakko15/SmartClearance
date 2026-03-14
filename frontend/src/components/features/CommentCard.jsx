@@ -27,7 +27,12 @@ export default function CommentCard({
         darkBg: "bg-blue-900/30 text-blue-300 border-blue-700",
       },
       professor: {
-        label: "Professor",
+        label: "Signatory",
+        bg: "bg-purple-100 text-purple-700 border-purple-200",
+        darkBg: "bg-purple-900/30 text-purple-300 border-purple-700",
+      },
+      signatory: {
+        label: "Signatory",
         bg: "bg-purple-100 text-purple-700 border-purple-200",
         darkBg: "bg-purple-900/30 text-purple-300 border-purple-700",
       },
@@ -37,17 +42,32 @@ export default function CommentCard({
         darkBg: "bg-purple-900/30 text-purple-300 border-purple-700",
       },
       library_admin: {
-        label: "Library Admin",
+        label: "Librarian",
+        bg: "bg-amber-100 text-amber-700 border-amber-200",
+        darkBg: "bg-amber-900/30 text-amber-300 border-amber-700",
+      },
+      librarian: {
+        label: "Librarian",
         bg: "bg-amber-100 text-amber-700 border-amber-200",
         darkBg: "bg-amber-900/30 text-amber-300 border-amber-700",
       },
       cashier_admin: {
-        label: "Cashier Admin",
+        label: "Cashier",
+        bg: "bg-emerald-100 text-emerald-700 border-emerald-200",
+        darkBg: "bg-emerald-900/30 text-emerald-300 border-emerald-700",
+      },
+      cashier: {
+        label: "Cashier",
         bg: "bg-emerald-100 text-emerald-700 border-emerald-200",
         darkBg: "bg-emerald-900/30 text-emerald-300 border-emerald-700",
       },
       registrar_admin: {
-        label: "Registrar Admin",
+        label: "Registrar",
+        bg: "bg-indigo-100 text-indigo-700 border-indigo-200",
+        darkBg: "bg-indigo-900/30 text-indigo-300 border-indigo-700",
+      },
+      registrar: {
+        label: "Registrar",
         bg: "bg-indigo-100 text-indigo-700 border-indigo-200",
         darkBg: "bg-indigo-900/30 text-indigo-300 border-indigo-700",
       },

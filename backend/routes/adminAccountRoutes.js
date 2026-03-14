@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const supabase = require("../supabaseClient");
 const { requireAuth } = require("../middleware/authMiddleware");
+const { ROLES } = require("../constants/roles");
 
 router.get("/pending-accounts", requireAuth, async (req, res) => {
   try {
@@ -52,10 +53,10 @@ router.post("/approve-account", requireAuth, async (req, res) => {
       });
     }
 
-    if (!["super_admin", "registrar_admin"].includes(admin.role)) {
+    if (!["super_admin"].includes(admin.role)) {
       return res.status(403).json({
         success: false,
-        error: "Only super admin or registrar admin can approve accounts",
+        error: "Only super admin can approve accounts",
       });
     }
 
@@ -125,10 +126,10 @@ router.post("/reject-account", requireAuth, async (req, res) => {
       });
     }
 
-    if (!["super_admin", "registrar_admin"].includes(admin.role)) {
+    if (!["super_admin"].includes(admin.role)) {
       return res.status(403).json({
         success: false,
-        error: "Only super admin or registrar admin can reject accounts",
+        error: "Only super admin can reject accounts",
       });
     }
 

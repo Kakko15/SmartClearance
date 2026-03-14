@@ -1,9 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
-import axios from "axios";
-
-const API_URL = import.meta.env.VITE_API_URL;
+import { authAxios } from "../../services/api";
 
 export default function PendingAccountsView({ adminId, isDark = false }) {
   const [pendingAccounts, setPendingAccounts] = useState([]);
@@ -19,7 +17,7 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
   const fetchPendingAccounts = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_URL}/api/admin/pending-accounts`);
+      const response = await authAxios.get("/admin/pending-accounts");
 
       if (response.data.success) {
         setPendingAccounts(response.data.accounts);
@@ -35,13 +33,10 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
   const handleApprove = async (userId) => {
     setActionLoading(userId);
     try {
-      const response = await axios.post(
-        `${API_URL}/api/admin/approve-account`,
-        {
-          userId,
-          adminId,
-        },
-      );
+      const response = await authAxios.post("/admin/approve-account", {
+        userId,
+        adminId,
+      });
 
       if (response.data.success) {
         toast.success("Account approved!");
@@ -63,7 +58,7 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
 
     setActionLoading(userId);
     try {
-      const response = await axios.post(`${API_URL}/api/admin/reject-account`, {
+      const response = await authAxios.post("/admin/reject-account", {
         userId,
         adminId,
         reason: rejectReason,
@@ -214,12 +209,12 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
               </div>
 
               <div
-                className={`px-4 py-2 rounded-full border ${getSimilarityBgColor(account.face_similarity)}`}
+                className={`px-4 py-2 rounded-full border ${getSimilarityBgColor(account.face_similarity ?? 0)}`}
               >
                 <span
-                  className={`font-bold ${getSimilarityColor(account.face_similarity)}`}
+                  className={`font-bold ${getSimilarityColor(account.face_similarity ?? 0)}`}
                 >
-                  {account.face_similarity?.toFixed(1)}% Match
+                  {account.face_similarity != null ? `${account.face_similarity.toFixed(1)}%` : "N/A"} Match
                 </span>
               </div>
             </div>
@@ -282,9 +277,9 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
                     Similarity Score:
                   </span>
                   <span
-                    className={`font-bold ${getSimilarityColor(account.face_similarity)}`}
+                    className={`font-bold ${getSimilarityColor(account.face_similarity ?? 0)}`}
                   >
-                    {account.face_similarity?.toFixed(2)}%
+                    {account.face_similarity != null ? `${account.face_similarity.toFixed(2)}%` : "N/A"}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
@@ -303,14 +298,14 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
                 >
                   <div
                     className={`h-full rounded-full transition-all ${
-                      account.face_similarity >= 90
+                      (account.face_similarity ?? 0) >= 90
                         ? "bg-green-500"
-                        : account.face_similarity >= 80
+                        : (account.face_similarity ?? 0) >= 80
                           ? "bg-yellow-500"
                           : "bg-red-500"
                     }`}
                     style={{
-                      width: `${Math.min(account.face_similarity, 100)}%`,
+                      width: `${Math.min(account.face_similarity ?? 0, 100)}%`,
                     }}
                   />
                 </div>

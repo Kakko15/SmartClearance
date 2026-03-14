@@ -1,6 +1,22 @@
+import axios from "axios";
 import { supabase } from "../lib/supabase";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
+/**
+ * Authenticated axios instance — automatically attaches the Supabase
+ * Bearer token to every request so dashboard components don't need
+ * to manage auth headers manually.
+ */
+export const authAxios = axios.create({ baseURL: API_URL });
+
+authAxios.interceptors.request.use(async (config) => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.access_token) {
+    config.headers.Authorization = `Bearer ${session.access_token}`;
+  }
+  return config;
+});
 
 /**
  * BUG 6 FIX (frontend counterpart): Retrieve the current Supabase session

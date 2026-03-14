@@ -58,8 +58,22 @@ export function AuthProvider({ children }) {
     const role = sessionStorage.getItem("selectedRole");
     if (!role) return true;
     if (role === "student") return profileRole === "student";
-    if (role === "professor") return profileRole === "professor";
-    if (role === "admin") return profileRole?.includes("admin");
+    if (role === "signatory") return profileRole === "signatory";
+    if (role === "staff") {
+      return ["librarian", "cashier", "registrar"].includes(profileRole);
+    }
+    // Legacy support: "professor" selection matches "signatory"
+    if (role === "professor") return profileRole === "signatory";
+    // Legacy support: "admin" or specific old admin roles
+    if (role === "admin") return ["librarian", "cashier", "registrar", "super_admin"].includes(profileRole);
+    if (role === "library_admin") return profileRole === "librarian";
+    if (role === "cashier_admin") return profileRole === "cashier";
+    if (role === "registrar_admin") return profileRole === "registrar";
+    // Direct match for new role names
+    if (role === "librarian") return profileRole === "librarian";
+    if (role === "cashier") return profileRole === "cashier";
+    if (role === "registrar") return profileRole === "registrar";
+    if (role === "super_admin") return profileRole === "super_admin";
     return true;
   };
 
@@ -254,7 +268,7 @@ export function AuthProvider({ children }) {
       sessionStorage.clear();
       clearLocalStoragePreservingPreferences();
 
-      if (previousRole) {
+      if (previousRole && previousRole !== "super_admin") {
         setSelectedRole(previousRole);
         sessionStorage.setItem("selectedRole", previousRole);
       } else {
@@ -266,7 +280,9 @@ export function AuthProvider({ children }) {
 
       toast.success("Signed out successfully");
 
-      if (previousRole) {
+      if (previousRole === "super_admin") {
+        navigateRef.current?.("/super-admin");
+      } else if (previousRole) {
         navigateRef.current?.("/auth");
       } else {
         navigateRef.current?.("/select-role");
@@ -347,7 +363,7 @@ export function AuthProvider({ children }) {
       sessionStorage.clear();
       clearLocalStoragePreservingPreferences();
 
-      if (previousRole) {
+      if (previousRole && previousRole !== "super_admin") {
         setSelectedRole(previousRole);
         sessionStorage.setItem("selectedRole", previousRole);
       } else {
@@ -362,7 +378,9 @@ export function AuthProvider({ children }) {
         duration: 6000,
       });
 
-      if (previousRole) {
+      if (previousRole === "super_admin") {
+        navigateRef.current?.("/super-admin");
+      } else if (previousRole) {
         navigateRef.current?.("/auth");
       } else {
         navigateRef.current?.("/select-role");
