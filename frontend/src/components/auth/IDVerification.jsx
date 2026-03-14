@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { verifyStudentID, validateImageQuality } from '../../services/idVerification';
 import { detectFace } from '../../services/faceVerification';
@@ -39,6 +39,13 @@ export default function IDVerification({ onVerified, isDark, firstName, lastName
   const [dragging, setDragging] = useState(false);
   const faceDescriptorRef = useRef(null);
 
+  // Revoke blob URL on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (idPreview) URL.revokeObjectURL(idPreview);
+    };
+  }, [idPreview]);
+
   const handleDrag = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -56,6 +63,8 @@ export default function IDVerification({ onVerified, isDark, firstName, lastName
     setDragging(false);
   }, []);
 
+  const handleIDUploadRef = useRef(null);
+
   const handleDrop = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -63,7 +72,7 @@ export default function IDVerification({ onVerified, isDark, firstName, lastName
     if (uploading) return;
     const file = e.dataTransfer.files?.[0];
     if (file && file.type.startsWith('image/')) {
-      handleIDUpload(file);
+      handleIDUploadRef.current?.(file);
     }
   }, [uploading]);
 
@@ -170,7 +179,8 @@ export default function IDVerification({ onVerified, isDark, firstName, lastName
         return;
       }
 
-      
+      // Revoke previous blob URL before creating a new one
+      if (idPreview) URL.revokeObjectURL(idPreview);
       setIdPreview(URL.createObjectURL(file));
       setVerificationResult({
         success: true,
@@ -189,6 +199,9 @@ export default function IDVerification({ onVerified, isDark, firstName, lastName
       setUploading(false);
     }
   };
+
+  // Keep ref in sync so handleDrop always calls the latest version
+  handleIDUploadRef.current = handleIDUpload;
 
   return (
     <div className="max-w-2xl mx-auto">

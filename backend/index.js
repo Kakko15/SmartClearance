@@ -51,6 +51,10 @@ app.use("/api/graduation", graduationRoutes);
 app.use("/api/admin", adminAccountRoutes);
 app.use("/api/admin/secret-codes", secretCodeRoutes);
 
+// Centralized error handler — must be after all routes
+const errorHandler = require("./middleware/errorHandler");
+app.use(errorHandler);
+
 app.get("/", (req, res) => {
   res.send("Smart Clearance System backend running!");
 });

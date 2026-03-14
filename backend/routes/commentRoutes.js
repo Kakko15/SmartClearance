@@ -124,7 +124,7 @@ router.get("/:clearanceId/comments", requireAuth, async (req, res) => {
     const { clearanceId } = req.params;
     const user_id = req.user.id;
 
-    await getUserProfile(user_id);
+    const userProfile = await getUserProfile(user_id);
 
     const { data: comments, error } = await supabase
       .from("clearance_comments")
@@ -134,9 +134,11 @@ router.get("/:clearanceId/comments", requireAuth, async (req, res) => {
 
     if (error) throw error;
 
+    const filtered = filterByVisibility(comments || [], userProfile.role);
+
     res.json({
       success: true,
-      comments: comments || [],
+      comments: filtered,
     });
   } catch (error) {
     console.error("Error fetching comments:", error);

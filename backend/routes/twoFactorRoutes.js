@@ -9,6 +9,8 @@ const supabase = require("../supabaseClient");
 
 const isDev = process.env.NODE_ENV !== "production";
 
+// WARNING: In-memory storage. OTPs/tokens are lost on server restart and won't
+// work with horizontal scaling. For production at scale, migrate to Redis or DB.
 const OTP_EXPIRY_MS = 3 * 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
 const OTP_COOLDOWN_MS = 60 * 1000;

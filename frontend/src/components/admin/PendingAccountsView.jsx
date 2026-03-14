@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
 import { authAxios } from "../../services/api";
+import useRealtimeSubscription from "../../hooks/useRealtimeSubscription";
 
 export default function PendingAccountsView({ adminId, isDark = false }) {
   const [pendingAccounts, setPendingAccounts] = useState([]);
@@ -10,13 +11,9 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
   const [rejectReason, setRejectReason] = useState("");
   const [selectedAccount, setSelectedAccount] = useState(null);
 
-  useEffect(() => {
-    fetchPendingAccounts();
-  }, []);
-
-  const fetchPendingAccounts = async () => {
+  const fetchPendingAccounts = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const response = await authAxios.get("/admin/pending-accounts");
 
       if (response.data.success) {
@@ -24,11 +21,18 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
       }
     } catch (error) {
       console.error("Error fetching pending accounts:", error);
-      toast.error("Failed to load pending accounts");
+      if (!silent) toast.error("Failed to load pending accounts");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchPendingAccounts();
+  }, [fetchPendingAccounts]);
+
+  // Live updates — re-fetch silently when profiles table changes
+  useRealtimeSubscription("profiles", () => fetchPendingAccounts(true));
 
   const handleApprove = async (userId) => {
     setActionLoading(userId);
@@ -171,13 +175,17 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
       </div>
 
       <div className="grid gap-6">
-        {pendingAccounts.map((account) => (
-          <motion.div
-            key={account.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={`p-6 rounded-2xl border ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"} shadow-lg`}
-          >
+        <AnimatePresence mode="popLayout">
+          {pendingAccounts.map((account) => (
+            <motion.div
+              key={account.id}
+              layout
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, x: -40 }}
+              transition={{ type: "spring", stiffness: 350, damping: 30 }}
+              className={`p-6 rounded-2xl border ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"} shadow-lg`}
+            >
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center gap-4">
                 <div
@@ -387,6 +395,7 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
             )}
           </motion.div>
         ))}
+        </AnimatePresence>
       </div>
     </div>
   );

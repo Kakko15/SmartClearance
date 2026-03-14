@@ -12,7 +12,7 @@ import EmailVerification from "./EmailVerification";
 const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
 const IS_LOCALHOST = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
 
-export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
+export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLoginSuccess }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -211,11 +211,17 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
         email={signupEmail}
         userId={signupUserId}
         isDark={isDark}
-        onVerified={() => {
-          toast.success("You're all set! Please sign in.");
-          setTimeout(() => {
-            if (onSwitchMode) onSwitchMode();
-          }, 1000);
+        onVerified={async () => {
+          toast.success("You're all set! Signing you in...");
+          try {
+            const { data: { session } } = await (await import("../../lib/supabase")).supabase.auth.getSession();
+            if (session?.user && onLoginSuccess) {
+              await onLoginSuccess(session.user);
+              return;
+            }
+          } catch (_e) { /* fall through to manual login */ }
+          toast.success("Please sign in with your new account.");
+          setTimeout(() => { if (onSwitchMode) onSwitchMode(); }, 1000);
         }}
         onSwitchToLogin={() => {
           if (onSwitchMode) onSwitchMode();
@@ -306,17 +312,27 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
           Email <span className="text-red-500">*</span>
         </label>
         <SpotlightBorder isDark={isDark} error={getFieldError("email", email) || !!emailError}>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => {
-              setEmail(e.target.value.toLowerCase());
-              if (emailError) setEmailError("");
-            }}
-            onBlur={() => validateAndCheckEmail(email)}
-            required
-            className={`w-full border rounded-xl px-4 py-3 outline-none transition-all font-medium ${isDark ? "bg-slate-900 border-slate-700 text-white focus:border-green-500" : "bg-white border-gray-200 text-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500"} ${getFieldError("email", email) || emailError ? "!border-red-500 focus:!border-red-500 !ring-red-500 bg-red-50 text-red-900" : ""}`}
-          />
+          <div className="relative">
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value.toLowerCase());
+                if (emailError) setEmailError("");
+              }}
+              onBlur={() => validateAndCheckEmail(email)}
+              required
+              className={`w-full border rounded-xl px-4 py-3 outline-none transition-all font-medium ${isDark ? "bg-slate-900 border-slate-700 text-white focus:border-green-500" : "bg-white border-gray-200 text-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500"} ${getFieldError("email", email) || emailError ? "!border-red-500 focus:!border-red-500 !ring-red-500 bg-red-50 text-red-900" : ""}`}
+            />
+            {checkingEmail && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                <svg className="animate-spin h-5 w-5 text-green-500" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+              </div>
+            )}
+          </div>
         </SpotlightBorder>
         <AnimatePresence>
           {(getFieldError("email", email) || emailError) && (

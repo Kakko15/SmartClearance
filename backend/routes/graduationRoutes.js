@@ -13,7 +13,7 @@ router.post("/apply", requireAuth, async (req, res) => {
       .eq("student_id", student_id)
       .eq("clearance_type", "graduation")
       .eq("is_completed", false)
-      .single();
+      .maybeSingle();
 
     if (existing) {
       return res.status(400).json({
@@ -152,39 +152,46 @@ router.delete("/cancel/:studentId", requireAuth, async (req, res) => {
   try {
     const { studentId } = req.params;
 
-    const { data: existingRequest, error: findError } = await supabase
+    // Use maybeSingle to avoid throwing on 0 rows, and handle multiple rows gracefully
+    const { data: requests, error: findError } = await supabase
       .from("requests")
       .select("id, current_status, is_completed")
       .eq("student_id", studentId)
       .eq("clearance_type", "graduation")
-      .eq("is_completed", false)
-      .single();
+      .eq("is_completed", false);
 
-    if (findError || !existingRequest) {
+    if (findError) throw findError;
+
+    if (!requests || requests.length === 0) {
       return res.status(404).json({
         success: false,
         error: "No pending graduation clearance request found",
       });
     }
 
-    if (existingRequest.is_completed) {
-      return res.status(400).json({
-        success: false,
-        error: "Cannot cancel a completed clearance request",
-      });
+    // Delete ALL pending graduation requests for this student (handles orphaned duplicates)
+    for (const existingRequest of requests) {
+      if (existingRequest.is_completed) continue;
+
+      const { error: approvalDeleteError } = await supabase
+        .from("professor_approvals")
+        .delete()
+        .eq("request_id", existingRequest.id);
+
+      if (approvalDeleteError) {
+        console.warn("Professor approvals cleanup warning:", approvalDeleteError.message);
+      }
+
+      const { error: deleteError } = await supabase
+        .from("requests")
+        .delete()
+        .eq("id", existingRequest.id);
+
+      if (deleteError) {
+        console.error("Failed to delete request:", existingRequest.id, deleteError.message);
+        throw deleteError;
+      }
     }
-
-    await supabase
-      .from("professor_approvals")
-      .delete()
-      .eq("request_id", existingRequest.id);
-
-    const { error: deleteError } = await supabase
-      .from("requests")
-      .delete()
-      .eq("id", existingRequest.id);
-
-    if (deleteError) throw deleteError;
 
     res.json({
       success: true,
@@ -387,7 +394,10 @@ router.get("/professor/students/:professorId", requireAuth, async (req, res) => 
       "Executive Officer": ["NSTP Director"],
     };
 
-    const approvals = (rawApprovals || []).map((app) => {
+    const approvals = (rawApprovals || [])
+      // Filter out orphaned approvals where the request or student was deleted
+      .filter((app) => app.request && app.request.student)
+      .map((app) => {
       let is_locked = false;
       const myName = app.professor?.full_name;
       const otherApps = app.request?.professor_approvals || [];

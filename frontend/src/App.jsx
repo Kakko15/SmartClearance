@@ -61,7 +61,7 @@ function DashboardContent(props) {
 function App() {
   const auth = useAuth();
   const { user, profile, initializing, selectedRole, showPasswordReset } = auth;
-  const { twoFactorPending, pendingUser, pendingProfile } = auth;
+  const { twoFactorPending, pendingUser } = auth;
   const { handleLoginSuccess, handleSignOut, handleRoleSelect, backToRoleSelection, complete2FA, cancel2FA } = auth;
   const { isDarkMode, themePreference, toggleTheme } = useTheme();
   const location = useLocation();

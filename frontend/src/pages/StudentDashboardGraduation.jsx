@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { getClearanceComments, authAxios } from "../services/api";
+import useRealtimeSubscription from "../hooks/useRealtimeSubscription";
 import GraduationCertificate from "../components/features/GraduationCertificate";
 import DashboardLayout, {
   GlassCard,
@@ -660,6 +661,10 @@ export default function StudentDashboardGraduation({
     return () => clearInterval(interval);
   }, [clearanceStatus]);
 
+  // Live updates — student sees clearance status changes in real-time
+  useRealtimeSubscription("requests", () => fetchClearanceStatus(true));
+  useRealtimeSubscription("professor_approvals", () => fetchClearanceStatus(true));
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === "Escape" && showCancelModal) {
@@ -674,8 +679,8 @@ export default function StudentDashboardGraduation({
     };
   }, [showCancelModal]);
 
-  const fetchClearanceStatus = async () => {
-    setLoading(true);
+  const fetchClearanceStatus = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const response = await authAxios.get(
         `/graduation/status/${studentId}`,
@@ -707,9 +712,12 @@ export default function StudentDashboardGraduation({
         fetchClearanceStatus();
       }
     } catch (error) {
-      toast.error(
-        error.response?.data?.error || "Failed to apply for clearance",
-      );
+      const msg = error.response?.data?.error || "Failed to apply for clearance";
+      toast.error(msg);
+      // If backend says we already have a request, re-fetch to show the actual state
+      if (msg.includes("already have")) {
+        fetchClearanceStatus();
+      }
     } finally {
       setApplying(false);
     }
@@ -726,7 +734,10 @@ export default function StudentDashboardGraduation({
       );
       if (response.data.success) {
         toast.success("Request cancelled successfully");
-        fetchClearanceStatus();
+        // Reset state immediately so the UI shows the portion selection cards
+        setClearanceStatus({ success: true, hasRequest: false });
+        setClearanceComments([]);
+        setCommentTarget(null);
       }
     } catch (error) {
       toast.error(error.response?.data?.error || "Failed to cancel clearance");

@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import RequestComments from "../components/features/RequestComments";
+import useRealtimeSubscription from "../hooks/useRealtimeSubscription";
 import DashboardLayout, {
   GlassCard,
   StatusBadge,
@@ -31,20 +32,16 @@ export default function RegistrarAdminDashboard({
   const [actionLoading, setActionLoading] = useState(false);
   const [comments, setComments] = useState("");
   const [activeView, setActiveView] = useState("pending");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [pendingAccounts, setPendingAccounts] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [accountsLoading, setAccountsLoading] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [searchAccounts, setSearchAccounts] = useState("");
 
-  useEffect(() => {
-    document.title = "Registrar Dashboard | ISU Clearance System";
-    fetchPendingRequests();
-    fetchPendingAccounts();
-  }, []);
-
-  const fetchPendingRequests = async () => {
-    setLoading(true);
+  const fetchPendingRequests = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const response = await authAxios.get(
         `graduation/registrar/pending`,
@@ -52,14 +49,14 @@ export default function RegistrarAdminDashboard({
       if (response.data.success) setRequests(response.data.requests);
     } catch (error) {
       console.error("Error fetching requests:", error);
-      toast.error("Failed to load pending clearances");
+      if (!silent) toast.error("Failed to load pending clearances");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchPendingAccounts = async () => {
-    setAccountsLoading(true);
+  const fetchPendingAccounts = useCallback(async (silent = false) => {
+    if (!silent) setAccountsLoading(true);
     try {
       const response = await authAxios.get(`admin/pending-accounts`);
       if (response.data.success) setPendingAccounts(response.data.accounts);
@@ -68,7 +65,17 @@ export default function RegistrarAdminDashboard({
     } finally {
       setAccountsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    document.title = "Registrar Dashboard | ISU Clearance System";
+    fetchPendingRequests();
+    fetchPendingAccounts();
+  }, [fetchPendingRequests, fetchPendingAccounts]);
+
+  // Live updates — re-fetch silently when data changes
+  useRealtimeSubscription("requests", () => fetchPendingRequests(true));
+  useRealtimeSubscription("profiles", () => fetchPendingAccounts(true));
 
   const handleApproveAccount = async (userId) => {
     setActionLoading(true);
@@ -168,6 +175,24 @@ export default function RegistrarAdminDashboard({
     }
   };
 
+  const filteredRequests = requests.filter((req) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      (req.student?.full_name || "").toLowerCase().includes(q) ||
+      (req.student?.student_number || "").toLowerCase().includes(q)
+    );
+  });
+
+  const filteredAccounts = pendingAccounts.filter((acc) => {
+    if (!searchAccounts.trim()) return true;
+    const q = searchAccounts.toLowerCase();
+    return (
+      (acc.full_name || "").toLowerCase().includes(q) ||
+      (acc.student_number || "").toLowerCase().includes(q)
+    );
+  });
+
   const theme = {
     name: "Registrar",
     abbrev: "RG",
@@ -233,6 +258,21 @@ export default function RegistrarAdminDashboard({
               </div>
             </div>
 
+            {!loading && requests.length > 0 && (
+              <div className="relative">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search by name or student number..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white/60 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all"
+                />
+              </div>
+            )}
+
             {loading ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="space-y-3">
@@ -287,37 +327,40 @@ export default function RegistrarAdminDashboard({
                   <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
                     Students Awaiting Final Approval
                   </h3>
-                  {requests.map((req, idx) => (
-                    <motion.div
-                      key={req.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.05 }}
-                    >
-                      <div
-                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
-                          selectedRequest?.id === req.id
-                            ? "border-slate-400 bg-slate-50/50 shadow-lg shadow-slate-500/10"
-                            : "border-gray-100 bg-white/70 hover:border-slate-300 hover:shadow-md"
-                        }`}
-                        onClick={() => {
-                          setSelectedRequest(req);
-                          setComments("");
-                        }}
+                  <AnimatePresence mode="popLayout">
+                    {filteredRequests.map((req) => (
+                      <motion.div
+                        key={req.id}
+                        layout
+                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, x: -30 }}
+                        transition={{ type: "spring", stiffness: 350, damping: 30 }}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-slate-600 to-slate-800 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-slate-500/20">
-                            {req.student?.full_name?.charAt(0) || "?"}
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="font-bold text-sm text-gray-900">
-                              {req.student?.full_name || "Unknown Student"}
-                            </h4>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <p className="text-xs text-gray-500">
-                                {req.student?.student_number || ""}
-                              </p>
-                              <div className="flex items-center gap-1">
+                        <div
+                          className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                            selectedRequest?.id === req.id
+                              ? "border-slate-400 bg-slate-50/50 shadow-lg shadow-slate-500/10"
+                              : "border-gray-100 bg-white/70 hover:border-slate-300 hover:shadow-md"
+                          }`}
+                          onClick={() => {
+                            setSelectedRequest(req);
+                            setComments("");
+                          }}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-gradient-to-br from-slate-600 to-slate-800 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-slate-500/20">
+                              {req.student?.full_name?.charAt(0) || "?"}
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="font-bold text-sm text-gray-900">
+                                {req.student?.full_name || "Unknown Student"}
+                              </h4>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <p className="text-xs text-gray-500">
+                                  {req.student?.student_number || ""}
+                                </p>
+                                <div className="flex items-center gap-1">
                                 {req.professors_status === "approved" && (
                                   <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-600">
                                     Prof ✓
@@ -341,6 +384,7 @@ export default function RegistrarAdminDashboard({
                       </div>
                     </motion.div>
                   ))}
+                  </AnimatePresence>
                 </div>
 
                 <div>
@@ -489,6 +533,21 @@ export default function RegistrarAdminDashboard({
               </div>
             </div>
 
+            {!accountsLoading && pendingAccounts.length > 0 && (
+              <div className="relative">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search by name or student number..."
+                  value={searchAccounts}
+                  onChange={(e) => setSearchAccounts(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white/60 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+                />
+              </div>
+            )}
+
             {accountsLoading ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="space-y-3">
@@ -543,55 +602,59 @@ export default function RegistrarAdminDashboard({
                   <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
                     Accounts Awaiting Review
                   </h3>
-                  {pendingAccounts.map((account, idx) => (
-                    <motion.div
-                      key={account.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.05 }}
-                    >
-                      <div
-                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
-                          selectedAccount?.id === account.id
-                            ? "border-amber-400 bg-amber-50/50 shadow-lg shadow-amber-500/10"
-                            : "border-gray-100 bg-white/70 hover:border-amber-300 hover:shadow-md"
-                        }`}
-                        onClick={() => {
-                          setSelectedAccount(account);
-                          setRejectReason("");
-                        }}
+                  <AnimatePresence mode="popLayout">
+                    {filteredAccounts.map((account) => (
+                      <motion.div
+                        key={account.id}
+                        layout
+                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, x: -30 }}
+                        transition={{ type: "spring", stiffness: 350, damping: 30 }}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-amber-500/20">
-                            {account.full_name?.charAt(0) || "?"}
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="font-bold text-sm text-gray-900">
-                              {account.full_name || "Unknown"}
-                            </h4>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <p className="text-xs text-gray-500">
-                                {account.student_number || "No student #"}
-                              </p>
-                              <span
-                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                  (account.face_similarity || 0) >= 70
-                                    ? "bg-yellow-100 text-yellow-700"
-                                    : "bg-red-100 text-red-700"
-                                }`}
-                              >
-                                {(account.face_similarity || 0).toFixed(0)}%
-                                match
-                              </span>
+                        <div
+                          className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                            selectedAccount?.id === account.id
+                              ? "border-amber-400 bg-amber-50/50 shadow-lg shadow-amber-500/10"
+                              : "border-gray-100 bg-white/70 hover:border-amber-300 hover:shadow-md"
+                          }`}
+                          onClick={() => {
+                            setSelectedAccount(account);
+                            setRejectReason("");
+                          }}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-amber-500/20">
+                              {account.full_name?.charAt(0) || "?"}
                             </div>
+                            <div className="flex-1">
+                              <h4 className="font-bold text-sm text-gray-900">
+                                {account.full_name || "Unknown"}
+                              </h4>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <p className="text-xs text-gray-500">
+                                  {account.student_number || "No student #"}
+                                </p>
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                    (account.face_similarity || 0) >= 70
+                                      ? "bg-yellow-100 text-yellow-700"
+                                      : "bg-red-100 text-red-700"
+                                  }`}
+                                >
+                                  {(account.face_similarity || 0).toFixed(0)}%
+                                  match
+                                </span>
+                              </div>
+                            </div>
+                            <span className="px-2 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                              Pending
+                            </span>
                           </div>
-                          <span className="px-2 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
-                            Pending
-                          </span>
                         </div>
-                      </div>
-                    </motion.div>
-                  ))}
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
                 </div>
 
                 <div>

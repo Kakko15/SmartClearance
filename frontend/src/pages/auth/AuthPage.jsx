@@ -181,6 +181,14 @@ export default function AuthPage({
               >
                 {isSignUp ? "Sign in" : "Sign up"}
               </button>
+              {isSignUp && (
+                <button
+                  onClick={() => { setIsSignUp(false); }}
+                  className={`ml-3 font-bold transition-colors text-sm ${isDark ? "text-green-400 hover:text-green-300" : "text-green-600 hover:text-green-700"}`}
+                >
+                  Forgot password?
+                </button>
+              )}
             </p>
           </div>
         </div>
@@ -214,12 +222,14 @@ export default function AuthPage({
                   <SignupFormWithFaceVerification
                     onSwitchMode={() => setIsSignUp(false)}
                     isDark={isDark}
+                    onLoginSuccess={onLoginSuccess}
                   />
                 ) : (
                   <SignupForm
                     onSwitchMode={() => setIsSignUp(false)}
                     isDark={isDark}
                     selectedRole={selectedRole}
+                    onLoginSuccess={onLoginSuccess}
                   />
                 )}
               </motion.div>

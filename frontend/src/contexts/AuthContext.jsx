@@ -55,26 +55,21 @@ export function AuthProvider({ children }) {
   }, []);
 
   const roleMatchesSelection = (profileRole) => {
-    const role = sessionStorage.getItem("selectedRole");
-    if (!role) return true;
-    if (role === "student") return profileRole === "student";
-    if (role === "signatory") return profileRole === "signatory";
-    if (role === "staff") {
-      return ["librarian", "cashier", "registrar"].includes(profileRole);
-    }
-    // Legacy support: "professor" selection matches "signatory"
-    if (role === "professor") return profileRole === "signatory";
-    // Legacy support: "admin" or specific old admin roles
-    if (role === "admin") return ["librarian", "cashier", "registrar", "super_admin"].includes(profileRole);
-    if (role === "library_admin") return profileRole === "librarian";
-    if (role === "cashier_admin") return profileRole === "cashier";
-    if (role === "registrar_admin") return profileRole === "registrar";
-    // Direct match for new role names
-    if (role === "librarian") return profileRole === "librarian";
-    if (role === "cashier") return profileRole === "cashier";
-    if (role === "registrar") return profileRole === "registrar";
-    if (role === "super_admin") return profileRole === "super_admin";
-    return true;
+    const selected = sessionStorage.getItem("selectedRole");
+    if (!selected) return true;
+
+    const ROLE_MAP = {
+      student: ["student"],
+      signatory: ["signatory"],
+      staff: ["librarian", "cashier", "registrar"],
+      librarian: ["librarian"],
+      cashier: ["cashier"],
+      registrar: ["registrar"],
+      super_admin: ["super_admin"],
+    };
+
+    const allowed = ROLE_MAP[selected];
+    return allowed ? allowed.includes(profileRole) : true;
   };
 
   const validateAndSetSession = async (sessionUser, isMounted = true) => {
@@ -121,10 +116,13 @@ export function AuthProvider({ children }) {
       if (!roleMatchesSelection(data.role)) {
         const selected = sessionStorage.getItem("selectedRole");
         toast.error(
-          `This account is not a ${selected} account. Please go back and select the correct role.`,
+          `This account is not a ${selected} account. Redirecting to role selection.`,
         );
         roleMismatchRef.current = true;
+        sessionStorage.removeItem("selectedRole");
+        setSelectedRole(null);
         await supabase.auth.signOut();
+        navigateRef.current?.("/select-role");
         return;
       }
 
@@ -145,7 +143,8 @@ export function AuthProvider({ children }) {
       supabase
         .from("profiles")
         .update({ last_login: new Date().toISOString() })
-        .eq("id", sessionUser.id);
+        .eq("id", sessionUser.id)
+        .then(({ error }) => { if (error) console.error("last_login update failed:", error); });
     } catch (error) {
       if (error.name !== "AbortError") {
         console.error("Profile fetch error:", error);
@@ -324,7 +323,9 @@ export function AuthProvider({ children }) {
     supabase
       .from("profiles")
       .update({ last_login: new Date().toISOString() })
-      .eq("id", pendingUser.id);
+      .eq("id", pendingUser.id)
+      .then(({ error }) => { if (error) console.error("last_login update failed:", error); });
+    navigateRef.current?.("/dashboard");
   };
 
   const cancel2FA = async () => {

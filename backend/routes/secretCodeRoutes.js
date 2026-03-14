@@ -47,10 +47,10 @@ router.post("/", requireAuth, requireSuperAdmin, async (req, res) => {
       return res.status(400).json({ success: false, error: "Invalid role" });
     }
 
-    // Generate a secure random code: PREFIX-XXXX-XXXX
+    // Generate a high-entropy code: PREFIX-XXXXXX-XXXXXX (12 random hex chars = 48 bits)
     const prefix = { signatory: "SIGN", librarian: "LIB", cashier: "CASH", registrar: "REG" }[role];
-    const random = crypto.randomBytes(4).toString("hex").toUpperCase();
-    const code = `${prefix}-${random.slice(0, 4)}-${random.slice(4)}`;
+    const random = crypto.randomBytes(6).toString("hex").toUpperCase();
+    const code = `${prefix}-${random.slice(0, 6)}-${random.slice(6)}`;
 
     const { data, error } = await supabase
       .from("admin_secret_codes")

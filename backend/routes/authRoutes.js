@@ -5,8 +5,12 @@ const rateLimit = require("express-rate-limit");
 const nodemailer = require("nodemailer");
 const supabase = require("../supabaseClient");
 const twoFactorRoutes = require("./twoFactorRoutes");
+const { validatePassword } = require("../utils/validatePassword");
 
 // ── Email verification OTP store (in-memory, same pattern as 2FA OTPs) ──
+// WARNING: In-memory storage. OTPs are lost on server restart and won't work
+// with horizontal scaling (multiple instances). For production at scale,
+// migrate to Redis or a database table with TTL.
 const EMAIL_VERIFY_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 const EMAIL_VERIFY_COOLDOWN_MS = 60 * 1000; // 60 seconds between resends
 const EMAIL_VERIFY_MAX_ATTEMPTS = 5;
@@ -389,24 +393,9 @@ router.post("/signup", signupLimiter, async (req, res) => {
       });
     }
 
-    if (password.length < 8) {
-      return res.status(400).json({
-        success: false,
-        error: "Password must be at least 8 characters",
-      });
-    }
-
-    const hasUppercase = /[A-Z]/.test(password);
-    const hasLowercase = /[a-z]/.test(password);
-    const hasNumber = /[0-9]/.test(password);
-    const hasSpecial = /[^A-Za-z0-9]/.test(password);
-
-    if (!hasUppercase || !hasLowercase || !hasNumber || !hasSpecial) {
-      return res.status(400).json({
-        success: false,
-        error:
-          "Password must contain uppercase, lowercase, number, and special character",
-      });
+    const pwCheck = validatePassword(password);
+    if (!pwCheck.valid) {
+      return res.status(400).json({ success: false, error: pwCheck.error });
     }
 
     const { data: authData, error: authError } =
@@ -592,24 +581,9 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
       });
     }
 
-    if (password.length < 8) {
-      return res.status(400).json({
-        success: false,
-        error: "Password must be at least 8 characters",
-      });
-    }
-
-    const hasUppercase = /[A-Z]/.test(password);
-    const hasLowercase = /[a-z]/.test(password);
-    const hasNumber = /[0-9]/.test(password);
-    const hasSpecial = /[^A-Za-z0-9]/.test(password);
-
-    if (!hasUppercase || !hasLowercase || !hasNumber || !hasSpecial) {
-      return res.status(400).json({
-        success: false,
-        error:
-          "Password must contain uppercase, lowercase, number, and special character",
-      });
+    const pwCheck = validatePassword(password);
+    if (!pwCheck.valid) {
+      return res.status(400).json({ success: false, error: pwCheck.error });
     }
 
     const similarity = faceVerification.similarity;
