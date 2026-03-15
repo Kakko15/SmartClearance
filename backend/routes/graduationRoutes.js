@@ -2,6 +2,65 @@ const express = require("express");
 const router = express.Router();
 const supabase = require("../supabaseClient");
 const { requireAuth } = require("../middleware/authMiddleware");
+const { logAction, ACTIONS } = require("../services/auditService");
+const { resolveUserEmail, sendEmail } = require("../services/notificationService");
+
+/**
+ * Feature 7: Email notification for clearance status changes.
+ * Fire-and-forget — never blocks the response.
+ */
+async function notifyClearanceStatusChange(requestId, status, stageName, comments) {
+  try {
+    const { data: request } = await supabase
+      .from("requests")
+      .select("student_id")
+      .eq("id", requestId)
+      .single();
+    if (!request) return;
+
+    const { data: student } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", request.student_id)
+      .single();
+    if (!student) return;
+
+    const email = await resolveUserEmail(request.student_id);
+    if (!email) return;
+
+    const isCompleted = status === "completed";
+    const isRejected = status === "rejected";
+
+    const subject = isCompleted
+      ? "🎉 Graduation Clearance Completed!"
+      : isRejected
+        ? `Clearance On Hold — ${stageName}`
+        : `Clearance Approved — ${stageName}`;
+
+    const statusColor = isCompleted ? "#22c55e" : isRejected ? "#ef4444" : "#3b82f6";
+    const statusLabel = isCompleted ? "Completed" : isRejected ? "On Hold" : "Approved";
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #22c55e; margin: 0;">SmartClearance</h1>
+        </div>
+        <h2 style="color: ${statusColor};">${subject}</h2>
+        <p>Dear ${student.full_name},</p>
+        <p>Your graduation clearance has been <strong style="color: ${statusColor};">${statusLabel}</strong> at the <strong>${stageName}</strong> stage.</p>
+        ${comments ? `<p><strong>Comments:</strong> ${comments}</p>` : ""}
+        ${isCompleted ? "<p>You can now download your graduation clearance certificate from the SmartClearance dashboard.</p>" : ""}
+        ${isRejected ? "<p>Please check the comments and address any issues through your SmartClearance dashboard.</p>" : ""}
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;" />
+        <p style="color: #9ca3af; font-size: 12px; text-align: center;">SmartClearance — Isabela State University</p>
+      </div>
+    `;
+
+    await sendEmail(request.student_id, requestId, email, subject, html);
+  } catch (error) {
+    console.warn("Clearance notification failed:", error.message);
+  }
+}
 
 router.post("/apply", requireAuth, async (req, res) => {
   try {
@@ -530,6 +589,14 @@ router.post("/professor/approve", requireAuth, async (req, res) => {
       approval: data,
       message: "Student approved successfully",
     });
+
+    // Fire-and-forget: audit log + email notification
+    logAction(professor_id, ACTIONS.CLEARANCE_PROFESSOR_APPROVED, {
+      targetId: data.request_id,
+      targetType: "request",
+      metadata: { approval_id, comments },
+    });
+    notifyClearanceStatusChange(data.request_id, "approved", "Professor/Signatory", comments);
   } catch (error) {
     console.error("Error approving student:", error);
     res.status(500).json({
@@ -569,6 +636,14 @@ router.post("/professor/reject", requireAuth, async (req, res) => {
       approval: data,
       message: "Student rejected with comments",
     });
+
+    // Fire-and-forget: audit log + email notification
+    logAction(professor_id, ACTIONS.CLEARANCE_PROFESSOR_REJECTED, {
+      targetId: data.request_id,
+      targetType: "request",
+      metadata: { approval_id, comments },
+    });
+    notifyClearanceStatusChange(data.request_id, "rejected", "Professor/Signatory", comments);
   } catch (error) {
     console.error("Error rejecting student:", error);
     res.status(500).json({
@@ -659,6 +734,11 @@ router.post("/library/approve", requireAuth, async (req, res) => {
       request: data,
       message: "Library clearance approved",
     });
+
+    logAction(admin_id, ACTIONS.CLEARANCE_LIBRARY_APPROVED, {
+      targetId: request_id, targetType: "request", metadata: { comments },
+    });
+    notifyClearanceStatusChange(request_id, "approved", "Campus Librarian", comments);
   } catch (error) {
     console.error("Error approving library:", error);
     res.status(500).json({
@@ -698,6 +778,11 @@ router.post("/library/reject", requireAuth, async (req, res) => {
       request: data,
       message: "Library clearance rejected",
     });
+
+    logAction(admin_id, ACTIONS.CLEARANCE_LIBRARY_REJECTED, {
+      targetId: request_id, targetType: "request", metadata: { comments },
+    });
+    notifyClearanceStatusChange(request_id, "rejected", "Campus Librarian", comments);
   } catch (error) {
     console.error("Error rejecting library:", error);
     res.status(500).json({
@@ -787,6 +872,11 @@ router.post("/cashier/approve", requireAuth, async (req, res) => {
       request: data,
       message: "Cashier clearance approved",
     });
+
+    logAction(admin_id, ACTIONS.CLEARANCE_CASHIER_APPROVED, {
+      targetId: request_id, targetType: "request", metadata: { comments },
+    });
+    notifyClearanceStatusChange(request_id, "approved", "Chief Accountant", comments);
   } catch (error) {
     console.error("Error approving cashier:", error);
     res.status(500).json({
@@ -826,6 +916,11 @@ router.post("/cashier/reject", requireAuth, async (req, res) => {
       request: data,
       message: "Cashier clearance rejected",
     });
+
+    logAction(admin_id, ACTIONS.CLEARANCE_CASHIER_REJECTED, {
+      targetId: request_id, targetType: "request", metadata: { comments },
+    });
+    notifyClearanceStatusChange(request_id, "rejected", "Chief Accountant", comments);
   } catch (error) {
     console.error("Error rejecting cashier:", error);
     res.status(500).json({
@@ -955,6 +1050,11 @@ router.post("/registrar/approve", requireAuth, async (req, res) => {
         ? "Graduation clearance completed and certificate generated"
         : "Registrar approved. Waiting for remaining approvals to complete clearance.",
     });
+
+    logAction(admin_id, ACTIONS.CLEARANCE_REGISTRAR_APPROVED, {
+      targetId: request_id, targetType: "request", metadata: { comments, canComplete, certificateNumber },
+    });
+    notifyClearanceStatusChange(request_id, canComplete ? "completed" : "approved", "Record Evaluator", comments);
   } catch (error) {
     console.error("Error approving registrar:", error);
     res.status(500).json({
@@ -994,6 +1094,11 @@ router.post("/registrar/reject", requireAuth, async (req, res) => {
       request: data,
       message: "Registrar clearance rejected",
     });
+
+    logAction(admin_id, ACTIONS.CLEARANCE_REGISTRAR_REJECTED, {
+      targetId: request_id, targetType: "request", metadata: { comments },
+    });
+    notifyClearanceStatusChange(request_id, "rejected", "Record Evaluator", comments);
   } catch (error) {
     console.error("Error rejecting registrar:", error);
     res.status(500).json({

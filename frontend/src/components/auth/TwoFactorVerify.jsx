@@ -245,6 +245,7 @@ export default function TwoFactorVerify({ userId, email, isDark, onVerified, onC
                     type="text"
                     inputMode="numeric"
                     maxLength={1}
+                    aria-label={`Digit ${i + 1} of 6`}
                     value={code[i] || ""}
                     onChange={(e) => handleCodeChange(i, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(i, e)}
@@ -324,6 +325,7 @@ export default function TwoFactorVerify({ userId, email, isDark, onVerified, onC
                         type="text"
                         inputMode="numeric"
                         maxLength={1}
+                        aria-label={`Digit ${i + 1} of 6`}
                         value={code[i] || ""}
                         onChange={(e) => handleCodeChange(i, e.target.value)}
                         onKeyDown={(e) => handleKeyDown(i, e)}

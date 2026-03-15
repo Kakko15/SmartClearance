@@ -7,14 +7,11 @@ const supabase = require("../supabaseClient");
 const twoFactorRoutes = require("./twoFactorRoutes");
 const { validatePassword } = require("../utils/validatePassword");
 
-// ── Email verification OTP store (in-memory, same pattern as 2FA OTPs) ──
-// WARNING: In-memory storage. OTPs are lost on server restart and won't work
-// with horizontal scaling (multiple instances). For production at scale,
-// migrate to Redis or a database table with TTL.
+const { TOKEN_TYPES, setToken, getToken, incrementAttempts, deleteToken } = require("../services/otpStore");
+
 const EMAIL_VERIFY_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 const EMAIL_VERIFY_COOLDOWN_MS = 60 * 1000; // 60 seconds between resends
 const EMAIL_VERIFY_MAX_ATTEMPTS = 5;
-const emailVerifyOTPs = new Map();
 
 function getEmailTransporter() {
   return nodemailer.createTransport({
@@ -469,7 +466,7 @@ router.post("/signup", signupLimiter, async (req, res) => {
     await sendVerificationEmail(authData.user.id, email);
 
     // Generate a short-lived signup token for 2FA setup authentication
-    const signupToken = twoFactorRoutes.generateSignupToken(authData.user.id);
+    const signupToken = await twoFactorRoutes.generateSignupToken(authData.user.id);
 
     res.json({
       success: true,
@@ -677,7 +674,7 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
     await sendVerificationEmail(authData.user.id, email);
 
     // Generate a short-lived signup token for 2FA setup authentication
-    const signupToken = twoFactorRoutes.generateSignupToken(authData.user.id);
+    const signupToken = await twoFactorRoutes.generateSignupToken(authData.user.id);
 
     res.json({
       success: true,
@@ -709,14 +706,12 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
 
 async function sendVerificationEmail(userId, email) {
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  const now = Date.now();
 
-  emailVerifyOTPs.set(userId, {
-    otp,
+  await setToken(userId, TOKEN_TYPES.EMAIL_VERIFY, {
+    tokenValue: otp,
     email,
-    expiresAt: now + EMAIL_VERIFY_EXPIRY_MS,
-    createdAt: now,
-    attempts: 0,
+    expiresInMs: EMAIL_VERIFY_EXPIRY_MS,
+    maxAttempts: EMAIL_VERIFY_MAX_ATTEMPTS,
   });
 
   const transporter = getEmailTransporter();
@@ -775,7 +770,7 @@ router.post("/send-verification-email", sendVerifyEmailLimiter, async (req, res)
     }
 
     // Enforce cooldown
-    const existing = emailVerifyOTPs.get(userId);
+    const existing = await getToken(userId, TOKEN_TYPES.EMAIL_VERIFY);
     if (existing && (Date.now() - existing.createdAt) < EMAIL_VERIFY_COOLDOWN_MS) {
       const waitSec = Math.ceil((EMAIL_VERIFY_COOLDOWN_MS - (Date.now() - existing.createdAt)) / 1000);
       return res.status(429).json({
@@ -811,27 +806,30 @@ router.post("/verify-email", verifyEmailLimiter, async (req, res) => {
       return res.status(400).json({ success: false, error: "User ID and code are required" });
     }
 
-    const stored = emailVerifyOTPs.get(userId);
+    const stored = await getToken(userId, TOKEN_TYPES.EMAIL_VERIFY);
     if (!stored) {
       return res.status(400).json({ success: false, error: "No verification code found. Please request a new one." });
     }
 
     if (Date.now() > stored.expiresAt) {
-      emailVerifyOTPs.delete(userId);
+      await deleteToken(userId, TOKEN_TYPES.EMAIL_VERIFY);
       return res.status(400).json({ success: false, error: "Code expired. Please request a new one." });
     }
 
     if (stored.attempts >= EMAIL_VERIFY_MAX_ATTEMPTS) {
-      emailVerifyOTPs.delete(userId);
+      await deleteToken(userId, TOKEN_TYPES.EMAIL_VERIFY);
       return res.status(429).json({ success: false, error: "Too many failed attempts. Please request a new code." });
     }
 
-    if (stored.otp !== code.toString().trim()) {
-      stored.attempts += 1;
-      const remaining = EMAIL_VERIFY_MAX_ATTEMPTS - stored.attempts;
+    if (stored.tokenValue !== code.toString().trim()) {
+      const newAttempts = await incrementAttempts(userId, TOKEN_TYPES.EMAIL_VERIFY);
+      const remaining = EMAIL_VERIFY_MAX_ATTEMPTS - newAttempts;
+      if (remaining <= 0) {
+        await deleteToken(userId, TOKEN_TYPES.EMAIL_VERIFY);
+      }
       return res.status(400).json({
         success: false,
-        error: `Invalid code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`,
+        error: `Invalid code. ${Math.max(remaining, 0)} attempt${remaining === 1 ? "" : "s"} remaining.`,
       });
     }
 
@@ -845,7 +843,7 @@ router.post("/verify-email", verifyEmailLimiter, async (req, res) => {
       return res.status(500).json({ success: false, error: "Failed to verify email. Please try again." });
     }
 
-    emailVerifyOTPs.delete(userId);
+    await deleteToken(userId, TOKEN_TYPES.EMAIL_VERIFY);
 
     // Audit log
     try {
@@ -853,7 +851,7 @@ router.post("/verify-email", verifyEmailLimiter, async (req, res) => {
         user_id: userId,
         action: "email_verified",
         success: true,
-        metadata: { email: stored.email },
+        metadata: { email: stored.email || email },
       });
     } catch (logError) {
       console.warn("Auth audit log insert failed:", logError.message);

@@ -3,8 +3,9 @@ const router = express.Router();
 const crypto = require("crypto");
 const supabase = require("../supabaseClient");
 const { requireAuth } = require("../middleware/authMiddleware");
+const { logAction, ACTIONS } = require("../services/auditService");
 
-const { ROLES, isStaffRole, isManagementRole } = require("../constants/roles");
+const { ROLES } = require("../constants/roles");
 
 // Only super_admin can manage secret codes
 async function requireSuperAdmin(req, res, next) {
@@ -47,10 +48,10 @@ router.post("/", requireAuth, requireSuperAdmin, async (req, res) => {
       return res.status(400).json({ success: false, error: "Invalid role" });
     }
 
-    // Generate a high-entropy code: PREFIX-XXXXXX-XXXXXX (12 random hex chars = 48 bits)
+    // Generate a high-entropy code: PREFIX-XXXXXXXX-XXXXXXXX (16 random bytes = 128 bits)
     const prefix = { signatory: "SIGN", librarian: "LIB", cashier: "CASH", registrar: "REG" }[role];
-    const random = crypto.randomBytes(6).toString("hex").toUpperCase();
-    const code = `${prefix}-${random.slice(0, 6)}-${random.slice(6)}`;
+    const random = crypto.randomBytes(16).toString("base64url").toUpperCase().slice(0, 16);
+    const code = `${prefix}-${random.slice(0, 8)}-${random.slice(8)}`;
 
     const { data, error } = await supabase
       .from("admin_secret_codes")
@@ -67,6 +68,9 @@ router.post("/", requireAuth, requireSuperAdmin, async (req, res) => {
       .single();
 
     if (error) throw error;
+    logAction(req.user.id, ACTIONS.SECRET_CODE_CREATED, {
+      targetId: data.id, targetType: "secret_code", metadata: { role, code },
+    });
     res.json({ success: true, code: data });
   } catch (error) {
     console.error("Error creating secret code:", error);
@@ -97,6 +101,9 @@ router.patch("/:id/toggle", requireAuth, requireSuperAdmin, async (req, res) => 
       .single();
 
     if (error) throw error;
+    logAction(req.user.id, ACTIONS.SECRET_CODE_TOGGLED, {
+      targetId: id, targetType: "secret_code", metadata: { newState: !existing.is_active },
+    });
     res.json({ success: true, code: data });
   } catch (error) {
     console.error("Error toggling secret code:", error);
@@ -115,6 +122,9 @@ router.delete("/:id", requireAuth, requireSuperAdmin, async (req, res) => {
       .eq("id", id);
 
     if (error) throw error;
+    logAction(req.user.id, ACTIONS.SECRET_CODE_DELETED, {
+      targetId: id, targetType: "secret_code",
+    });
     res.json({ success: true, message: "Code deleted" });
   } catch (error) {
     console.error("Error deleting secret code:", error);

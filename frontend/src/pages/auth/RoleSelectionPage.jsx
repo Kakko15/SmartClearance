@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import Particles from "../../components/visuals/Particles";
 import logo from "../../assets/logo.png";
@@ -11,6 +11,37 @@ export default function RoleSelectionPage({
 }) {
   const [showAdminModal, setShowAdminModal] = useState(false);
   const navigate = useNavigate();
+  const modalRef = useRef(null);
+  const triggerRef = useRef(null);
+
+  // Focus trap for admin modal
+  const handleModalKeyDown = useCallback((e) => {
+    if (e.key === "Escape") {
+      setShowAdminModal(false);
+      triggerRef.current?.focus();
+      return;
+    }
+    if (e.key !== "Tab" || !modalRef.current) return;
+    const focusable = modalRef.current.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey) {
+      if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+    } else {
+      if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  }, []);
+
+  // Auto-focus first button when modal opens
+  useEffect(() => {
+    if (showAdminModal && modalRef.current) {
+      const firstBtn = modalRef.current.querySelector("button");
+      firstBtn?.focus();
+    }
+  }, [showAdminModal]);
 
   useEffect(() => {
     document.title = "SmartClearance";
@@ -146,11 +177,19 @@ export default function RoleSelectionPage({
     },
   ];
 
-  const handleRoleClick = (roleId) => {
+  const handleRoleClick = (roleId, e) => {
     if (roleId === "staff") {
+      triggerRef.current = e?.currentTarget;
       setShowAdminModal(true);
     } else {
       onRoleSelect(roleId);
+    }
+  };
+
+  const handleRoleKeyDown = (roleId, e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      handleRoleClick(roleId, e);
     }
   };
 
@@ -170,7 +209,7 @@ export default function RoleSelectionPage({
             particleColors={
               isDark ? ["#4ade80", "#facc15"] : ["#22c55e", "#eab308"]
             }
-            particleCount={120}
+            particleCount={40}
             particleSpread={10}
             speed={0.1}
             particleBaseSize={100}
@@ -245,11 +284,15 @@ export default function RoleSelectionPage({
           {roles.map((role, index) => (
             <motion.div
               key={role.id}
+              role="button"
+              tabIndex={0}
+              aria-label={`${role.title} — ${role.description}`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.4 + index * 0.1 }}
               whileHover={{ scale: 1.05, y: -5 }}
-              onClick={() => handleRoleClick(role.id)}
+              onClick={(e) => handleRoleClick(role.id, e)}
+              onKeyDown={(e) => handleRoleKeyDown(role.id, e)}
               className={`cursor-pointer rounded-2xl overflow-hidden transition-all duration-300 ${
                 isDark
                   ? "spatial-glass-dark hover:shadow-2xl hover:shadow-green-500/20"
@@ -300,11 +343,16 @@ export default function RoleSelectionPage({
               onClick={() => setShowAdminModal(false)}
             >
               <motion.div
+                ref={modalRef}
+                role="dialog"
+                aria-modal="true"
+                aria-label="Select Staff Type"
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
                 transition={{ type: "spring", duration: 0.5 }}
                 onClick={(e) => e.stopPropagation()}
+                onKeyDown={handleModalKeyDown}
                 className={`w-full max-w-2xl rounded-3xl overflow-hidden ${isDark ? "spatial-glass-dark" : "spatial-glass"}`}
               >
                 <div
@@ -324,7 +372,8 @@ export default function RoleSelectionPage({
                       </p>
                     </div>
                     <button
-                      onClick={() => setShowAdminModal(false)}
+                      onClick={() => { setShowAdminModal(false); triggerRef.current?.focus(); }}
+                      aria-label="Close staff type selection"
                       className={`p-2 rounded-xl transition-colors ${isDark ? "hover:bg-white/10 text-slate-400 hover:text-white" : "hover:bg-gray-100 text-gray-500 hover:text-gray-900"}`}
                     >
                       <svg

@@ -7,38 +7,35 @@ const QRCode = require("qrcode");
 const nodemailer = require("nodemailer");
 const supabase = require("../supabaseClient");
 
+const { TOKEN_TYPES, setToken, getToken, incrementAttempts, deleteToken, markSetupUsed } = require("../services/otpStore");
+
 const isDev = process.env.NODE_ENV !== "production";
 
-// WARNING: In-memory storage. OTPs/tokens are lost on server restart and won't
-// work with horizontal scaling. For production at scale, migrate to Redis or DB.
 const OTP_EXPIRY_MS = 3 * 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
 const OTP_COOLDOWN_MS = 60 * 1000;
 
-const emailOTPs = new Map();
-
 // ── Signup tokens: short-lived, single-use tokens issued after account creation ──
-// Prevents unauthenticated 2FA setup by requiring proof of recent signup.
 const SIGNUP_TOKEN_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
-const signupTokens = new Map();
 
-function generateSignupToken(userId) {
+async function generateSignupToken(userId) {
   const token = crypto.randomBytes(32).toString("hex");
-  signupTokens.set(userId, { token, createdAt: Date.now(), setupUsed: false });
-  // Auto-cleanup after expiry
-  setTimeout(() => signupTokens.delete(userId), SIGNUP_TOKEN_EXPIRY_MS);
+  await setToken(userId, TOKEN_TYPES.SIGNUP_TOKEN, {
+    tokenValue: token,
+    expiresInMs: SIGNUP_TOKEN_EXPIRY_MS,
+  });
   return token;
 }
 
-function validateSignupToken(userId, token) {
-  const stored = signupTokens.get(userId);
+async function validateSignupToken(userId, token) {
+  const stored = await getToken(userId, TOKEN_TYPES.SIGNUP_TOKEN);
   if (!stored) return { valid: false, reason: "No signup token found. Please sign up again." };
-  if (Date.now() - stored.createdAt > SIGNUP_TOKEN_EXPIRY_MS) {
-    signupTokens.delete(userId);
+  if (Date.now() > stored.expiresAt) {
+    await deleteToken(userId, TOKEN_TYPES.SIGNUP_TOKEN);
     return { valid: false, reason: "Signup token expired. Please sign up again." };
   }
-  if (stored.token !== token) return { valid: false, reason: "Invalid signup token." };
-  return { valid: true };
+  if (stored.tokenValue !== token) return { valid: false, reason: "Invalid signup token." };
+  return { valid: true, setupUsed: stored.setupUsed };
 }
 
 // Expose for authRoutes to call after signup
@@ -92,17 +89,16 @@ router.post("/setup", async (req, res) => {
     }
 
     // Validate the short-lived signup token
-    const tokenCheck = validateSignupToken(userId, signupToken);
+    const tokenCheck = await validateSignupToken(userId, signupToken);
     if (!tokenCheck.valid) {
       return res.status(401).json({ success: false, error: tokenCheck.reason });
     }
 
     // Mark setup as used — only one /setup call per signup token
-    const stored = signupTokens.get(userId);
-    if (stored.setupUsed) {
+    if (tokenCheck.setupUsed) {
       return res.status(401).json({ success: false, error: "2FA setup already initiated. Please verify your code." });
     }
-    stored.setupUsed = true;
+    await markSetupUsed(userId);
 
     const secret = generateSecret();
     const otpauthUrl = generateURI({
@@ -148,7 +144,7 @@ router.post("/verify-setup", async (req, res) => {
     }
 
     // Validate the signup token (must be same one used for /setup)
-    const tokenCheck = validateSignupToken(userId, signupToken);
+    const tokenCheck = await validateSignupToken(userId, signupToken);
     if (!tokenCheck.valid) {
       return res.status(401).json({ success: false, error: tokenCheck.reason });
     }
@@ -175,7 +171,7 @@ router.post("/verify-setup", async (req, res) => {
       .eq("id", userId);
 
     // Cleanup: signup token is no longer needed
-    signupTokens.delete(userId);
+    await deleteToken(userId, TOKEN_TYPES.SIGNUP_TOKEN);
 
     res.json({ success: true, message: "2FA enabled successfully" });
   } catch (error) {
@@ -223,7 +219,7 @@ router.post("/send-email-otp", sendOtpLimiter, async (req, res) => {
       return res.status(400).json({ success: false, error: "User ID and email are required" });
     }
 
-    const existing = emailOTPs.get(userId);
+    const existing = await getToken(userId, TOKEN_TYPES.EMAIL_OTP);
     if (existing && (Date.now() - existing.createdAt) < OTP_COOLDOWN_MS) {
       const waitSec = Math.ceil((OTP_COOLDOWN_MS - (Date.now() - existing.createdAt)) / 1000);
       return res.status(429).json({
@@ -233,9 +229,12 @@ router.post("/send-email-otp", sendOtpLimiter, async (req, res) => {
     }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const now = Date.now();
 
-    emailOTPs.set(userId, { otp, expiresAt: now + OTP_EXPIRY_MS, createdAt: now, attempts: 0 });
+    await setToken(userId, TOKEN_TYPES.EMAIL_OTP, {
+      tokenValue: otp,
+      expiresInMs: OTP_EXPIRY_MS,
+      maxAttempts: OTP_MAX_ATTEMPTS,
+    });
 
     const expiryMinutes = Math.round(OTP_EXPIRY_MS / 60000);
 
@@ -288,33 +287,33 @@ router.post("/verify-email-otp", verifyOtpLimiter, async (req, res) => {
       return res.status(400).json({ success: false, error: "User ID and OTP are required" });
     }
 
-    const stored = emailOTPs.get(userId);
+    const stored = await getToken(userId, TOKEN_TYPES.EMAIL_OTP);
 
     if (!stored) {
       return res.status(400).json({ success: false, error: "No verification code found. Please request a new one." });
     }
 
     if (Date.now() > stored.expiresAt) {
-      emailOTPs.delete(userId);
+      await deleteToken(userId, TOKEN_TYPES.EMAIL_OTP);
       return res.status(400).json({ success: false, error: "Code expired. Please request a new one." });
     }
 
     if (stored.attempts >= OTP_MAX_ATTEMPTS) {
-      emailOTPs.delete(userId);
+      await deleteToken(userId, TOKEN_TYPES.EMAIL_OTP);
       return res.status(429).json({ success: false, error: "Too many failed attempts. Please request a new code." });
     }
 
-    if (stored.otp !== otp.toString()) {
-      stored.attempts += 1;
-      const remaining = OTP_MAX_ATTEMPTS - stored.attempts;
+    if (stored.tokenValue !== otp.toString()) {
+      const newAttempts = await incrementAttempts(userId, TOKEN_TYPES.EMAIL_OTP);
+      const remaining = OTP_MAX_ATTEMPTS - newAttempts;
       const msg = remaining > 0
         ? `Invalid code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`
         : "Too many failed attempts. Please request a new code.";
-      if (remaining <= 0) emailOTPs.delete(userId);
+      if (remaining <= 0) await deleteToken(userId, TOKEN_TYPES.EMAIL_OTP);
       return res.status(400).json({ success: false, error: msg });
     }
 
-    emailOTPs.delete(userId);
+    await deleteToken(userId, TOKEN_TYPES.EMAIL_OTP);
     res.json({ success: true, message: "2FA verified" });
   } catch (error) {
     console.error("Verify email OTP error:", error);

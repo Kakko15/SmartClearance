@@ -65,7 +65,7 @@ export default function AuthPage({
             particleColors={
               isDark ? ["#4ade80", "#facc15"] : ["#22c55e", "#eab308"]
             }
-            particleCount={120}
+            particleCount={40}
             particleSpread={10}
             speed={0.1}
             particleBaseSize={100}

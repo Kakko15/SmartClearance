@@ -144,7 +144,15 @@ export function AuthProvider({ children }) {
         .from("profiles")
         .update({ last_login: new Date().toISOString() })
         .eq("id", sessionUser.id)
-        .then(({ error }) => { if (error) console.error("last_login update failed:", error); });
+        .then(({ error }) => {
+          if (error) {
+            console.error("last_login update failed:", error);
+            // Retry once after 2s
+            setTimeout(() => {
+              supabase.from("profiles").update({ last_login: new Date().toISOString() }).eq("id", sessionUser.id);
+            }, 2000);
+          }
+        });
     } catch (error) {
       if (error.name !== "AbortError") {
         console.error("Profile fetch error:", error);
@@ -324,7 +332,14 @@ export function AuthProvider({ children }) {
       .from("profiles")
       .update({ last_login: new Date().toISOString() })
       .eq("id", pendingUser.id)
-      .then(({ error }) => { if (error) console.error("last_login update failed:", error); });
+      .then(({ error }) => {
+        if (error) {
+          console.error("last_login update failed:", error);
+          setTimeout(() => {
+            supabase.from("profiles").update({ last_login: new Date().toISOString() }).eq("id", pendingUser.id);
+          }, 2000);
+        }
+      });
     navigateRef.current?.("/dashboard");
   };
 

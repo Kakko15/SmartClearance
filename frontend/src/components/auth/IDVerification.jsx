@@ -287,7 +287,14 @@ export default function IDVerification({ onVerified, isDark, firstName, lastName
                 {processingStage === 'face_detect' ? '✓' : `${ocrProgress}%`}
               </span>
             </div>
-            <div className={`w-full rounded-full h-2 overflow-hidden ${isDark ? 'bg-slate-700' : 'bg-gray-200'}`}>
+            <div
+              role="progressbar"
+              aria-valuenow={processingStage === 'face_detect' ? 100 : ocrProgress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={processingStage === 'face_detect' ? 'Detecting face in ID' : 'Reading ID text'}
+              className={`w-full rounded-full h-2 overflow-hidden ${isDark ? 'bg-slate-700' : 'bg-gray-200'}`}
+            >
               <motion.div
                 className={`h-full rounded-full ${processingStage === 'face_detect' ? 'bg-green-500' : 'bg-blue-500'}`}
                 initial={{ width: 0 }}

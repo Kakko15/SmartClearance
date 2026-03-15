@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { getClearanceComments, authAxios } from "../services/api";
+import { getStudentTheme } from "../constants/dashboardThemes";
 import useRealtimeSubscription from "../hooks/useRealtimeSubscription";
 import GraduationCertificate from "../components/features/GraduationCertificate";
 import DashboardLayout, {
@@ -876,21 +877,7 @@ export default function StudentDashboardGraduation({
 
   const unresolvedCommentCount = clearanceStatus?.unresolvedCommentCount || 0;
 
-  const theme = {
-    name: "ISU Clearance",
-    abbrev: "SC",
-    dashboardTitle: "Student Dashboard",
-    sidebarGradient: isDarkMode ? "bg-[#202124] border-r border-[#3c4043]" : "bg-white border-r border-[#dadce0]",
-    sidebarActive: isDarkMode ? "bg-primary-900/30 text-primary-400" : "bg-primary-50 text-primary-600",
-    sidebarInactive: isDarkMode ? "text-[#e8eaed] hover:bg-[#3c4043]" : "text-[#3c4043] hover:bg-[#f1f3f4]",
-    accentGradient: isDarkMode ? "bg-primary-400 text-[#202124]" : "bg-primary-600",
-    dotColor: "bg-[#1e8e3e]",
-    bg: isDarkMode ? "bg-[#202124]" : "bg-[#f8f9fa]",
-    topbar: isDarkMode ? "bg-[#202124] border-b border-[#3c4043]" : "bg-white border-b border-[#dadce0]",
-    topbarText: isDarkMode ? "text-[#e8eaed]" : "text-[#202124]",
-    topbarSub: isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]",
-    topbarBtn: isDarkMode ? "hover:bg-[#3c4043]" : "hover:bg-[#f1f3f4]",
-  };
+  const theme = getStudentTheme(isDarkMode);
 
   const menuItems = [
     {

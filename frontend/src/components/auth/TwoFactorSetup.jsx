@@ -201,6 +201,7 @@ export default function TwoFactorSetup({ userId, email, signupToken, isDark, onC
                 type="text"
                 inputMode="numeric"
                 maxLength={1}
+                aria-label={`Digit ${i + 1} of 6`}
                 value={verifyCode[i] || ""}
                 onChange={(e) => handleCodeChange(i, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(i, e)}

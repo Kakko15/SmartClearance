@@ -83,7 +83,12 @@ const Loader = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#010a02] overflow-hidden">
+    <div
+      className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#010a02] overflow-hidden"
+      role="status"
+      aria-live="polite"
+      aria-label="Loading SmartClearance"
+    >
 
       <div className="absolute inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-[#010a02] via-[#051a08] to-[#010a02]" />
@@ -403,7 +408,14 @@ const Loader = () => {
             </div>
 
 
-            <div className="w-56 h-1 bg-white/10 rounded-full overflow-hidden">
+            <div
+              className="w-56 h-1 bg-white/10 rounded-full overflow-hidden"
+              role="progressbar"
+              aria-valuenow={loadingProgress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Loading progress"
+            >
               <motion.div
                 className="h-full rounded-full bg-gradient-to-r from-primary-500 to-secondary-400"
                 style={{
@@ -422,6 +434,7 @@ const Loader = () => {
             >
               {loadingProgress}%
             </motion.span>
+            <span className="sr-only">Loading SmartClearance, {loadingProgress} percent complete</span>
           </div>
         </div>
 

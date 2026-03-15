@@ -18,6 +18,18 @@ authAxios.interceptors.request.use(async (config) => {
   return config;
 });
 
+authAxios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Session expired — sign out and redirect
+      supabase.auth.signOut();
+      window.location.href = "/select-role";
+    }
+    return Promise.reject(error);
+  }
+);
+
 // ── Auth header helpers ─────────────────────────────────────────────────────
 
 async function getAuthHeaders() {
