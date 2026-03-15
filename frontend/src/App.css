@@ -58,3 +58,25 @@ html {
     display: none !important;
   }
 }
+
+/* G9: Print-friendly clearance progress */
+@media print {
+  body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  /* Hide everything except the progress tree card */
+  nav, aside, header, .print\\:hidden,
+  button, [role="navigation"], .sidebar {
+    display: none !important;
+  }
+  /* Remove backgrounds and shadows for clean print */
+  .min-h-screen {
+    background: white !important;
+    color: black !important;
+  }
+  /* Ensure the progress card prints nicely */
+  .grid-bg {
+    display: none !important;
+  }
+}

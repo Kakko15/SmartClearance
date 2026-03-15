@@ -175,15 +175,19 @@ function estimateProcessingTime(classification, stageCount) {
 
 async function logAIDecision(decisionData) {
   try {
-    await supabase.from("ai_routing_logs").insert({
+    const { error } = await supabase.from("ai_routing_logs").insert({
       student_id: decisionData.student_id,
       doc_type_id: decisionData.doc_type_id,
       classification: decisionData.classification,
       routing: decisionData.routing,
       timestamp: decisionData.timestamp,
     });
+    if (error) {
+      // Table may not exist yet — see migrations/add_ai_routing_logs.sql
+      console.warn("AI routing log skipped (table may not exist):", error.message);
+    }
   } catch (error) {
-    console.error("Failed to log AI decision:", error);
+    console.warn("AI routing log skipped:", error.message);
   }
 }
 
@@ -203,7 +207,7 @@ async function getRoutingStatistics(timeRange = "7d") {
       urgencyDistribution: getUrgencyDistribution(data),
     };
   } catch (error) {
-    console.error("Failed to get routing statistics:", error);
+    console.warn("Routing statistics unavailable (table may not exist):", error.message);
     return null;
   }
 }

@@ -5,9 +5,7 @@
  * Skips validation for safe methods (GET, HEAD, OPTIONS) and server-to-server requests.
  */
 
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || "http://localhost:5173")
-  .split(",")
-  .map((o) => o.trim());
+const { allowedOrigins } = require("../constants/allowedOrigins");
 
 function csrfProtection(req, res, next) {
   // Safe methods don't need CSRF protection

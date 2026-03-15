@@ -1,18 +1,20 @@
 const PDFDocument = require("pdfkit");
 const QRCode = require("qrcode");
-const { v4: uuidv4 } = require("uuid");
+const crypto = require("crypto");
 const supabase = require("../supabaseClient");
+const { escapeHtml } = require("../utils/escapeHtml");
 
 function generateCertificateNumber() {
+  // B2 FIX: Use crypto.randomBytes for collision-proof certificate numbers.
+  // Format: CERT-{year}-{8 hex chars} → 4 billion+ possible values per year.
   const year = new Date().getFullYear();
-  const random = Math.floor(Math.random() * 1000000)
-    .toString()
-    .padStart(6, "0");
+  const random = crypto.randomBytes(4).toString("hex").toUpperCase();
   return `CERT-${year}-${random}`;
 }
 
 function generateVerificationCode() {
-  return Math.random().toString(36).substring(2, 10).toUpperCase();
+  // Use crypto for verification codes too — 8 alphanumeric chars.
+  return crypto.randomBytes(5).toString("hex").substring(0, 8).toUpperCase();
 }
 
 async function generateCertificate(requestId) {
@@ -64,6 +66,12 @@ async function generateCertificate(requestId) {
       day: "numeric",
     });
 
+    // S10 FIX: Sanitize user-controlled values before writing to PDF
+    const safeName = escapeHtml(student.full_name || "");
+    const safeStudentNumber = escapeHtml(student.student_number || "");
+    const safeCourseYear = escapeHtml(student.course_year || "");
+    const safeDocTypeName = escapeHtml(docType.name || "");
+
     const doc = new PDFDocument({
       size: "A4",
       margins: { top: 50, bottom: 50, left: 50, right: 50 },
@@ -73,7 +81,9 @@ async function generateCertificate(requestId) {
     doc.on("data", (chunk) => chunks.push(chunk));
 
     const apiUrl = process.env.API_URL || "http://localhost:5000/api";
-    const qrCodeData = `${apiUrl}/certificates/verify/${verificationCode}`;
+    // G10: QR code points to frontend verification page, not raw API
+    const frontendUrl = (process.env.ALLOWED_ORIGINS || "http://localhost:5173").split(",")[0].trim();
+    const qrCodeData = `${frontendUrl}/verify/${verificationCode}`;
     const qrCodeImage = await QRCode.toDataURL(qrCodeData);
 
     doc
@@ -119,17 +129,17 @@ async function generateCertificate(requestId) {
       .fontSize(24)
       .fillColor("#28a745")
       .font("Helvetica-Bold")
-      .text(student.full_name, 0, 290, { align: "center" });
+      .text(safeName, 0, 290, { align: "center" });
 
     doc
       .fontSize(12)
       .fillColor("#666")
       .font("Helvetica")
-      .text(`Student Number: ${student.student_number}`, 0, 325, {
+      .text(`Student Number: ${safeStudentNumber}`, 0, 325, {
         align: "center",
       });
 
-    doc.text(`${student.course_year}`, 0, 345, { align: "center" });
+    doc.text(`${safeCourseYear}`, 0, 345, { align: "center" });
 
     doc.moveDown(2);
     doc
@@ -146,7 +156,7 @@ async function generateCertificate(requestId) {
       .fontSize(18)
       .fillColor("#28a745")
       .font("Helvetica-Bold")
-      .text(docType.name, 0, 410, { align: "center" });
+      .text(safeDocTypeName, 0, 410, { align: "center" });
 
     doc
       .fontSize(12)
@@ -202,7 +212,7 @@ async function generateCertificate(requestId) {
     doc
       .fontSize(8)
       .text(
-        `For verification, visit ${apiUrl}/certificates/verify or scan the QR code above.`,
+        `For verification, visit ${frontendUrl}/verify or scan the QR code above.`,
         0,
         doc.page.height - 80,
         {

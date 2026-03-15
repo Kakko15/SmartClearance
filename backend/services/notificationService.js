@@ -1,5 +1,6 @@
 const nodemailer = require("nodemailer");
 const supabase = require("../supabaseClient");
+const { escapeHtml } = require("../utils/escapeHtml");
 
 const emailTransporter = nodemailer.createTransport({
   host: process.env.EMAIL_HOST,
@@ -105,11 +106,11 @@ async function notifyRequestSubmitted(requestId, studentId) {
     const emailSubject = `Request Submitted - ${docType.name}`;
     const emailMessage = `
       <h2>Request Submitted Successfully</h2>
-      <p>Dear ${student.full_name},</p>
-      <p>Your request for <strong>${docType.name}</strong> has been submitted successfully.</p>
-      <p><strong>Request ID:</strong> ${requestId}</p>
+      <p>Dear ${escapeHtml(student.full_name)},</p>
+      <p>Your request for <strong>${escapeHtml(docType.name)}</strong> has been submitted successfully.</p>
+      <p><strong>Request ID:</strong> ${escapeHtml(requestId)}</p>
       <p><strong>Status:</strong> Pending</p>
-      <p><strong>Current Stage:</strong> ${docType.required_stages[0]}</p>
+      <p><strong>Current Stage:</strong> ${escapeHtml(docType.required_stages[0])}</p>
       <p>You will receive notifications as your request progresses through each stage.</p>
       <br>
       <p>Best regards,<br>SmartClearance Team</p>
@@ -159,9 +160,9 @@ async function notifyRequestApproved(
     const emailMessage = isCompleted
       ? `
         <h2>🎉 Clearance Completed!</h2>
-        <p>Dear ${student.full_name},</p>
-        <p>Congratulations! Your request for <strong>${docType.name}</strong> has been fully approved.</p>
-        <p><strong>Request ID:</strong> ${requestId}</p>
+        <p>Dear ${escapeHtml(student.full_name)},</p>
+        <p>Congratulations! Your request for <strong>${escapeHtml(docType.name)}</strong> has been fully approved.</p>
+        <p><strong>Request ID:</strong> ${escapeHtml(requestId)}</p>
         <p><strong>Status:</strong> Completed</p>
         <p>You can now download your clearance certificate from the SmartClearance dashboard.</p>
         <br>
@@ -169,11 +170,11 @@ async function notifyRequestApproved(
       `
       : `
         <h2>Request Approved</h2>
-        <p>Dear ${student.full_name},</p>
-        <p>Your request for <strong>${docType.name}</strong> has been approved at the <strong>${stageName}</strong> stage.</p>
-        <p><strong>Request ID:</strong> ${requestId}</p>
+        <p>Dear ${escapeHtml(student.full_name)},</p>
+        <p>Your request for <strong>${escapeHtml(docType.name)}</strong> has been approved at the <strong>${escapeHtml(stageName)}</strong> stage.</p>
+        <p><strong>Request ID:</strong> ${escapeHtml(requestId)}</p>
         <p><strong>Status:</strong> Approved</p>
-        <p><strong>Next Stage:</strong> ${docType.required_stages[request.current_stage_index]}</p>
+        <p><strong>Next Stage:</strong> ${escapeHtml(docType.required_stages[request.current_stage_index])}</p>
         <p>Your request is now being processed at the next stage.</p>
         <br>
         <p>Best regards,<br>SmartClearance Team</p>
@@ -214,11 +215,11 @@ async function notifyRequestRejected(requestId, studentId, stageName, reason) {
     const emailSubject = `Request On Hold - ${docType.name}`;
     const emailMessage = `
       <h2>Request Placed On Hold</h2>
-      <p>Dear ${student.full_name},</p>
-      <p>Your request for <strong>${docType.name}</strong> has been placed on hold at the <strong>${stageName}</strong> stage.</p>
-      <p><strong>Request ID:</strong> ${requestId}</p>
+      <p>Dear ${escapeHtml(student.full_name)},</p>
+      <p>Your request for <strong>${escapeHtml(docType.name)}</strong> has been placed on hold at the <strong>${escapeHtml(stageName)}</strong> stage.</p>
+      <p><strong>Request ID:</strong> ${escapeHtml(requestId)}</p>
       <p><strong>Status:</strong> On Hold</p>
-      <p><strong>Reason:</strong> ${reason}</p>
+      <p><strong>Reason:</strong> ${escapeHtml(reason)}</p>
       <p>Please address the issue mentioned above and resubmit your request from the SmartClearance dashboard.</p>
       <br>
       <p>Best regards,<br>SmartClearance Team</p>
@@ -254,10 +255,10 @@ async function notifyRequestEscalated(requestId, escalationLevel, daysPending) {
     const emailMessage = `
       <h2>Request Escalation Alert</h2>
       <p>A request has been pending for <strong>${daysPending} days</strong> and requires attention.</p>
-      <p><strong>Request ID:</strong> ${requestId}</p>
-      <p><strong>Student:</strong> ${student.full_name} (${student.student_number})</p>
-      <p><strong>Document Type:</strong> ${docType.name}</p>
-      <p><strong>Current Stage:</strong> ${currentStage}</p>
+      <p><strong>Request ID:</strong> ${escapeHtml(requestId)}</p>
+      <p><strong>Student:</strong> ${escapeHtml(student.full_name)} (${escapeHtml(student.student_number)})</p>
+      <p><strong>Document Type:</strong> ${escapeHtml(docType.name)}</p>
+      <p><strong>Current Stage:</strong> ${escapeHtml(currentStage)}</p>
       <p><strong>Escalation Level:</strong> ${escalationLevel}</p>
       <p><strong>Days Pending:</strong> ${daysPending}</p>
       <p>Please review and expedite this request.</p>
@@ -283,9 +284,9 @@ async function notifyRequestEscalated(requestId, escalationLevel, daysPending) {
     const studentEmailSubject = `Request Update - ${docType.name}`;
     const studentEmailMessage = `
       <h2>Request Status Update</h2>
-      <p>Dear ${student.full_name},</p>
-      <p>Your request for <strong>${docType.name}</strong> has been escalated for faster processing.</p>
-      <p><strong>Request ID:</strong> ${requestId}</p>
+      <p>Dear ${escapeHtml(student.full_name)},</p>
+      <p>Your request for <strong>${escapeHtml(docType.name)}</strong> has been escalated for faster processing.</p>
+      <p><strong>Request ID:</strong> ${escapeHtml(requestId)}</p>
       <p>We are working to expedite your request. You will be notified once it is processed.</p>
       <br>
       <p>Best regards,<br>SmartClearance Team</p>
@@ -333,12 +334,12 @@ async function notifyNewComment(requestId, commenterId, commentText) {
       const emailSubject = `New Comment on Your Request - ${docType.name}`;
       const emailMessage = `
         <h2>New Comment on Your Request</h2>
-        <p>Dear ${student.full_name},</p>
-        <p><strong>${commenter.full_name}</strong> has commented on your request for <strong>${docType.name}</strong>.</p>
-        <p><strong>Request ID:</strong> ${requestId}</p>
+        <p>Dear ${escapeHtml(student.full_name)},</p>
+        <p><strong>${escapeHtml(commenter.full_name)}</strong> has commented on your request for <strong>${escapeHtml(docType.name)}</strong>.</p>
+        <p><strong>Request ID:</strong> ${escapeHtml(requestId)}</p>
         <p><strong>Comment:</strong></p>
         <blockquote style="border-left: 3px solid #28a745; padding-left: 15px; color: #555;">
-          ${commentText}
+          ${escapeHtml(commentText)}
         </blockquote>
         <p>Please check your SmartClearance dashboard for more details.</p>
         <br>

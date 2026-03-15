@@ -34,6 +34,10 @@ export default function RegistrarAdminDashboard({
   const [comments, setComments] = useState("");
   const [activeView, setActiveView] = useState("pending");
   const [searchQuery, setSearchQuery] = useState("");
+  // G5: Bulk selection state
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   const [pendingAccounts, setPendingAccounts] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState(null);
@@ -194,6 +198,55 @@ export default function RegistrarAdminDashboard({
     );
   });
 
+  // G5: Bulk action handlers
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredRequests.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filteredRequests.map((r) => r.id)));
+  };
+
+  const handleBulkApprove = async () => {
+    if (selectedIds.size === 0) return;
+    setBulkLoading(true);
+    try {
+      const response = await authAxios.post("graduation/bulk-approve", {
+        request_ids: [...selectedIds], admin_id: adminId, stage: "registrar",
+      });
+      if (response.data.success) {
+        toast.success(`${response.data.results.approved.length} clearances approved`);
+        setSelectedIds(new Set()); setBulkMode(false); fetchPendingRequests();
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Bulk approve failed");
+    } finally { setBulkLoading(false); }
+  };
+
+  const handleBulkReject = async () => {
+    if (selectedIds.size === 0 || !comments.trim()) {
+      toast.error("Please provide a reason for rejection");
+      return;
+    }
+    setBulkLoading(true);
+    try {
+      const response = await authAxios.post("graduation/bulk-reject", {
+        request_ids: [...selectedIds], admin_id: adminId, stage: "registrar", comments: comments.trim(),
+      });
+      if (response.data.success) {
+        toast.success(`${response.data.results.rejected.length} clearances rejected`);
+        setSelectedIds(new Set()); setBulkMode(false); setComments(""); fetchPendingRequests();
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Bulk reject failed");
+    } finally { setBulkLoading(false); }
+  };
+
   const theme = getRegistrarTheme(isDarkMode);
 
   const menuItems = [
@@ -246,17 +299,49 @@ export default function RegistrarAdminDashboard({
             </div>
 
             {!loading && requests.length > 0 && (
-              <div className="relative">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Search by name or student number..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white/60 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all"
-                />
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="relative flex-1">
+                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <input
+                      type="text"
+                      placeholder="Search by name or student number..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white/60 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all"
+                    />
+                  </div>
+                  {filteredRequests.length > 1 && (
+                    <button
+                      onClick={() => { setBulkMode(!bulkMode); setSelectedIds(new Set()); }}
+                      className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
+                        bulkMode ? "bg-slate-700 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                      }`}
+                    >
+                      {bulkMode ? "Cancel Bulk" : "Bulk Actions"}
+                    </button>
+                  )}
+                </div>
+                {bulkMode && (
+                  <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={selectedIds.size === filteredRequests.length} onChange={toggleSelectAll} className="w-4 h-4 rounded" />
+                      <span className="text-sm font-medium text-gray-700">Select All ({selectedIds.size}/{filteredRequests.length})</span>
+                    </label>
+                    <div className="flex gap-2">
+                      <button onClick={handleBulkApprove} disabled={selectedIds.size === 0 || bulkLoading}
+                        className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-green-600 text-white disabled:opacity-50">
+                        {bulkLoading ? "..." : `Approve (${selectedIds.size})`}
+                      </button>
+                      <button onClick={handleBulkReject} disabled={selectedIds.size === 0 || bulkLoading || !comments.trim()}
+                        className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-red-600 text-white disabled:opacity-50">
+                        {bulkLoading ? "..." : `Reject (${selectedIds.size})`}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -328,14 +413,20 @@ export default function RegistrarAdminDashboard({
                           className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
                             selectedRequest?.id === req.id
                               ? "border-slate-400 bg-slate-50/50 shadow-lg shadow-slate-500/10"
-                              : "border-gray-100 bg-white/70 hover:border-slate-300 hover:shadow-md"
+                              : bulkMode && selectedIds.has(req.id)
+                                ? "border-blue-400 bg-blue-50/50 shadow-md"
+                                : "border-gray-100 bg-white/70 hover:border-slate-300 hover:shadow-md"
                           }`}
                           onClick={() => {
+                            if (bulkMode) { toggleSelect(req.id); return; }
                             setSelectedRequest(req);
                             setComments("");
                           }}
                         >
                           <div className="flex items-center gap-3">
+                            {bulkMode && (
+                              <input type="checkbox" checked={selectedIds.has(req.id)} onChange={() => toggleSelect(req.id)} onClick={(e) => e.stopPropagation()} className="w-4 h-4 rounded" />
+                            )}
                             <div className="w-10 h-10 bg-gradient-to-br from-slate-600 to-slate-800 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-slate-500/20">
                               {req.student?.full_name?.charAt(0) || "?"}
                             </div>

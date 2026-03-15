@@ -4,10 +4,7 @@ const express = require("express");
 const cors = require("cors");
 const app = express();
 
-// BUG 1 FIX: Restrict CORS to known frontend origins instead of allowing all
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || "http://localhost:5173")
-  .split(",")
-  .map((o) => o.trim());
+const { allowedOrigins } = require("./constants/allowedOrigins");
 
 app.use(
   cors({

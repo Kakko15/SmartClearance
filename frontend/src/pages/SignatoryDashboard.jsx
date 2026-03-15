@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import RequestComments from "../components/features/RequestComments";
@@ -17,6 +17,7 @@ import {
 } from "../components/ui/Icons";
 import { authAxios } from "../services/api";
 import { getSignatoryTheme } from "../constants/dashboardThemes";
+import useRealtimeSubscription from "../hooks/useRealtimeSubscription";
 
 export default function ProfessorDashboard({
   professorId,
@@ -35,13 +36,8 @@ export default function ProfessorDashboard({
   const [selectedRejectId, setSelectedRejectId] = useState(null);
   const [rejectReason, setRejectReason] = useState("");
 
-  useEffect(() => {
-    document.title = "Professor Dashboard | ISU Clearance";
-    fetchStudents();
-  }, []);
-
-  const fetchStudents = async () => {
-    setLoading(true);
+  const fetchStudents = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const response = await authAxios.get(
         `graduation/professor/students/${professorId}`,
@@ -49,11 +45,19 @@ export default function ProfessorDashboard({
       if (response.data.success) setStudents(response.data.approvals || []);
     } catch (error) {
       console.error("Error fetching students:", error);
-      toast.error("Failed to load student data");
+      if (!silent) toast.error("Failed to load student data");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  };
+  }, [professorId]);
+
+  useEffect(() => {
+    document.title = "Professor Dashboard | ISU Clearance";
+    fetchStudents();
+  }, [fetchStudents]);
+
+  // Live updates when professor_approvals change
+  useRealtimeSubscription("professor_approvals", () => fetchStudents(true));
 
   const handleApprove = async (approvalId) => {
     setActionLoading(true);

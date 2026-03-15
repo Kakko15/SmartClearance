@@ -222,6 +222,17 @@ router.post("/bulk-approve", requireAuth, async (req, res) => {
         results.failed.push(userId);
       } else {
         results.approved.push(userId);
+        // Write to auth_audit_log (matches single approve behavior)
+        try {
+          await supabase.from("auth_audit_log").insert({
+            user_id: userId,
+            action: "account_approved_by_admin",
+            success: true,
+            metadata: { approved_by: adminId, admin_role: admin.role, bulk: true },
+          });
+        } catch (logErr) {
+          console.warn("Auth audit log insert failed:", logErr.message);
+        }
       }
     }
 
@@ -279,6 +290,17 @@ router.post("/bulk-reject", requireAuth, async (req, res) => {
         results.failed.push(userId);
       } else {
         results.rejected.push(userId);
+        // Write to auth_audit_log (matches single reject behavior)
+        try {
+          await supabase.from("auth_audit_log").insert({
+            user_id: userId,
+            action: "account_rejected_by_admin",
+            success: true,
+            metadata: { rejected_by: adminId, admin_role: admin.role, reason, bulk: true },
+          });
+        } catch (logErr) {
+          console.warn("Auth audit log insert failed:", logErr.message);
+        }
       }
     }
 
@@ -300,38 +322,41 @@ router.post("/bulk-reject", requireAuth, async (req, res) => {
 
 router.get("/account-stats", requireAuth, async (req, res) => {
   try {
-    const { data: pending } = await supabase
+    // B4 FIX: With head:true, Supabase returns { count } not { data }.
+    // Destructure `count` directly from each query.
+    const { count: pendingCount } = await supabase
       .from("profiles")
       .select("id", { count: "exact", head: true })
       .eq("verification_status", "pending_review");
 
-    const { data: approved } = await supabase
+    const { count: approvedCount } = await supabase
       .from("profiles")
       .select("id", { count: "exact", head: true })
       .eq("verification_status", "approved");
 
-    const { data: autoApproved } = await supabase
+    const { count: autoApprovedCount } = await supabase
       .from("profiles")
       .select("id", { count: "exact", head: true })
       .eq("verification_status", "auto_approved");
 
-    const { data: rejected } = await supabase
+    const { count: rejectedCount } = await supabase
       .from("profiles")
       .select("id", { count: "exact", head: true })
       .eq("verification_status", "rejected");
 
+    const pending = pendingCount || 0;
+    const approved = approvedCount || 0;
+    const autoApproved = autoApprovedCount || 0;
+    const rejected = rejectedCount || 0;
+
     res.json({
       success: true,
       stats: {
-        pending: pending?.length || 0,
-        approved: approved?.length || 0,
-        autoApproved: autoApproved?.length || 0,
-        rejected: rejected?.length || 0,
-        total:
-          (pending?.length || 0) +
-          (approved?.length || 0) +
-          (autoApproved?.length || 0) +
-          (rejected?.length || 0),
+        pending,
+        approved,
+        autoApproved,
+        rejected,
+        total: pending + approved + autoApproved + rejected,
       },
     });
   } catch (error) {

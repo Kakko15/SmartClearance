@@ -13,16 +13,22 @@ const EMAIL_VERIFY_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 const EMAIL_VERIFY_COOLDOWN_MS = 60 * 1000; // 60 seconds between resends
 const EMAIL_VERIFY_MAX_ATTEMPTS = 5;
 
+// B9 FIX: Singleton transporter — reuse SMTP connection across all emails.
+// Lazy-initialized on first use so env vars are available.
+let _emailTransporter = null;
 function getEmailTransporter() {
-  return nodemailer.createTransport({
-    host: process.env.EMAIL_HOST,
-    port: parseInt(process.env.EMAIL_PORT),
-    secure: process.env.EMAIL_SECURE === "true",
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD,
-    },
-  });
+  if (!_emailTransporter) {
+    _emailTransporter = nodemailer.createTransport({
+      host: process.env.EMAIL_HOST,
+      port: parseInt(process.env.EMAIL_PORT),
+      secure: process.env.EMAIL_SECURE === "true",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASSWORD,
+      },
+    });
+  }
+  return _emailTransporter;
 }
 
 const isDev = process.env.NODE_ENV !== "production";

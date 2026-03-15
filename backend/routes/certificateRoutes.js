@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const rateLimit = require("express-rate-limit");
 const supabase = require("../supabaseClient");
 const { requireAuth } = require("../middleware/authMiddleware");
 const { isStaffRole, isManagementRole } = require("../constants/roles");
@@ -7,6 +8,16 @@ const {
   generateCertificate,
   verifyCertificate,
 } = require("../services/certificateService");
+
+// S9 FIX: Rate limit the public verification endpoint to prevent brute-force enumeration
+const isDev = process.env.NODE_ENV === "development";
+const verifyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: isDev ? 200 : 20,    // 20 verification attempts per 15 min per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many verification attempts. Please try again later." },
+});
 
 router.post("/generate", requireAuth, async (req, res) => {
   try {
@@ -132,7 +143,7 @@ router.get("/request/:request_id", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/verify/:code", async (req, res) => {
+router.get("/verify/:code", verifyLimiter, async (req, res) => {
   try {
     const { code } = req.params;
 

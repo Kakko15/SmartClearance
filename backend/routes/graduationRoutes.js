@@ -1,9 +1,156 @@
 const express = require("express");
 const router = express.Router();
+const crypto = require("crypto");
+const rateLimit = require("express-rate-limit");
 const supabase = require("../supabaseClient");
-const { requireAuth } = require("../middleware/authMiddleware");
+const { requireAuth, requireRole } = require("../middleware/authMiddleware");
 const { logAction, ACTIONS } = require("../services/auditService");
 const { resolveUserEmail, sendEmail } = require("../services/notificationService");
+const { escapeHtml } = require("../utils/escapeHtml");
+
+// ── S5 FIX: Rate limiting on graduation endpoints ────────────────────────────
+const isDev = process.env.NODE_ENV === "development";
+
+const graduationWriteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: isDev ? 200 : 30,    // 30 state-changing requests per 15 min
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many requests. Please try again later." },
+});
+
+const graduationReadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 500 : 120,   // 120 reads per 15 min
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many requests. Please try again later." },
+});
+
+// Apply read limiter to all GET routes, write limiter to all POST/DELETE routes
+router.use((req, _res, next) => {
+  if (req.method === "GET") return graduationReadLimiter(req, _res, next);
+  return graduationWriteLimiter(req, _res, next);
+});
+
+// ── S8 FIX: Max comment length ───────────────────────────────────────────────
+const MAX_COMMENT_LENGTH = 2000;
+
+// ── G4: Default deadline (30 days from now) ──────────────────────────────────
+const DEFAULT_DEADLINE_DAYS = 30;
+
+// ── G7: Log status transitions to clearance_status_history ───────────────────
+async function logStatusChange(requestId, stage, oldStatus, newStatus, changedBy, comments) {
+  try {
+    await supabase.from("clearance_status_history").insert({
+      request_id: requestId,
+      stage,
+      old_status: oldStatus,
+      new_status: newStatus,
+      changed_by: changedBy,
+      comments: comments || null,
+    });
+  } catch (err) {
+    console.warn("Status history log failed:", err.message);
+  }
+}
+
+// ── G6: Notify assigned signatories and admin staff when a student applies ───
+async function notifyStaffOfNewApplication(requestId, studentName, portion) {
+  try {
+    // Get all staff who might need to act on this request
+    const roles = ["librarian", "cashier", "registrar", "signatory"];
+    const { data: staff } = await supabase
+      .from("profiles")
+      .select("id, full_name, role")
+      .in("role", roles)
+      .eq("account_enabled", true);
+
+    if (!staff || staff.length === 0) return;
+
+    const subject = `New Graduation Clearance Application — ${escapeHtml(studentName)}`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h1 style="color: #22c55e;">SmartClearance</h1>
+        <h2>New Clearance Application</h2>
+        <p><strong>${escapeHtml(studentName)}</strong> has submitted a <strong>${escapeHtml(portion)}</strong> graduation clearance application.</p>
+        <p>Please check your SmartClearance dashboard to review when it reaches your stage.</p>
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
+        <p style="color: #9ca3af; font-size: 12px;">SmartClearance — Isabela State University</p>
+      </div>
+    `;
+
+    // Send to each staff member (fire-and-forget, don't block)
+    for (const member of staff) {
+      const email = await resolveUserEmail(member.id);
+      if (email) {
+        sendEmail(member.id, requestId, email, subject, html).catch(() => {});
+      }
+    }
+  } catch (err) {
+    console.warn("Staff notification failed:", err.message);
+  }
+}
+
+// ── B2 FIX: Collision-proof certificate number generator ─────────────────────
+function generateCertificateNumber() {
+  const year = new Date().getFullYear();
+  const hex = crypto.randomBytes(4).toString("hex").toUpperCase();
+  return `ISU-GC-${year}-${hex}`;
+}
+
+// ── B3 FIX: Single shared completion check ───────────────────────────────────
+// Called after any stage approval to check if the entire clearance is done.
+// Uses the `portion` column (B5 fix) to determine which stages are required.
+async function tryCompleteRequest(requestId) {
+  try {
+    const { data: request } = await supabase
+      .from("requests")
+      .select("id, portion, library_status, cashier_status, registrar_status, is_completed")
+      .eq("id", requestId)
+      .single();
+
+    if (!request || request.is_completed) return;
+
+    // Check all professor approvals are done
+    const { data: allApprovals } = await supabase
+      .from("professor_approvals")
+      .select("status")
+      .eq("request_id", requestId);
+
+    const allProfessorsApproved = allApprovals &&
+      allApprovals.length > 0 &&
+      allApprovals.every((a) => a.status === "approved");
+
+    if (!allProfessorsApproved) return;
+
+    // Check admin stages — B5 FIX: undergrad has no registrar step
+    const isUndergrad = request.portion === "undergraduate";
+
+    const adminDone = isUndergrad
+      ? request.library_status === "approved" && request.cashier_status === "approved"
+      : request.library_status === "approved" && request.cashier_status === "approved" && request.registrar_status === "approved";
+
+    if (!adminDone) return;
+
+    // All stages approved → mark complete
+    const certificateNumber = generateCertificateNumber();
+    await supabase
+      .from("requests")
+      .update({
+        is_completed: true,
+        professors_status: "approved",
+        certificate_generated: true,
+        certificate_generated_at: new Date().toISOString(),
+        certificate_number: certificateNumber,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", requestId)
+      .eq("is_completed", false); // Optimistic lock — only update if still not completed
+  } catch (err) {
+    console.warn("tryCompleteRequest warning:", err.message);
+  }
+}
 
 /**
  * Feature 7: Email notification for clearance status changes.
@@ -45,10 +192,10 @@ async function notifyClearanceStatusChange(requestId, status, stageName, comment
         <div style="text-align: center; margin-bottom: 30px;">
           <h1 style="color: #22c55e; margin: 0;">SmartClearance</h1>
         </div>
-        <h2 style="color: ${statusColor};">${subject}</h2>
-        <p>Dear ${student.full_name},</p>
-        <p>Your graduation clearance has been <strong style="color: ${statusColor};">${statusLabel}</strong> at the <strong>${stageName}</strong> stage.</p>
-        ${comments ? `<p><strong>Comments:</strong> ${comments}</p>` : ""}
+        <h2 style="color: ${statusColor};">${escapeHtml(subject)}</h2>
+        <p>Dear ${escapeHtml(student.full_name)},</p>
+        <p>Your graduation clearance has been <strong style="color: ${statusColor};">${statusLabel}</strong> at the <strong>${escapeHtml(stageName)}</strong> stage.</p>
+        ${comments ? `<p><strong>Comments:</strong> ${escapeHtml(comments)}</p>` : ""}
         ${isCompleted ? "<p>You can now download your graduation clearance certificate from the SmartClearance dashboard.</p>" : ""}
         ${isRejected ? "<p>Please check the comments and address any issues through your SmartClearance dashboard.</p>" : ""}
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;" />
@@ -62,9 +209,24 @@ async function notifyClearanceStatusChange(requestId, status, stageName, comment
   }
 }
 
-router.post("/apply", requireAuth, async (req, res) => {
+router.post("/apply", requireAuth, requireRole("student"), async (req, res) => {
   try {
     const { student_id, portion } = req.body;
+
+    // B1 FIX: Ownership check — only the authenticated student can apply for themselves
+    if (req.user.id !== student_id) {
+      return res.status(403).json({
+        success: false,
+        error: "You can only apply for your own clearance",
+      });
+    }
+
+    if (!portion || !["undergraduate", "graduate"].includes(portion)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid portion. Must be 'undergraduate' or 'graduate'.",
+      });
+    }
 
     const { data: existing, error: checkError } = await supabase
       .from("requests")
@@ -94,23 +256,39 @@ router.post("/apply", requireAuth, async (req, res) => {
       });
     }
 
+    // B5 FIX: Undergrad has no registrar step — auto-approve it on creation.
+    // Graduate flow requires registrar, so it stays "pending".
+    const isUndergrad = portion === "undergraduate";
+
     const { data: request, error } = await supabase
       .from("requests")
       .insert({
         student_id,
         doc_type_id: docType.id,
         clearance_type: "graduation",
+        portion, // B5 FIX: Store portion so we don't have to infer it later
+        deadline: new Date(Date.now() + DEFAULT_DEADLINE_DAYS * 24 * 60 * 60 * 1000).toISOString(), // G4
         current_status: "pending",
         professors_status: "pending",
         library_status: "pending",
         cashier_status: "pending",
-        registrar_status: "pending",
+        registrar_status: isUndergrad ? "approved" : "pending",
         is_completed: false,
       })
       .select()
       .single();
 
-    if (error) throw error;
+    // B1 FIX: If the unique index rejects the insert (race condition),
+    // return a friendly error instead of crashing.
+    if (error) {
+      if (error.code === "23505") {
+        return res.status(400).json({
+          success: false,
+          error: "You already have a pending graduation clearance request",
+        });
+      }
+      throw error;
+    }
 
     // Fetch all signatory accounts
     let { data: allSignatories } = await supabase
@@ -198,6 +376,13 @@ router.post("/apply", requireAuth, async (req, res) => {
       professorsAssigned: wantedSignatories?.length || 0,
       message: "Graduation clearance application submitted successfully",
     });
+
+    // G6: Notify staff of new application (fire-and-forget)
+    const { data: studentProfile } = await supabase.from("profiles").select("full_name").eq("id", student_id).single();
+    notifyStaffOfNewApplication(request.id, studentProfile?.full_name || "Student", portion);
+
+    // G7: Log initial status
+    logStatusChange(request.id, "application", null, "pending", student_id, `${portion} graduation clearance submitted`);
   } catch (error) {
     console.error("Error applying for clearance:", error);
     res.status(500).json({
@@ -207,9 +392,17 @@ router.post("/apply", requireAuth, async (req, res) => {
   }
 });
 
-router.delete("/cancel/:studentId", requireAuth, async (req, res) => {
+router.delete("/cancel/:studentId", requireAuth, requireRole("student"), async (req, res) => {
   try {
     const { studentId } = req.params;
+
+    // S3 FIX: Ownership check — students can only cancel their own request
+    if (req.user.id !== studentId) {
+      return res.status(403).json({
+        success: false,
+        error: "You can only cancel your own clearance request",
+      });
+    }
 
     // Use maybeSingle to avoid throwing on 0 rows, and handle multiple rows gracefully
     const { data: requests, error: findError } = await supabase
@@ -265,7 +458,7 @@ router.delete("/cancel/:studentId", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/status/:studentId", requireAuth, async (req, res) => {
+router.get("/status/:studentId", requireAuth, requireRole("student"), async (req, res) => {
   try {
     const { studentId } = req.params;
 
@@ -329,9 +522,10 @@ router.get("/status/:studentId", requireAuth, async (req, res) => {
 
     // Always recalculate current_stage per REG Form 07 order
     {
-      // Determine portion from professor approvals
+      // B5 FIX: Use stored portion column, fall back to inference for legacy requests
       const UNDERGRAD_NAMES = ["Department Chairman", "College Dean", "Director Student Affairs", "NSTP Director", "Executive Officer"];
-      const isUndergrad = approvals.some((a) => UNDERGRAD_NAMES.includes(a.professor?.full_name));
+      const isUndergrad = request.portion === "undergraduate" ||
+        (!request.portion && approvals.some((a) => UNDERGRAD_NAMES.includes(a.professor?.full_name)));
       const findProfStatus = (name) => approvals.find((a) => a.professor?.full_name === name)?.status;
 
       if (isUndergrad) {
@@ -405,7 +599,7 @@ router.get("/status/:studentId", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/professor/students/:professorId", requireAuth, async (req, res) => {
+router.get("/professor/students/:professorId", requireAuth, requireRole("signatory"), async (req, res) => {
   try {
     const { professorId } = req.params;
 
@@ -510,9 +704,112 @@ router.get("/professor/students/:professorId", requireAuth, async (req, res) => 
   }
 });
 
-router.post("/professor/approve", requireAuth, async (req, res) => {
+// ── G1 FIX: Request Re-evaluation after rejection ────────────────────────────
+// Students can request re-evaluation on a rejected stage, resetting it to "pending".
+router.post("/request-reevaluation", requireAuth, requireRole("student"), async (req, res) => {
+  try {
+    const { request_id, stage_type, stage_key, approval_id } = req.body;
+
+    // Ownership check
+    const { data: request, error: reqErr } = await supabase
+      .from("requests")
+      .select("id, student_id, is_completed")
+      .eq("id", request_id)
+      .single();
+
+    if (reqErr || !request) {
+      return res.status(404).json({ success: false, error: "Request not found" });
+    }
+    if (request.student_id !== req.user.id) {
+      return res.status(403).json({ success: false, error: "You can only request re-evaluation for your own clearance" });
+    }
+    if (request.is_completed) {
+      return res.status(400).json({ success: false, error: "Cannot re-evaluate a completed request" });
+    }
+
+    if (stage_type === "signatory" && approval_id) {
+      // Reset a professor approval from "rejected" to "pending"
+      const { data: approval, error: apErr } = await supabase
+        .from("professor_approvals")
+        .select("id, status, professor_id")
+        .eq("id", approval_id)
+        .eq("request_id", request_id)
+        .single();
+
+      if (apErr || !approval) {
+        return res.status(404).json({ success: false, error: "Approval not found" });
+      }
+      if (approval.status !== "rejected") {
+        return res.status(400).json({ success: false, error: "Only rejected stages can be re-evaluated" });
+      }
+
+      const { error: updateErr } = await supabase
+        .from("professor_approvals")
+        .update({ status: "pending", comments: null, updated_at: new Date().toISOString() })
+        .eq("id", approval_id);
+
+      if (updateErr) throw updateErr;
+
+      // Notify the signatory
+      notifyClearanceStatusChange(request_id, "pending", "Re-evaluation Requested", "Student has requested re-evaluation after rejection.");
+
+      res.json({ success: true, message: "Re-evaluation requested. The signatory has been notified." });
+    } else if (stage_type === "stage" && stage_key) {
+      // Reset an admin stage (library/cashier/registrar) from "rejected" to "pending"
+      const statusField = { library: "library_status", cashier: "cashier_status", registrar: "registrar_status" }[stage_key];
+      const commentField = { library: "library_comments", cashier: "cashier_comments", registrar: "registrar_comments" }[stage_key];
+
+      if (!statusField) {
+        return res.status(400).json({ success: false, error: "Invalid stage key" });
+      }
+
+      // Verify the stage is actually rejected
+      const { data: current } = await supabase
+        .from("requests")
+        .select(statusField)
+        .eq("id", request_id)
+        .single();
+
+      if (current?.[statusField] !== "rejected") {
+        return res.status(400).json({ success: false, error: "Only rejected stages can be re-evaluated" });
+      }
+
+      const { error: updateErr } = await supabase
+        .from("requests")
+        .update({ [statusField]: "pending", [commentField]: null, updated_at: new Date().toISOString() })
+        .eq("id", request_id);
+
+      if (updateErr) throw updateErr;
+
+      const stageNames = { library: "Campus Librarian", cashier: "Chief Accountant", registrar: "Record Evaluator" };
+      notifyClearanceStatusChange(request_id, "pending", stageNames[stage_key] || stage_key, "Student has requested re-evaluation after rejection.");
+
+      res.json({ success: true, message: "Re-evaluation requested. The reviewer has been notified." });
+    } else {
+      return res.status(400).json({ success: false, error: "Invalid re-evaluation request" });
+    }
+  } catch (error) {
+    console.error("Error requesting re-evaluation:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post("/professor/approve", requireAuth, requireRole("signatory"), async (req, res) => {
   try {
     const { approval_id, professor_id, comments } = req.body;
+
+    // S4 FIX: Professors can only approve as themselves
+    if (req.user.id !== professor_id) {
+      return res.status(403).json({
+        success: false,
+        error: "You can only approve as yourself",
+      });
+    }
+
+    // S8 FIX: Comment length validation
+    if (comments && comments.length > MAX_COMMENT_LENGTH) {
+      return res.status(400).json({ success: false, error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less` });
+    }
 
     const { data, error } = await supabase
       .from("professor_approvals")
@@ -529,60 +826,8 @@ router.post("/professor/approve", requireAuth, async (req, res) => {
 
     if (error) throw error;
 
-    // Check if this is the last step → mark request as completed
-    // BUG 5 FIX: Verify ALL required approvals before marking complete,
-    // not just admin statuses. Prevents premature completion.
-    try {
-      const { data: profInfo } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("id", professor_id)
-        .single();
-
-      const profName = profInfo?.full_name;
-
-      if (profName === "Executive Officer" || profName === "Dean Graduate School") {
-        const { data: request } = await supabase
-          .from("requests")
-          .select("id, library_status, cashier_status, registrar_status, is_completed")
-          .eq("id", data.request_id)
-          .single();
-
-        if (request && !request.is_completed) {
-          // Fetch ALL professor approvals for this request to verify they're all approved
-          const { data: allApprovals } = await supabase
-            .from("professor_approvals")
-            .select("status")
-            .eq("request_id", request.id);
-
-          const allProfessorsApproved = allApprovals &&
-            allApprovals.length > 0 &&
-            allApprovals.every((a) => a.status === "approved");
-
-          const allAdminStagesApproved =
-            request.library_status === "approved" &&
-            request.cashier_status === "approved" &&
-            request.registrar_status === "approved";
-
-          if (allProfessorsApproved && allAdminStagesApproved) {
-            const certificateNumber = `ISU-GC-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
-            await supabase
-              .from("requests")
-              .update({
-                is_completed: true,
-                professors_status: "approved",
-                certificate_generated: true,
-                certificate_generated_at: new Date().toISOString(),
-                certificate_number: certificateNumber,
-                updated_at: new Date().toISOString(),
-              })
-              .eq("id", request.id);
-          }
-        }
-      }
-    } catch (completionErr) {
-      console.warn("Completion check warning:", completionErr.message);
-    }
+    // B3 FIX: Use shared completion check instead of inline duplicate logic
+    await tryCompleteRequest(data.request_id);
 
     res.json({
       success: true,
@@ -590,13 +835,14 @@ router.post("/professor/approve", requireAuth, async (req, res) => {
       message: "Student approved successfully",
     });
 
-    // Fire-and-forget: audit log + email notification
+    // Fire-and-forget: audit log + email notification + status history
     logAction(professor_id, ACTIONS.CLEARANCE_PROFESSOR_APPROVED, {
       targetId: data.request_id,
       targetType: "request",
       metadata: { approval_id, comments },
     });
     notifyClearanceStatusChange(data.request_id, "approved", "Professor/Signatory", comments);
+    logStatusChange(data.request_id, `signatory`, "pending", "approved", professor_id, comments);
   } catch (error) {
     console.error("Error approving student:", error);
     res.status(500).json({
@@ -606,15 +852,28 @@ router.post("/professor/approve", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/professor/reject", requireAuth, async (req, res) => {
+router.post("/professor/reject", requireAuth, requireRole("signatory"), async (req, res) => {
   try {
     const { approval_id, professor_id, comments } = req.body;
+
+    // S4 FIX: Professors can only reject as themselves
+    if (req.user.id !== professor_id) {
+      return res.status(403).json({
+        success: false,
+        error: "You can only reject as yourself",
+      });
+    }
 
     if (!comments || comments.trim() === "") {
       return res.status(400).json({
         success: false,
         error: "Comments are required when rejecting",
       });
+    }
+
+    // S8 FIX: Comment length validation
+    if (comments.length > MAX_COMMENT_LENGTH) {
+      return res.status(400).json({ success: false, error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less` });
     }
 
     const { data, error } = await supabase
@@ -637,13 +896,14 @@ router.post("/professor/reject", requireAuth, async (req, res) => {
       message: "Student rejected with comments",
     });
 
-    // Fire-and-forget: audit log + email notification
+    // Fire-and-forget: audit log + email notification + status history
     logAction(professor_id, ACTIONS.CLEARANCE_PROFESSOR_REJECTED, {
       targetId: data.request_id,
       targetType: "request",
       metadata: { approval_id, comments },
     });
     notifyClearanceStatusChange(data.request_id, "rejected", "Professor/Signatory", comments);
+    logStatusChange(data.request_id, `signatory`, "pending", "rejected", professor_id, comments);
   } catch (error) {
     console.error("Error rejecting student:", error);
     res.status(500).json({
@@ -653,7 +913,7 @@ router.post("/professor/reject", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/library/pending", requireAuth, async (req, res) => {
+router.get("/library/pending", requireAuth, requireRole("librarian"), async (req, res) => {
   try {
     const { data: requests, error } = await supabase
       .from("requests")
@@ -710,9 +970,14 @@ router.get("/library/pending", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/library/approve", requireAuth, async (req, res) => {
+router.post("/library/approve", requireAuth, requireRole("librarian"), async (req, res) => {
   try {
     const { request_id, admin_id, comments } = req.body;
+
+    // S8 FIX: Comment length validation
+    if (comments && comments.length > MAX_COMMENT_LENGTH) {
+      return res.status(400).json({ success: false, error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less` });
+    }
 
     const { data, error } = await supabase
       .from("requests")
@@ -729,6 +994,9 @@ router.post("/library/approve", requireAuth, async (req, res) => {
 
     if (error) throw error;
 
+    // B3 FIX: Check if this was the last stage needed for completion
+    await tryCompleteRequest(request_id);
+
     res.json({
       success: true,
       request: data,
@@ -739,6 +1007,7 @@ router.post("/library/approve", requireAuth, async (req, res) => {
       targetId: request_id, targetType: "request", metadata: { comments },
     });
     notifyClearanceStatusChange(request_id, "approved", "Campus Librarian", comments);
+    logStatusChange(request_id, "library", "pending", "approved", admin_id, comments);
   } catch (error) {
     console.error("Error approving library:", error);
     res.status(500).json({
@@ -748,7 +1017,7 @@ router.post("/library/approve", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/library/reject", requireAuth, async (req, res) => {
+router.post("/library/reject", requireAuth, requireRole("librarian"), async (req, res) => {
   try {
     const { request_id, admin_id, comments } = req.body;
 
@@ -757,6 +1026,11 @@ router.post("/library/reject", requireAuth, async (req, res) => {
         success: false,
         error: "Comments are required when rejecting",
       });
+    }
+
+    // S8 FIX: Comment length validation
+    if (comments.length > MAX_COMMENT_LENGTH) {
+      return res.status(400).json({ success: false, error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less` });
     }
 
     const { data, error } = await supabase
@@ -783,6 +1057,7 @@ router.post("/library/reject", requireAuth, async (req, res) => {
       targetId: request_id, targetType: "request", metadata: { comments },
     });
     notifyClearanceStatusChange(request_id, "rejected", "Campus Librarian", comments);
+    logStatusChange(request_id, "library", "pending", "rejected", admin_id, comments);
   } catch (error) {
     console.error("Error rejecting library:", error);
     res.status(500).json({
@@ -792,7 +1067,7 @@ router.post("/library/reject", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/cashier/pending", requireAuth, async (req, res) => {
+router.get("/cashier/pending", requireAuth, requireRole("cashier"), async (req, res) => {
   try {
     const { data: requests, error } = await supabase
       .from("requests")
@@ -848,9 +1123,14 @@ router.get("/cashier/pending", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/cashier/approve", requireAuth, async (req, res) => {
+router.post("/cashier/approve", requireAuth, requireRole("cashier"), async (req, res) => {
   try {
     const { request_id, admin_id, comments } = req.body;
+
+    // S8 FIX: Comment length validation
+    if (comments && comments.length > MAX_COMMENT_LENGTH) {
+      return res.status(400).json({ success: false, error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less` });
+    }
 
     const { data, error } = await supabase
       .from("requests")
@@ -867,6 +1147,9 @@ router.post("/cashier/approve", requireAuth, async (req, res) => {
 
     if (error) throw error;
 
+    // B3 FIX: Check if this was the last stage needed for completion
+    await tryCompleteRequest(request_id);
+
     res.json({
       success: true,
       request: data,
@@ -877,6 +1160,7 @@ router.post("/cashier/approve", requireAuth, async (req, res) => {
       targetId: request_id, targetType: "request", metadata: { comments },
     });
     notifyClearanceStatusChange(request_id, "approved", "Chief Accountant", comments);
+    logStatusChange(request_id, "cashier", "pending", "approved", admin_id, comments);
   } catch (error) {
     console.error("Error approving cashier:", error);
     res.status(500).json({
@@ -886,7 +1170,7 @@ router.post("/cashier/approve", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/cashier/reject", requireAuth, async (req, res) => {
+router.post("/cashier/reject", requireAuth, requireRole("cashier"), async (req, res) => {
   try {
     const { request_id, admin_id, comments } = req.body;
 
@@ -895,6 +1179,11 @@ router.post("/cashier/reject", requireAuth, async (req, res) => {
         success: false,
         error: "Comments are required when rejecting",
       });
+    }
+
+    // S8 FIX: Comment length validation
+    if (comments.length > MAX_COMMENT_LENGTH) {
+      return res.status(400).json({ success: false, error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less` });
     }
 
     const { data, error } = await supabase
@@ -921,6 +1210,7 @@ router.post("/cashier/reject", requireAuth, async (req, res) => {
       targetId: request_id, targetType: "request", metadata: { comments },
     });
     notifyClearanceStatusChange(request_id, "rejected", "Chief Accountant", comments);
+    logStatusChange(request_id, "cashier", "pending", "rejected", admin_id, comments);
   } catch (error) {
     console.error("Error rejecting cashier:", error);
     res.status(500).json({
@@ -930,7 +1220,7 @@ router.post("/cashier/reject", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/registrar/pending", requireAuth, async (req, res) => {
+router.get("/registrar/pending", requireAuth, requireRole("registrar"), async (req, res) => {
   try {
     const { data: requests, error } = await supabase
       .from("requests")
@@ -989,72 +1279,56 @@ router.get("/registrar/pending", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/registrar/approve", requireAuth, async (req, res) => {
+router.post("/registrar/approve", requireAuth, requireRole("registrar"), async (req, res) => {
   try {
     const { request_id, admin_id, comments } = req.body;
 
-    // BUG 5 FIX: Verify all professor approvals before marking complete.
-    // Previously this blindly set is_completed: true without checking professors.
-    const { data: allApprovals } = await supabase
-      .from("professor_approvals")
-      .select("status")
-      .eq("request_id", request_id);
-
-    const allProfessorsApproved = allApprovals &&
-      allApprovals.length > 0 &&
-      allApprovals.every((a) => a.status === "approved");
-
-    const { data: currentRequest } = await supabase
-      .from("requests")
-      .select("library_status, cashier_status")
-      .eq("id", request_id)
-      .single();
-
-    const canComplete = allProfessorsApproved &&
-      currentRequest?.library_status === "approved" &&
-      currentRequest?.cashier_status === "approved";
-
-    const certificateNumber = canComplete
-      ? `ISU-GC-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`
-      : null;
-
-    const updatePayload = {
-      registrar_status: "approved",
-      registrar_approved_by: admin_id,
-      registrar_approved_at: new Date().toISOString(),
-      registrar_comments: comments || null,
-      updated_at: new Date().toISOString(),
-    };
-
-    if (canComplete) {
-      updatePayload.is_completed = true;
-      updatePayload.certificate_generated = true;
-      updatePayload.certificate_generated_at = new Date().toISOString();
-      updatePayload.certificate_number = certificateNumber;
+    // S8 FIX: Comment length validation
+    if (comments && comments.length > MAX_COMMENT_LENGTH) {
+      return res.status(400).json({ success: false, error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less` });
     }
 
     const { data, error } = await supabase
       .from("requests")
-      .update(updatePayload)
+      .update({
+        registrar_status: "approved",
+        registrar_approved_by: admin_id,
+        registrar_approved_at: new Date().toISOString(),
+        registrar_comments: comments || null,
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", request_id)
       .select()
       .single();
 
     if (error) throw error;
 
+    // B3 FIX: Use shared completion check
+    await tryCompleteRequest(request_id);
+
+    // Re-fetch to get updated is_completed status
+    const { data: updated } = await supabase
+      .from("requests")
+      .select("is_completed, certificate_number")
+      .eq("id", request_id)
+      .single();
+
+    const completed = updated?.is_completed || false;
+
     res.json({
       success: true,
       request: data,
-      certificateNumber,
-      message: canComplete
+      certificateNumber: updated?.certificate_number || null,
+      message: completed
         ? "Graduation clearance completed and certificate generated"
         : "Registrar approved. Waiting for remaining approvals to complete clearance.",
     });
 
     logAction(admin_id, ACTIONS.CLEARANCE_REGISTRAR_APPROVED, {
-      targetId: request_id, targetType: "request", metadata: { comments, canComplete, certificateNumber },
+      targetId: request_id, targetType: "request", metadata: { comments, completed, certificateNumber: updated?.certificate_number },
     });
-    notifyClearanceStatusChange(request_id, canComplete ? "completed" : "approved", "Record Evaluator", comments);
+    notifyClearanceStatusChange(request_id, completed ? "completed" : "approved", "Record Evaluator", comments);
+    logStatusChange(request_id, "registrar", "pending", "approved", admin_id, comments);
   } catch (error) {
     console.error("Error approving registrar:", error);
     res.status(500).json({
@@ -1064,7 +1338,7 @@ router.post("/registrar/approve", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/registrar/reject", requireAuth, async (req, res) => {
+router.post("/registrar/reject", requireAuth, requireRole("registrar"), async (req, res) => {
   try {
     const { request_id, admin_id, comments } = req.body;
 
@@ -1073,6 +1347,11 @@ router.post("/registrar/reject", requireAuth, async (req, res) => {
         success: false,
         error: "Comments are required when rejecting",
       });
+    }
+
+    // S8 FIX: Comment length validation
+    if (comments.length > MAX_COMMENT_LENGTH) {
+      return res.status(400).json({ success: false, error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less` });
     }
 
     const { data, error } = await supabase
@@ -1099,6 +1378,7 @@ router.post("/registrar/reject", requireAuth, async (req, res) => {
       targetId: request_id, targetType: "request", metadata: { comments },
     });
     notifyClearanceStatusChange(request_id, "rejected", "Record Evaluator", comments);
+    logStatusChange(request_id, "registrar", "pending", "rejected", admin_id, comments);
   } catch (error) {
     console.error("Error rejecting registrar:", error);
     res.status(500).json({
@@ -1108,7 +1388,7 @@ router.post("/registrar/reject", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/admin/assign-professor", requireAuth, async (req, res) => {
+router.post("/admin/assign-professor", requireAuth, requireRole("super_admin"), async (req, res) => {
   try {
     const {
       student_id,
@@ -1149,7 +1429,7 @@ router.post("/admin/assign-professor", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/admin/professors", requireAuth, async (req, res) => {
+router.get("/admin/professors", requireAuth, requireRole("super_admin"), async (req, res) => {
   try {
     const { data: professors, error } = await supabase
       .from("profiles")
@@ -1169,6 +1449,101 @@ router.get("/admin/professors", requireAuth, async (req, res) => {
       success: false,
       error: error.message,
     });
+  }
+});
+
+// ── G5: Bulk approve/reject for admin stages ─────────────────────────────────
+router.post("/bulk-approve", requireAuth, requireRole("librarian", "cashier", "registrar"), async (req, res) => {
+  try {
+    const { request_ids, admin_id, stage, comments } = req.body;
+    // stage must be one of: library, cashier, registrar
+    const statusField = { library: "library_status", cashier: "cashier_status", registrar: "registrar_status" }[stage];
+    const approvedByField = { library: "library_approved_by", cashier: "cashier_approved_by", registrar: "registrar_approved_by" }[stage];
+    const approvedAtField = { library: "library_approved_at", cashier: "cashier_approved_at", registrar: "registrar_approved_at" }[stage];
+    const commentField = { library: "library_comments", cashier: "cashier_comments", registrar: "registrar_comments" }[stage];
+
+    if (!statusField || !Array.isArray(request_ids) || request_ids.length === 0) {
+      return res.status(400).json({ success: false, error: "Invalid stage or empty request list" });
+    }
+    if (req.user.id !== admin_id) {
+      return res.status(403).json({ success: false, error: "You can only approve as yourself" });
+    }
+
+    const results = { approved: [], failed: [] };
+    for (const rid of request_ids) {
+      const { error } = await supabase
+        .from("requests")
+        .update({
+          [statusField]: "approved",
+          [approvedByField]: admin_id,
+          [approvedAtField]: new Date().toISOString(),
+          [commentField]: comments || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", rid)
+        .eq(statusField, "pending");
+
+      if (error) {
+        results.failed.push(rid);
+      } else {
+        results.approved.push(rid);
+        tryCompleteRequest(rid);
+        logStatusChange(rid, stage, "pending", "approved", admin_id, comments);
+      }
+    }
+
+    res.json({ success: true, results });
+  } catch (error) {
+    console.error("Bulk approve error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post("/bulk-reject", requireAuth, requireRole("librarian", "cashier", "registrar"), async (req, res) => {
+  try {
+    const { request_ids, admin_id, stage, comments } = req.body;
+    const statusField = { library: "library_status", cashier: "cashier_status", registrar: "registrar_status" }[stage];
+    const approvedByField = { library: "library_approved_by", cashier: "cashier_approved_by", registrar: "registrar_approved_by" }[stage];
+    const commentField = { library: "library_comments", cashier: "cashier_comments", registrar: "registrar_comments" }[stage];
+
+    if (!statusField || !Array.isArray(request_ids) || request_ids.length === 0) {
+      return res.status(400).json({ success: false, error: "Invalid stage or empty request list" });
+    }
+    if (!comments || !comments.trim()) {
+      return res.status(400).json({ success: false, error: "Comments are required for bulk rejection" });
+    }
+    if (comments.length > MAX_COMMENT_LENGTH) {
+      return res.status(400).json({ success: false, error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less` });
+    }
+    if (req.user.id !== admin_id) {
+      return res.status(403).json({ success: false, error: "You can only reject as yourself" });
+    }
+
+    const results = { rejected: [], failed: [] };
+    for (const rid of request_ids) {
+      const { error } = await supabase
+        .from("requests")
+        .update({
+          [statusField]: "rejected",
+          [approvedByField]: admin_id,
+          [commentField]: comments,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", rid)
+        .eq(statusField, "pending");
+
+      if (error) {
+        results.failed.push(rid);
+      } else {
+        results.rejected.push(rid);
+        logStatusChange(rid, stage, "pending", "rejected", admin_id, comments);
+      }
+    }
+
+    res.json({ success: true, results });
+  } catch (error) {
+    console.error("Bulk reject error:", error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

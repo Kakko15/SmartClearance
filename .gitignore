@@ -90,6 +90,9 @@ coverage/
 PRIVATE_NOTES.md
 CREDENTIALS.md
 
+# SQL migration files (run manually in Supabase SQL Editor)
+backend/migrations/*.sql
+
 # Documentation & academic files
 /*.md
 !README.md

@@ -4,10 +4,12 @@ const supabase = require("../supabaseClient");
  * JWT authentication middleware.
  * Extracts the Supabase access token from the Authorization header,
  * verifies it, and attaches the authenticated user to req.user.
+ * Also fetches the user's profile and attaches it to req.profile.
  *
  * Usage:
  *   router.post("/some-route", requireAuth, handler);
  *   router.get("/some-route", optionalAuth, handler);
+ *   router.post("/admin-route", requireAuth, requireRole("librarian", "super_admin"), handler);
  */
 async function requireAuth(req, res, next) {
   try {
@@ -36,6 +38,16 @@ async function requireAuth(req, res, next) {
 
     // Attach authenticated user to request
     req.user = user;
+
+    // Fetch profile with role for downstream role checks
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    req.userRole = profile?.role || null;
+
     next();
   } catch (error) {
     console.error("Auth middleware error:", error);
@@ -44,6 +56,26 @@ async function requireAuth(req, res, next) {
       error: "Authentication failed",
     });
   }
+}
+
+/**
+ * Role-checking middleware factory.
+ * Must be used AFTER requireAuth (which sets req.userRole).
+ *
+ * Usage:
+ *   router.post("/library/approve", requireAuth, requireRole("librarian"), handler);
+ *   router.post("/admin-route", requireAuth, requireRole("super_admin", "system_admin"), handler);
+ */
+function requireRole(...allowedRoles) {
+  return (req, res, next) => {
+    if (!req.userRole || !allowedRoles.includes(req.userRole)) {
+      return res.status(403).json({
+        success: false,
+        error: "You do not have permission to perform this action",
+      });
+    }
+    next();
+  };
 }
 
 /**
@@ -67,4 +99,4 @@ async function optionalAuth(req, _res, next) {
   next();
 }
 
-module.exports = { requireAuth, optionalAuth };
+module.exports = { requireAuth, requireRole, optionalAuth };

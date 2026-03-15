@@ -18,12 +18,16 @@ import RoleSelectionPage from "./pages/auth/RoleSelectionPage";
 import PasswordResetPage from "./pages/auth/PasswordResetPage";
 import SuperAdminLoginPage from "./pages/auth/SuperAdminLoginPage";
 import TwoFactorVerify from "./components/auth/TwoFactorVerify";
+import CertificateVerifyPage from "./pages/CertificateVerifyPage";
+
+// Per-tab unique key so each tab shows the loader independently
+const TAB_ID = `loader_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
 function LoaderPage() {
   const navigate = useNavigate();
   useEffect(() => {
     const timer = setTimeout(() => {
-      sessionStorage.setItem("hasSeenLoader", "true");
+      sessionStorage.setItem(TAB_ID, "1");
       navigate("/home", { replace: true });
     }, 1200);
     return () => clearTimeout(timer);
@@ -87,7 +91,7 @@ function App() {
         {isAuthenticated && <div className="fixed inset-0 z-0 grid-bg opacity-20 pointer-events-none"></div>}
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>
-            <Route path="/" element={sessionStorage.getItem("hasSeenLoader") ? <Navigate to="/home" replace /> : <LoaderPage />} />
+            <Route path="/" element={sessionStorage.getItem(TAB_ID) ? <Navigate to="/home" replace /> : <LoaderPage />} />
 
             <Route path="/home" element={
               isAuthenticated ? <Navigate to="/dashboard" replace /> : (
@@ -137,6 +141,7 @@ function App() {
               isAuthenticated && profile?.role === "super_admin" ? <Navigate to="/dashboard" replace /> : <SuperAdminLoginPage />
             } />
             <Route path="/reset-password" element={<PasswordResetPage />} />
+            <Route path="/verify/:code" element={<CertificateVerifyPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </AnimatePresence>

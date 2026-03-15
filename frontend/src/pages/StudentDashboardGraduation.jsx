@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { getClearanceComments, authAxios } from "../services/api";
@@ -61,6 +61,7 @@ const StageNode = ({
   unresolvedCount,
   hasComments,
   onViewComments,
+  onRequestReevaluation,
   children,
   isDarkMode = false,
 }) => {
@@ -152,6 +153,18 @@ const StageNode = ({
                 {config.badgeText}
               </span>
               <UnresolvedBadge count={unresolvedCount} />
+              {stage.status === "rejected" && onRequestReevaluation && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRequestReevaluation(stage);
+                  }}
+                  className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-colors ${isDarkMode ? "bg-blue-500/15 hover:bg-blue-500/25 text-blue-400 border border-blue-500/20" : "bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200"}`}
+                  title="Request re-evaluation"
+                >
+                  Re-evaluate
+                </button>
+              )}
               {hasComments && !stage.hasChildren && (
                 <button
                   onClick={(e) => {
@@ -639,7 +652,8 @@ export default function StudentDashboardGraduation({
   const [commentTarget, setCommentTarget] = useState(null);
   const [clearanceComments, setClearanceComments] = useState([]);
 
-  const fetchClearanceComments = async (reqId) => {
+  // B6 FIX: Wrap in useCallback to prevent stale closures in intervals/subscriptions
+  const fetchClearanceComments = useCallback(async (reqId) => {
     if (!reqId) return;
     try {
       const commentsRes = await getClearanceComments(reqId, studentId);
@@ -647,37 +661,61 @@ export default function StudentDashboardGraduation({
     } catch (e) {
       console.warn("Could not fetch clearance comments:", e);
     }
-  };
+  }, [studentId]);
 
   useEffect(() => {
     document.title = "Student Dashboard | ISU Graduation Clearance";
     fetchClearanceStatus();
   }, []);
 
-  useEffect(() => {
-    const reqId =
-      clearanceStatus?.request?.request_id || clearanceStatus?.request?.id;
-    if (!reqId) return;
-    const interval = setInterval(() => fetchClearanceComments(reqId), 10000);
-    return () => clearInterval(interval);
-  }, [clearanceStatus]);
+  // B6 FIX: Replace polling with realtime subscription on clearance_comments.
+  // Falls back to a single interval with proper cleanup.
+  useRealtimeSubscription("clearance_comments", () => {
+    const reqId = clearanceStatus?.request?.request_id || clearanceStatus?.request?.id;
+    if (reqId) fetchClearanceComments(reqId);
+  });
 
   // Live updates — student sees clearance status changes in real-time
   useRealtimeSubscription("requests", () => fetchClearanceStatus(true));
   useRealtimeSubscription("professor_approvals", () => fetchClearanceStatus(true));
 
+  // B10 FIX: Focus trap for cancel modal — traps Tab/Shift+Tab and Escape
+  const cancelModalRef = useRef(null);
   useEffect(() => {
+    if (!showCancelModal) return;
+
+    const modal = cancelModalRef.current;
+    if (!modal) return;
+
+    // Focus the first focusable element
+    const focusable = modal.querySelectorAll('button:not([disabled]), [tabindex]:not([tabindex="-1"])');
+    if (focusable.length > 0) focusable[0].focus();
+
     const handleKeyDown = (e) => {
-      if (e.key === "Escape" && showCancelModal) {
+      if (e.key === "Escape") {
         setShowCancelModal(false);
+        return;
+      }
+      if (e.key !== "Tab") return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
       }
     };
-    if (showCancelModal) {
-      window.addEventListener("keydown", handleKeyDown);
-    }
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, [showCancelModal]);
 
   const fetchClearanceStatus = async (silent = false) => {
@@ -782,18 +820,35 @@ export default function StudentDashboardGraduation({
 
   const closeCommentPanel = () => setCommentTarget(null);
 
-  const buildStages = () => {
+  // G1 FIX: Request re-evaluation on a rejected stage
+  const handleRequestReevaluation = async (stage) => {
+    try {
+      const reqId = clearanceStatus?.request?.request_id || clearanceStatus?.request?.id;
+      const payload = { request_id: reqId, stage_type: stage.type, stage_key: stage.key };
+      if (stage.type === "signatory" && stage.approval) {
+        payload.approval_id = stage.approval.id;
+      }
+      const response = await authAxios.post("/graduation/request-reevaluation", payload);
+      if (response.data.success) {
+        toast.success(response.data.message || "Re-evaluation requested");
+        fetchClearanceStatus();
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to request re-evaluation");
+    }
+  };
+
+  // B7 FIX: Memoize stages so they're computed once per render, not 3 times
+  const stages = useMemo(() => {
     if (!clearanceStatus?.request) return [];
     const r = clearanceStatus.request;
     const profApprovals = clearanceStatus.professorApprovals || [];
 
-    // Detect portion from assigned professors
     const UNDERGRAD_NAMES = ["Department Chairman", "College Dean", "Director Student Affairs", "NSTP Director", "Executive Officer"];
     const isUndergraduate = profApprovals.some((a) => UNDERGRAD_NAMES.includes(a.professor?.full_name));
 
     const findProf = (name) => profApprovals.find((a) => a.professor?.full_name === name);
 
-    // Build a professor stage node
     const buildProfNode = (approval, locked) => {
       if (!approval) return null;
       const name = approval.professor?.full_name || "Unknown";
@@ -817,7 +872,6 @@ export default function StudentDashboardGraduation({
       };
     };
 
-    // Build an admin stage node
     const buildAdminNode = (key, title, description, icon, locked) => {
       const sField = { library: "library_status", cashier: "cashier_status", registrar: "registrar_status" }[key];
       const cField = { library: "library_comments", cashier: "cashier_comments", registrar: "registrar_comments" }[key];
@@ -836,8 +890,6 @@ export default function StudentDashboardGraduation({
       };
     };
 
-    // Define form order per portion (REG Form 07)
-    // Undergraduate: 7 steps | Graduate: 4 steps
     const steps = isUndergraduate
       ? [
         { type: "prof", name: "Department Chairman" },
@@ -855,25 +907,24 @@ export default function StudentDashboardGraduation({
         { type: "prof", name: "Dean Graduate School" },
       ];
 
-    // Build stages with sequential locking
-    const stages = [];
+    const result = [];
     let isLocked = false;
     for (const step of steps) {
       if (step.type === "prof") {
         const node = buildProfNode(findProf(step.name), isLocked);
         if (node) {
-          stages.push(node);
+          result.push(node);
           if (node.status !== "approved") isLocked = true;
         }
       } else {
         const sField = { library: "library_status", cashier: "cashier_status", registrar: "registrar_status" }[step.key];
         const node = buildAdminNode(step.key, step.title, step.desc, step.icon, isLocked);
-        stages.push(node);
+        result.push(node);
         if ((r[sField] || "pending") !== "approved") isLocked = true;
       }
     }
-    return stages;
-  };
+    return result;
+  }, [clearanceStatus, clearanceComments]);
 
   const unresolvedCommentCount = clearanceStatus?.unresolvedCommentCount || 0;
 
@@ -1162,23 +1213,58 @@ export default function StudentDashboardGraduation({
 
               <GlassCard isDark={isDarkMode} className="p-7 sm:p-9 border-none shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] rounded-[28px]">
                 <div className="mb-8">
-                  <h3 className={`text-[22px] font-medium tracking-tight mb-2 ${isDarkMode ? 'text-[#e8eaed]' : 'text-[#202124]'}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
-                    Clearance Progress Tree
-                  </h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className={`text-[22px] font-medium tracking-tight mb-2 ${isDarkMode ? 'text-[#e8eaed]' : 'text-[#202124]'}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
+                      Clearance Progress Tree
+                    </h3>
+                    {/* G9: Print clearance progress */}
+                    <button
+                      onClick={() => window.print()}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all print:hidden ${
+                        isDarkMode
+                          ? "bg-[#3c4043] hover:bg-[#5f6368] text-[#e8eaed]"
+                          : "bg-[#f1f3f4] hover:bg-[#e8eaed] text-[#3c4043]"
+                      }`}
+                      title="Print clearance progress"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                      </svg>
+                      Print
+                    </button>
+                  </div>
                   <p className={`text-[14px] leading-relaxed ${isDarkMode ? 'text-[#9aa0a6]' : 'text-[#5f6368]'}`}>
                     Track your graduation clearance step-by-step. Click any active stage to expand details and view specific requirements or signatory notes.
                   </p>
+                  {/* G4: Deadline countdown */}
+                  {clearanceStatus?.request?.deadline && !clearanceStatus?.request?.is_completed && (() => {
+                    const daysLeft = Math.ceil((new Date(clearanceStatus.request.deadline) - new Date()) / (1000 * 60 * 60 * 24));
+                    const isUrgent = daysLeft <= 7;
+                    const isOverdue = daysLeft < 0;
+                    return (
+                      <div className={`mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[12px] font-semibold ${
+                        isOverdue
+                          ? isDarkMode ? "bg-red-500/15 text-red-400" : "bg-red-50 text-red-700"
+                          : isUrgent
+                            ? isDarkMode ? "bg-yellow-500/15 text-yellow-400" : "bg-yellow-50 text-yellow-700"
+                            : isDarkMode ? "bg-blue-500/10 text-blue-400" : "bg-blue-50 text-blue-700"
+                      }`}>
+                        <ClockIcon className="w-3.5 h-3.5" />
+                        {isOverdue ? `Overdue by ${Math.abs(daysLeft)} days` : `${daysLeft} days remaining`}
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div className="mb-6">
-                  <ProgressBar stages={buildStages()} isDarkMode={isDarkMode} />
+                  <ProgressBar stages={stages} isDarkMode={isDarkMode} />
                 </div>
                 <div className="mt-6 flex flex-col">
-                  {buildStages().map((stage, i) => (
+                  {stages.map((stage, i) => (
                     <StageNode
                       key={stage.key}
                       stage={stage}
                       index={i}
-                      total={buildStages().length}
+                      total={stages.length}
                       isExpanded={expandedStages[stage.key]}
                       onToggle={() =>
                         setExpandedStages((prev) => ({
@@ -1195,6 +1281,7 @@ export default function StudentDashboardGraduation({
                           openStageComments(stage);
                         }
                       }}
+                      onRequestReevaluation={handleRequestReevaluation}
                       isDarkMode={isDarkMode}
                     />
                   ))}
@@ -1254,7 +1341,7 @@ export default function StudentDashboardGraduation({
       </AnimatePresence>
       <AnimatePresence>
         {showCancelModal && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div ref={cancelModalRef} className="fixed inset-0 z-[9999] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="cancel-modal-title">
             {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
@@ -1292,7 +1379,7 @@ export default function StudentDashboardGraduation({
                 </div>
 
                 {/* Title */}
-                <h3 className={`text-[24px] font-medium mb-3 leading-tight tracking-[-0.015em] ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"
+                <h3 id="cancel-modal-title" className={`text-[24px] font-medium mb-3 leading-tight tracking-[-0.015em] ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"
                   }`}>
                   Cancel clearance?
                 </h3>
