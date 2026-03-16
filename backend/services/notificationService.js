@@ -30,6 +30,24 @@ async function resolveUserEmail(userId) {
   }
 }
 
+/**
+ * F2: Create an in-app notification for a user.
+ * This is the primary notification channel; email is the fallback.
+ */
+async function createInAppNotification(userId, type, title, message, relatedRequestId = null) {
+  try {
+    await supabase.from("notifications").insert({
+      user_id: userId,
+      type,
+      title,
+      message,
+      related_request_id: relatedRequestId,
+    });
+  } catch (error) {
+    console.error("In-app notification error:", error);
+  }
+}
+
 async function sendEmail(userId, requestId, recipient, subject, message) {
   let logData = null;
   try {
@@ -123,6 +141,15 @@ async function notifyRequestSubmitted(requestId, studentId) {
       emailSubject,
       emailMessage,
     );
+
+    // F2: In-app notification
+    await createInAppNotification(
+      studentId,
+      "info",
+      "Request Submitted",
+      `Your request for ${docType.name} has been submitted and is now pending.`,
+      requestId,
+    );
   } catch (error) {
     console.error("Error in notifyRequestSubmitted:", error);
   }
@@ -187,6 +214,17 @@ async function notifyRequestApproved(
       emailSubject,
       emailMessage,
     );
+
+    // F2: In-app notification
+    await createInAppNotification(
+      studentId,
+      isCompleted ? "success" : "info",
+      isCompleted ? "Clearance Completed!" : `${stageName} Stage Approved`,
+      isCompleted
+        ? `Congratulations! Your request for ${docType.name} has been fully approved. Download your certificate now.`
+        : `Your request for ${docType.name} has been approved at the ${stageName} stage.`,
+      requestId,
+    );
   } catch (error) {
     console.error("Error in notifyRequestApproved:", error);
   }
@@ -231,6 +269,15 @@ async function notifyRequestRejected(requestId, studentId, stageName, reason) {
       studentEmail,
       emailSubject,
       emailMessage,
+    );
+
+    // F2: In-app notification
+    await createInAppNotification(
+      studentId,
+      "warning",
+      "Request On Hold",
+      `Your request for ${docType.name} was placed on hold at the ${stageName} stage. Reason: ${reason}`,
+      requestId,
     );
   } catch (error) {
     console.error("Error in notifyRequestRejected:", error);
@@ -362,6 +409,7 @@ async function notifyNewComment(requestId, commenterId, commentText) {
 module.exports = {
   sendEmail,
   resolveUserEmail,
+  createInAppNotification,
   notifyRequestSubmitted,
   notifyRequestApproved,
   notifyRequestRejected,

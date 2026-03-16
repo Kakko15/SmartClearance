@@ -8,6 +8,7 @@ import {
   MoonIcon,
   SunIcon,
 } from "./Icons";
+import NotificationBell from "../features/NotificationBell";
 
 export default function DashboardLayout({
   theme,
@@ -23,6 +24,7 @@ export default function DashboardLayout({
   children,
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [dropdownView, setDropdownView] = useState("main");
   const profileDropdownRef = useRef(null);
@@ -55,24 +57,50 @@ export default function DashboardLayout({
 
   return (
     <div className={`flex h-screen ${bgC} font-sans selection:bg-[#c2e7ff] selection:text-[#001d35] flex-col md:flex-row ${isDarkMode ? 'dark' : ''}`}>
+      {/* F10: Skip to main content for keyboard/screen reader users */}
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-0 focus:left-0 focus:z-[100] focus:bg-green-600 focus:text-white focus:px-4 focus:py-2 focus:font-semibold focus:rounded-br-lg">Skip to main content</a>
 
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <div className={`absolute top-0 left-1/4 w-[500px] h-[500px] ${theme.glow1 || "hidden"} rounded-full blur-[120px]`} />
         <div className={`absolute bottom-0 right-1/4 w-[600px] h-[600px] ${theme.glow2 || "hidden"} rounded-full blur-[120px]`} />
       </div>
 
+      {/* F9: Mobile sidebar overlay backdrop */}
+      <AnimatePresence>
+        {mobileSidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setMobileSidebarOpen(false)}
+            className="fixed inset-0 z-30 bg-black/50 md:hidden"
+            aria-hidden="true"
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Sidebar — hidden on mobile unless toggled, always visible on md+ */}
       <motion.div
         layout
         initial={false}
         animate={{ width: sidebarOpen ? 260 : 68 }}
         transition={{ type: "spring", bounce: 0, duration: 0.4 }}
-        className={`${sidebarBg} ${sidebarText} flex flex-col relative z-20 flex-shrink-0 transition-colors duration-200`}
+        className={`${sidebarBg} ${sidebarText} flex-col relative z-40 flex-shrink-0 transition-colors duration-200 ${
+          mobileSidebarOpen ? "fixed inset-y-0 left-0 flex w-[260px]" : "hidden md:flex"
+        }`}
+        role="navigation"
+        aria-label="Main navigation"
       >
         <div className="flex flex-col gap-4 mt-3 px-3">
           <div className="flex items-center">
             <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
+              onClick={() => {
+                // F9: On mobile, toggle the overlay; on desktop, collapse
+                if (window.innerWidth < 768) setMobileSidebarOpen(!mobileSidebarOpen);
+                else setSidebarOpen(!sidebarOpen);
+              }}
               className={`p-2.5 rounded-full transition-colors flex-shrink-0 ${theme.topbarBtn || 'hover:bg-slate-50 text-slate-500'}`}
+              aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
             >
               <Bars3Icon className="w-6 h-6" />
             </button>
@@ -104,7 +132,7 @@ export default function DashboardLayout({
               <motion.button
                 key={item.id}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => setActiveView(item.id)}
+                onClick={() => { setActiveView(item.id); setMobileSidebarOpen(false); }}
                 className={`w-full flex items-center relative rounded-full transition-colors duration-150 group h-[44px] mb-0.5 ${
                   isActive ? sidebarActive : sidebarInactive
                 }`}
@@ -186,17 +214,30 @@ export default function DashboardLayout({
 
       <div className="flex-1 flex flex-col relative z-20 overflow-hidden">
         <div
-          className={`h-[64px] ${topbarBg} flex items-center justify-between px-6 sm:px-8 flex-shrink-0 z-30 transition-shadow`}
+          className={`h-[56px] sm:h-[64px] ${topbarBg} flex items-center justify-between px-3 sm:px-8 flex-shrink-0 z-30 transition-shadow`}
         >
-          <div>
-            <h1 className={`text-[22px] font-normal tracking-tight ${theme.topbarText || "text-slate-900"}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
+          <div className="flex items-center gap-2">
+            {/* F9: Mobile hamburger */}
+            <button
+              onClick={() => setMobileSidebarOpen(true)}
+              className={`md:hidden p-2 rounded-full transition-colors ${theme.topbarBtn || 'hover:bg-slate-50 text-slate-500'}`}
+              aria-label="Open navigation menu"
+            >
+              <Bars3Icon className="w-5 h-5" />
+            </button>
+            <h1 className={`text-[18px] sm:text-[22px] font-normal tracking-tight truncate ${theme.topbarText || "text-slate-900"}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
               {theme.dashboardTitle}
             </h1>
           </div>
-          <div className="flex items-center mr-2 relative" ref={profileDropdownRef}>
+          <div className="flex items-center gap-2 mr-2">
+            <NotificationBell isDarkMode={isDarkMode} />
+            <div className="relative" ref={profileDropdownRef}>
             <button 
               onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-              className="flex items-center gap-3 text-left focus:outline-none group"
+              className="flex items-center gap-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 rounded-full group"
+              aria-haspopup="true"
+              aria-expanded={profileDropdownOpen}
+              aria-label="User menu"
             >
               <div className="hidden md:block text-right">
                 <p className={`text-[14px] font-medium leading-tight ${theme.topbarText || 'text-slate-900'}`}>
@@ -225,6 +266,8 @@ export default function DashboardLayout({
                   className={`absolute right-1 top-full mt-2 ${dropdownView === "main" ? "w-64" : "w-[340px]"} transition-[width] duration-200 ease-out origin-top-right rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.12)] border z-50 overflow-hidden ${
                     theme.dropdownMenu || (isDarkMode ? 'bg-[#282a2d] border-[#3c4043]' : 'bg-white border-[#dadce0]')
                   }`}
+                  role="menu"
+                  aria-label="User menu options"
                 >
                   <AnimatePresence mode="wait" initial={false}>
                     {dropdownView === "main" ? (
@@ -389,9 +432,10 @@ export default function DashboardLayout({
               )}
             </AnimatePresence>
           </div>
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-scroll overflow-x-hidden p-4 sm:p-8 relative z-10 scroll-smooth custom-scrollbar">
+        <div id="main-content" role="main" className="flex-1 overflow-y-scroll overflow-x-hidden p-3 sm:p-8 relative z-10 scroll-smooth custom-scrollbar">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeView}
@@ -470,6 +514,8 @@ export function StatusBadge({ status, isDark = false }) {
   return (
     <span
       className={`px-3 py-1 rounded-full text-[12px] font-semibold tracking-wide border border-transparent ${c.bg}`}
+      role="status"
+      aria-label={`Status: ${c.label}`}
     >
       {c.label}
     </span>

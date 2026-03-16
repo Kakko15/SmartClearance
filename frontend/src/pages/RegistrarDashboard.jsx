@@ -18,6 +18,8 @@ import {
 } from "../components/ui/Icons";
 import { authAxios } from "../services/api";
 import { getRegistrarTheme } from "../constants/dashboardThemes";
+import SearchFilterBar from "../components/ui/SearchFilterBar";
+import { exportToCSV } from "../utils/exportData";
 
 export default function RegistrarAdminDashboard({
   adminId,
@@ -34,6 +36,8 @@ export default function RegistrarAdminDashboard({
   const [comments, setComments] = useState("");
   const [activeView, setActiveView] = useState("pending");
   const [searchQuery, setSearchQuery] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   // G5: Bulk selection state
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkMode, setBulkMode] = useState(false);
@@ -181,13 +185,39 @@ export default function RegistrarAdminDashboard({
   };
 
   const filteredRequests = requests.filter((req) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      (req.student?.full_name || "").toLowerCase().includes(q) ||
-      (req.student?.student_number || "").toLowerCase().includes(q)
-    );
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      if (
+        !(req.student?.full_name || "").toLowerCase().includes(q) &&
+        !(req.student?.student_number || "").toLowerCase().includes(q)
+      ) return false;
+    }
+    if (dateFrom && req.created_at && req.created_at < dateFrom) return false;
+    if (dateTo && req.created_at && req.created_at > dateTo + "T23:59:59") return false;
+    return true;
   });
+
+  const handleExportRequests = () => {
+    exportToCSV(filteredRequests, [
+      { label: "Student Name", accessor: (r) => r.student?.full_name || "" },
+      { label: "Student Number", accessor: (r) => r.student?.student_number || "" },
+      { label: "Professors", key: "professors_status" },
+      { label: "Library", key: "library_status" },
+      { label: "Cashier", key: "cashier_status" },
+      { label: "Registrar", key: "registrar_status" },
+      { label: "Submitted", accessor: (r) => r.created_at ? new Date(r.created_at).toLocaleDateString() : "" },
+    ], "registrar_clearances");
+  };
+
+  const handleExportAccounts = () => {
+    exportToCSV(filteredAccounts, [
+      { label: "Full Name", key: "full_name" },
+      { label: "Student Number", key: "student_number" },
+      { label: "Email", key: "email" },
+      { label: "Verification Status", key: "verification_status" },
+      { label: "Created", accessor: (r) => r.created_at ? new Date(r.created_at).toLocaleDateString() : "" },
+    ], "pending_accounts");
+  };
 
   const filteredAccounts = pendingAccounts.filter((acc) => {
     if (!searchAccounts.trim()) return true;
@@ -300,30 +330,27 @@ export default function RegistrarAdminDashboard({
 
             {!loading && requests.length > 0 && (
               <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="relative flex-1">
-                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                    <input
-                      type="text"
-                      placeholder="Search by name or student number..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white/60 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all"
-                    />
-                  </div>
+                <SearchFilterBar
+                  searchQuery={searchQuery}
+                  onSearchChange={setSearchQuery}
+                  dateFrom={dateFrom}
+                  dateTo={dateTo}
+                  onDateFromChange={setDateFrom}
+                  onDateToChange={setDateTo}
+                  onExport={handleExportRequests}
+                  isDarkMode={isDarkMode}
+                >
                   {filteredRequests.length > 1 && (
                     <button
                       onClick={() => { setBulkMode(!bulkMode); setSelectedIds(new Set()); }}
-                      className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
+                      className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
                         bulkMode ? "bg-slate-700 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                       }`}
                     >
                       {bulkMode ? "Cancel Bulk" : "Bulk Actions"}
                     </button>
                   )}
-                </div>
+                </SearchFilterBar>
                 {bulkMode && (
                   <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -612,18 +639,17 @@ export default function RegistrarAdminDashboard({
             </div>
 
             {!accountsLoading && pendingAccounts.length > 0 && (
-              <div className="relative">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Search by name or student number..."
-                  value={searchAccounts}
-                  onChange={(e) => setSearchAccounts(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white/60 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
-                />
-              </div>
+              <SearchFilterBar
+                searchQuery={searchAccounts}
+                onSearchChange={setSearchAccounts}
+                dateFrom=""
+                dateTo=""
+                onDateFromChange={() => {}}
+                onDateToChange={() => {}}
+                onExport={handleExportAccounts}
+                exportLabel="Export Accounts"
+                isDarkMode={isDarkMode}
+              />
             )}
 
             {accountsLoading ? (

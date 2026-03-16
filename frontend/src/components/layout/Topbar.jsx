@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import NotificationBell from "../features/NotificationBell";
 
 export default function Topbar({
   user,
@@ -10,24 +11,15 @@ export default function Topbar({
   notifications: externalNotifications,
 }) {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
   const profileRef = useRef(null);
-  const notifRef = useRef(null);
 
   const isDark = theme === "dark";
   const isSuperAdmin = user?.role === "super_admin";
-
-  // Use external notifications if provided, otherwise show empty state
-  const notifications = externalNotifications || [];
-  const unreadCount = notifications.filter((n) => n.unread).length;
 
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (profileRef.current && !profileRef.current.contains(event.target)) {
         setShowProfileMenu(false);
-      }
-      if (notifRef.current && !notifRef.current.contains(event.target)) {
-        setShowNotifications(false);
       }
     };
 
@@ -66,104 +58,7 @@ export default function Topbar({
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="relative" ref={notifRef}>
-            <button
-              onClick={() => setShowNotifications(!showNotifications)}
-              className={`relative p-2 rounded-xl transition-colors ${
-                isDark
-                  ? "hover:bg-white/10 text-slate-400 hover:text-white"
-                  : "hover:bg-gray-100 text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                />
-              </svg>
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
-                  {unreadCount}
-                </span>
-              )}
-            </button>
-
-            <AnimatePresence>
-              {showNotifications && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className={`absolute right-0 mt-2 w-80 rounded-2xl shadow-2xl overflow-hidden ${
-                    isDark
-                      ? "bg-slate-800 border border-white/10"
-                      : "bg-white border border-gray-200"
-                  }`}
-                >
-                  <div
-                    className={`p-4 border-b ${isDark ? "border-white/10" : "border-gray-200"}`}
-                  >
-                    <h3
-                      className={`font-bold ${isDark ? "text-white" : "text-gray-900"}`}
-                    >
-                      Notifications
-                    </h3>
-                  </div>
-                  <div className="max-h-96 overflow-y-auto custom-scrollbar">
-                    {notifications.length === 0 ? (
-                      <div className={`p-8 text-center ${isDark ? "text-slate-500" : "text-gray-400"}`}>
-                        <svg className={`w-10 h-10 mx-auto mb-2 ${isDark ? "text-slate-600" : "text-gray-300"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                        </svg>
-                        <p className="text-sm">No notifications</p>
-                      </div>
-                    ) : (
-                      notifications.map((notif) => (
-                        <div
-                          key={notif.id}
-                          className={`p-4 border-b transition-colors ${
-                            isDark
-                              ? "border-white/5 hover:bg-white/5"
-                              : "border-gray-100 hover:bg-gray-50"
-                          } ${notif.unread ? (isDark ? "bg-white/5" : "bg-blue-50") : ""}`}
-                        >
-                          <div className="flex items-start gap-3">
-                            {notif.unread && (
-                              <span className="w-2 h-2 rounded-full bg-blue-500 mt-2 flex-shrink-0"></span>
-                            )}
-                            <div className="flex-1">
-                              <h4
-                                className={`font-semibold text-sm ${isDark ? "text-white" : "text-gray-900"}`}
-                              >
-                                {notif.title}
-                              </h4>
-                              <p
-                                className={`text-xs mt-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}
-                              >
-                                {notif.message}
-                              </p>
-                              <p
-                                className={`text-xs mt-1 ${isDark ? "text-slate-500" : "text-gray-500"}`}
-                              >
-                                {notif.time}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+          <NotificationBell isDarkMode={isDark} />
 
           <div className="relative" ref={profileRef}>
             <button

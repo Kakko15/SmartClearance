@@ -14,10 +14,14 @@ import {
   XMarkIcon,
   ChatBubbleIcon,
   InboxStackIcon,
+  UsersIcon,
 } from "../components/ui/Icons";
 import { authAxios } from "../services/api";
 import { getSignatoryTheme } from "../constants/dashboardThemes";
 import useRealtimeSubscription from "../hooks/useRealtimeSubscription";
+import DelegationManager from "../components/features/DelegationManager";
+import SearchFilterBar from "../components/ui/SearchFilterBar";
+import { exportToCSV } from "../utils/exportData";
 
 export default function ProfessorDashboard({
   professorId,
@@ -35,6 +39,9 @@ export default function ProfessorDashboard({
   const [actionLoading, setActionLoading] = useState(false);
   const [selectedRejectId, setSelectedRejectId] = useState(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const fetchStudents = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -137,6 +144,31 @@ export default function ProfessorDashboard({
         ? approvedStudents
         : rejectedStudents;
 
+  // F6: Search + date filter
+  const filteredDisplayStudents = displayStudents.filter((s) => {
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      if (
+        !getStudentName(s).toLowerCase().includes(q) &&
+        !getStudentNumber(s).toLowerCase().includes(q)
+      ) return false;
+    }
+    if (dateFrom && s.created_at && s.created_at < dateFrom) return false;
+    if (dateTo && s.created_at && s.created_at > dateTo + "T23:59:59") return false;
+    return true;
+  });
+
+  // F7: Export
+  const handleExport = () => {
+    exportToCSV(filteredDisplayStudents, [
+      { label: "Student Name", accessor: (s) => getStudentName(s) },
+      { label: "Student Number", accessor: (s) => getStudentNumber(s) },
+      { label: "Course", accessor: (s) => getStudentCourse(s) },
+      { label: "Status", key: "status" },
+      { label: "Comments", key: "comments" },
+    ], `signatory_${activeView}`);
+  };
+
   const theme = getSignatoryTheme(isDarkMode);
 
   const menuItems = [
@@ -158,6 +190,11 @@ export default function ProfessorDashboard({
       icon: <XCircleIcon className="w-5 h-5" />,
       count: rejectedStudents.length,
     },
+    {
+      id: "delegation",
+      label: "Delegation",
+      icon: <UsersIcon className="w-5 h-5" />,
+    },
   ];
 
   return (
@@ -173,6 +210,7 @@ export default function ProfessorDashboard({
       toggleTheme={toggleTheme}
       isDarkMode={isDarkMode}
     >
+      {activeView !== "delegation" && (
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
           <div>
@@ -236,6 +274,20 @@ export default function ProfessorDashboard({
           </div>
         </div>
 
+        {/* F6: Search + date filter + F7: Export */}
+        {!loading && displayStudents.length > 0 && (
+          <SearchFilterBar
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            onDateFromChange={setDateFrom}
+            onDateToChange={setDateTo}
+            onExport={handleExport}
+            isDarkMode={isDarkMode}
+          />
+        )}
+
         {loading ? (
           <div className="space-y-4">
             {[1, 2, 3, 4].map((i) => (
@@ -280,7 +332,7 @@ export default function ProfessorDashboard({
           </GlassCard>
         ) : (
           <div className="space-y-4">
-            {displayStudents.map((student, idx) => (
+            {filteredDisplayStudents.map((student, idx) => (
               <motion.div
                 key={student.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -530,6 +582,21 @@ export default function ProfessorDashboard({
           </div>
         )}
       </div>
+      )}
+      {activeView === "delegation" && (
+        <div className="max-w-3xl mx-auto space-y-6">
+          <div>
+            <h2 className={`text-[28px] leading-tight font-medium tracking-tight ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}
+                style={{ fontFamily: 'Google Sans, sans-serif' }}>
+              Delegation Management
+            </h2>
+            <p className={`text-[15px] mt-1 ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>
+              Designate a temporary substitute signatory
+            </p>
+          </div>
+          <DelegationManager isDarkMode={isDarkMode} />
+        </div>
+      )}
     </DashboardLayout>
   );
 }

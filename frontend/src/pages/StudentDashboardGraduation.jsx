@@ -23,6 +23,7 @@ import {
   DocumentCheckIcon,
   ChatBubbleIcon,
 } from "../components/ui/Icons";
+import StudentRequestHistory from "../components/features/StudentRequestHistory";
 
 const UnresolvedBadge = ({ count = 0 }) => {
   if (count <= 0) return null;
@@ -937,6 +938,11 @@ export default function StudentDashboardGraduation({
       icon: <ChartBarIcon className="w-5 h-5" />,
     },
     {
+      id: "history",
+      label: "Request History",
+      icon: <ClockIcon className="w-5 h-5" />,
+    },
+    {
       id: "certificate",
       label: "Certificate",
       icon: <AcademicCapIcon className="w-5 h-5" />,
@@ -1289,6 +1295,20 @@ export default function StudentDashboardGraduation({
               </GlassCard>
             </>
           )}
+        </div>
+      )}
+
+      {activeView === "history" && (
+        <div className="max-w-4xl mx-auto space-y-6">
+          <div className="mb-2">
+            <h2 className={`text-[28px] font-normal tracking-tight ${isDarkMode ? 'text-[#e8eaed]' : 'text-[#202124]'}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
+              Request History
+            </h2>
+            <p className={`text-sm mt-1 ${isDarkMode ? 'text-[#9aa0a6]' : 'text-[#5f6368]'}`}>
+              View your past clearance requests and their outcomes
+            </p>
+          </div>
+          <StudentRequestHistory studentId={studentId} isDarkMode={isDarkMode} />
         </div>
       )}
 

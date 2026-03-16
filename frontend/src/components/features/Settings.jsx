@@ -15,6 +15,7 @@ import {
   ComputerDesktopIcon
 } from "../ui/Icons";
 import AvatarManager from "./AvatarManager";
+import ProfileEditForm from "./ProfileEditForm";
 
 export default function Settings({ user, profile, onClose, theme, setTheme, mode = "full" }) {
   const [activeTab, setActiveTab] = useState(mode === "account" ? "account" : "account");
@@ -107,12 +108,13 @@ export default function Settings({ user, profile, onClose, theme, setTheme, mode
 
   const allTabs = [
     { id: "account", label: "Account Info", icon: <UserCircleIcon className="w-5 h-5" /> },
+    { id: "editProfile", label: "Edit Profile", icon: <UserCircleIcon className="w-5 h-5" /> },
     { id: "security", label: "Security", icon: <ShieldCheckIcon className="w-5 h-5" /> },
     { id: "appearance", label: "Appearance", icon: <PaintBrushIcon className="w-5 h-5" /> },
     { id: "notifications", label: "Notifications", icon: <BellAlertIcon className="w-5 h-5" /> },
   ];
 
-  const accountOnlyTabIds = ["account", "security"];
+  const accountOnlyTabIds = ["account", "editProfile", "security"];
   const tabs = mode === "account" ? allTabs.filter(t => accountOnlyTabIds.includes(t.id)) : allTabs;
 
   const isDark = theme === "dark";
@@ -248,6 +250,21 @@ export default function Settings({ user, profile, onClose, theme, setTheme, mode
                     </div>
 
 
+                  </motion.div>
+                )}
+
+                {activeTab === "editProfile" && (
+                  <motion.div
+                    key="editProfile"
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -15 }}
+                    transition={{ type: "spring", bounce: 0, duration: 0.4 }}
+                    className="max-w-3xl mx-auto"
+                  >
+                    <h3 className={`text-[28px] font-normal mb-2 ${textPrimary}`}>Edit Profile</h3>
+                    <p className={`text-sm mb-8 ${textSecondary}`}>Request changes to your profile information</p>
+                    <ProfileEditForm profile={profile} isDarkMode={isDark} />
                   </motion.div>
                 )}
 

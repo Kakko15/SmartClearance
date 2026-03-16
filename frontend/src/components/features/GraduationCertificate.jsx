@@ -1,11 +1,13 @@
 import { useEffect, useState, useCallback } from "react";
 import axios from "axios";
+import { useTheme } from "../../contexts/ThemeContext";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
 export default function GraduationCertificate({ requestId, studentId }) {
   const [certificateData, setCertificateData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const { isDarkMode } = useTheme();
 
   const fetchCertificateData = useCallback(async () => {
     try {
@@ -32,7 +34,7 @@ export default function GraduationCertificate({ requestId, studentId }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-8">
+      <div className="flex items-center justify-center p-8" role="status" aria-label="Loading certificate">
         <div className="animate-spin w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full"></div>
       </div>
     );
@@ -40,7 +42,7 @@ export default function GraduationCertificate({ requestId, studentId }) {
 
   if (!certificateData || !certificateData.certificate_generated) {
     return (
-      <div className="p-8 text-center text-gray-600">
+      <div className={`p-8 text-center ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
         Certificate not yet generated
       </div>
     );
@@ -63,10 +65,16 @@ export default function GraduationCertificate({ requestId, studentId }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end print:hidden">
+      {/* F8: Dark-mode aware toolbar */}
+      <div className="flex justify-end gap-3 print:hidden">
         <button
           onClick={handlePrint}
-          className="px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium transition-all shadow-md flex items-center gap-2"
+          className={`px-6 py-2 rounded-lg font-medium transition-all shadow-md flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
+            isDarkMode
+              ? "bg-green-600 text-white hover:bg-green-500 focus:ring-offset-gray-900"
+              : "bg-green-500 text-white hover:bg-green-600"
+          }`}
+          aria-label="Print certificate"
         >
           <svg
             className="w-5 h-5"
@@ -85,7 +93,10 @@ export default function GraduationCertificate({ requestId, studentId }) {
         </button>
       </div>
 
-      <div className="bg-white p-12 border-8 border-double border-green-700 rounded-lg shadow-2xl print:shadow-none print:border-black">
+      {/* Certificate document — always light for print fidelity */}
+      <div className={`bg-white p-8 sm:p-12 border-8 border-double border-green-700 rounded-lg shadow-2xl print:shadow-none print:border-black ${
+        isDarkMode ? "ring-1 ring-white/10" : ""
+      }`}>
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <img
