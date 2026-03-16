@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest"
   },
   "keywords": [],
   "author": "",
@@ -25,5 +25,8 @@
     "pdfkit": "^0.14.0",
     "qrcode": "^1.5.3",
     "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "jest": "^30.3.0"
   }
 }
