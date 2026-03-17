@@ -68,3 +68,9 @@ app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 // Cleanup expired OTP tokens every 15 minutes
 const { cleanupExpired } = require("./services/otpStore");
 setInterval(() => cleanupExpired().catch(() => {}), 15 * 60 * 1000);
+
+// Check deadline reminders once per day (every 24 hours)
+const { checkDeadlineReminders } = require("./services/notificationService");
+// Run once on startup (after a short delay), then every 24 hours
+setTimeout(() => checkDeadlineReminders().catch(() => {}), 30 * 1000);
+setInterval(() => checkDeadlineReminders().catch(() => {}), 24 * 60 * 60 * 1000);

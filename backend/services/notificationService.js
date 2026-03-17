@@ -346,6 +346,15 @@ async function notifyRequestEscalated(requestId, escalationLevel, daysPending) {
       studentEmailSubject,
       studentEmailMessage,
     );
+
+    // In-app notification for escalation
+    await createInAppNotification(
+      student.id,
+      "info",
+      "Request Escalated",
+      `Your request for ${docType.name} has been escalated for faster processing.`,
+      requestId,
+    );
   } catch (error) {
     console.error("Error in notifyRequestEscalated:", error);
   }
@@ -371,6 +380,15 @@ async function notifyNewComment(requestId, commenterId, commentText) {
     const docType = request.document_types;
 
     if (commenterId !== student.id) {
+      // In-app notification for new comment
+      await createInAppNotification(
+        student.id,
+        "info",
+        "New Comment on Your Request",
+        `${commenter.full_name} commented on your ${docType.name} request.`,
+        requestId,
+      );
+
       // BUG 8 FIX: Resolve student email from auth record
       const studentEmail = await resolveUserEmail(student.id);
       if (!studentEmail) {
@@ -406,6 +424,211 @@ async function notifyNewComment(requestId, commenterId, commentText) {
   }
 }
 
+/**
+ * Notify the staff member(s) responsible for the next stage that a request
+ * is now waiting for their action.
+ */
+async function notifyNextStageStaff(requestId, nextStageName) {
+  try {
+    const { data: request } = await supabase
+      .from("requests")
+      .select("*, document_types(*), profiles!requests_student_id_fkey(full_name, student_number)")
+      .eq("id", requestId)
+      .single();
+
+    if (!request) return;
+
+    const student = request.profiles;
+    const docType = request.document_types;
+
+    // Map stage name to the role that handles it
+    const STAGE_TO_ROLE = {
+      library: "librarian",
+      cashier: "cashier",
+      registrar: "registrar",
+    };
+
+    const targetRole = STAGE_TO_ROLE[nextStageName];
+    if (!targetRole) return; // signatory stages are handled differently
+
+    const { data: staffMembers } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .eq("role", targetRole)
+      .eq("account_enabled", true);
+
+    if (!staffMembers || staffMembers.length === 0) return;
+
+    for (const staff of staffMembers) {
+      await createInAppNotification(
+        staff.id,
+        "info",
+        "New Request Awaiting Your Review",
+        `${student.full_name} (${student.student_number}) — ${docType.name} is now at your stage.`,
+        requestId,
+      );
+    }
+  } catch (error) {
+    console.error("Error in notifyNextStageStaff:", error);
+  }
+}
+
+/**
+ * Notify the student that their resubmission was received, and notify
+ * the staff at the current stage that a request needs re-review.
+ */
+async function notifyRequestResubmitted(requestId, studentId, stageName) {
+  try {
+    const { data: request } = await supabase
+      .from("requests")
+      .select("*, document_types(*)")
+      .eq("id", requestId)
+      .single();
+
+    if (!request) return;
+    const docType = request.document_types;
+
+    // Notify the student
+    await createInAppNotification(
+      studentId,
+      "info",
+      "Request Resubmitted",
+      `Your request for ${docType.name} has been resubmitted and is pending review.`,
+      requestId,
+    );
+
+    // Notify staff at the current stage
+    await notifyNextStageStaff(requestId, stageName);
+  } catch (error) {
+    console.error("Error in notifyRequestResubmitted:", error);
+  }
+}
+
+/**
+ * Send a single digest notification for bulk approve/reject operations
+ * instead of one notification per request.
+ */
+async function notifyBulkAction(requestIds, action, stageName) {
+  try {
+    if (!requestIds || requestIds.length === 0) return;
+
+    // Get all affected students in one query
+    const { data: requests } = await supabase
+      .from("requests")
+      .select("id, student_id")
+      .in("id", requestIds);
+
+    if (!requests || requests.length === 0) return;
+
+    // Group by student so each student gets one digest notification
+    const studentMap = {};
+    for (const req of requests) {
+      if (!studentMap[req.student_id]) {
+        studentMap[req.student_id] = [];
+      }
+      studentMap[req.student_id].push(req.id);
+    }
+
+    const isApproval = action === "approved";
+    const type = isApproval ? "info" : "warning";
+
+    for (const [studentId, ids] of Object.entries(studentMap)) {
+      const count = ids.length;
+      const title = isApproval
+        ? `${stageName} Stage Approved`
+        : `Clearance On Hold — ${stageName}`;
+      const message = count === 1
+        ? (isApproval
+            ? `Your graduation clearance has been approved at the ${stageName} stage.`
+            : `Your graduation clearance was placed on hold at the ${stageName} stage.`)
+        : (isApproval
+            ? `${count} of your clearance requests were approved at the ${stageName} stage.`
+            : `${count} of your clearance requests were placed on hold at the ${stageName} stage.`);
+
+      await createInAppNotification(studentId, type, title, message, ids[0]);
+    }
+  } catch (error) {
+    console.error("Error in notifyBulkAction:", error);
+  }
+}
+
+/**
+ * Check for requests approaching their deadline and send reminder
+ * notifications at 5 days and 1 day before expiry.
+ * Designed to be called on a scheduled interval (e.g., once per day).
+ */
+async function checkDeadlineReminders() {
+  try {
+    const now = new Date();
+
+    // 5-day reminder window: deadline between 4.5 and 5.5 days from now
+    const fiveDayStart = new Date(now);
+    fiveDayStart.setDate(fiveDayStart.getDate() + 4);
+    fiveDayStart.setHours(12, 0, 0, 0);
+    const fiveDayEnd = new Date(now);
+    fiveDayEnd.setDate(fiveDayEnd.getDate() + 5);
+    fiveDayEnd.setHours(12, 0, 0, 0);
+
+    // 1-day reminder window: deadline between 0.5 and 1.5 days from now
+    const oneDayStart = new Date(now);
+    oneDayStart.setHours(oneDayStart.getHours() + 12);
+    const oneDayEnd = new Date(now);
+    oneDayEnd.setDate(oneDayEnd.getDate() + 1);
+    oneDayEnd.setHours(12, 0, 0, 0);
+
+    // Fetch requests with deadlines in the 5-day window
+    const { data: fiveDayRequests } = await supabase
+      .from("requests")
+      .select("id, student_id, deadline, document_types(name)")
+      .eq("is_completed", false)
+      .not("deadline", "is", null)
+      .gte("deadline", fiveDayStart.toISOString())
+      .lte("deadline", fiveDayEnd.toISOString());
+
+    // Fetch requests with deadlines in the 1-day window
+    const { data: oneDayRequests } = await supabase
+      .from("requests")
+      .select("id, student_id, deadline, document_types(name)")
+      .eq("is_completed", false)
+      .not("deadline", "is", null)
+      .gte("deadline", oneDayStart.toISOString())
+      .lte("deadline", oneDayEnd.toISOString());
+
+    let reminded = 0;
+
+    for (const req of fiveDayRequests || []) {
+      await createInAppNotification(
+        req.student_id,
+        "warning",
+        "Deadline Approaching",
+        `Your request for ${req.document_types?.name || "clearance"} is due in 5 days. Please ensure all requirements are met.`,
+        req.id,
+      );
+      reminded++;
+    }
+
+    for (const req of oneDayRequests || []) {
+      await createInAppNotification(
+        req.student_id,
+        "error",
+        "Deadline Tomorrow",
+        `Your request for ${req.document_types?.name || "clearance"} is due tomorrow. Take action now to avoid delays.`,
+        req.id,
+      );
+      reminded++;
+    }
+
+    if (reminded > 0) {
+      console.log(`Sent ${reminded} deadline reminder notification(s)`);
+    }
+
+    return { success: true, reminded };
+  } catch (error) {
+    console.error("Error in checkDeadlineReminders:", error);
+    return { success: false, error: error.message };
+  }
+}
+
 module.exports = {
   sendEmail,
   resolveUserEmail,
@@ -415,4 +638,8 @@ module.exports = {
   notifyRequestRejected,
   notifyRequestEscalated,
   notifyNewComment,
+  notifyNextStageStaff,
+  notifyRequestResubmitted,
+  notifyBulkAction,
+  checkDeadlineReminders,
 };

@@ -938,6 +938,190 @@ export default function StudentDashboardGraduation({
 
   const unresolvedCommentCount = clearanceStatus?.unresolvedCommentCount || 0;
 
+  const handlePrintClearance = async () => {
+    const r = clearanceStatus?.request;
+    if (!r || stages.length === 0) return;
+
+    const { default: jsPDF } = await import("jspdf");
+    const { default: html2canvas } = await import("html2canvas");
+
+    const studentName = (studentInfo?.full_name || "N/A").toUpperCase();
+    const studentNum = studentInfo?.student_number || "N/A";
+    const courseYear = studentInfo?.course_year || "N/A";
+    const portion = r.portion === "undergraduate" ? "Undergraduate" : "Graduate";
+    const dateApplied = new Date(r.created_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+    const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+
+    const stageRows = stages.map((s, i) => {
+      const status = s.status === "approved" ? "CLEARED"
+        : s.status === "rejected" ? "ON HOLD"
+        : s.status === "locked" ? "LOCKED"
+        : "PENDING";
+      const statusColor = s.status === "approved" ? "#166534"
+        : s.status === "rejected" ? "#b91c1c"
+        : "#6b7280";
+      return `<tr>
+        <td style="border:1px solid #333;padding:5px 8px;text-align:center;">${i + 1}</td>
+        <td style="border:1px solid #333;padding:5px 8px;">${s.title}</td>
+        <td style="border:1px solid #333;padding:5px 8px;">${s.description || (s.type === "signatory" ? "Clearance Approval" : "Admin Clearance")}</td>
+        <td style="border:1px solid #333;padding:5px 8px;text-align:center;font-weight:bold;color:${statusColor};">${status}</td>
+        <td style="border:1px solid #333;padding:5px 8px;font-size:9px;color:#444;">${s.comments || ""}</td>
+      </tr>`;
+    }).join("");
+
+    const approvedCount = stages.filter(s => s.status === "approved").length;
+    const totalCount = stages.length;
+
+    const container = document.createElement("div");
+    container.style.cssText = "position:absolute;left:-9999px;top:0;width:794px;background:#fff;";
+    container.innerHTML = `
+      <div style="font-family:'Times New Roman',Times,serif;color:#000;width:794px;background:#fff;padding:30px 60px 25px;">
+
+        <!-- HEADER -->
+        <div style="text-align:center;margin-bottom:2px;">
+          <img src="${window.location.origin}/IsabelaLogo.jpg" style="width:55px;height:55px;display:block;margin:0 auto 4px;" crossorigin="anonymous" />
+          <div style="font-size:14px;font-weight:bold;letter-spacing:3px;text-transform:uppercase;">ISABELA STATE UNIVERSITY</div>
+          <div style="font-size:10px;font-style:italic;">Echague, Isabela</div>
+        </div>
+        <div style="text-align:center;font-size:8px;color:#777;margin-bottom:10px;">ISO 9001:2015 &nbsp;|&nbsp; ISO 14001:2015 &nbsp;|&nbsp; OHSAS 18001:2007</div>
+
+        <!-- FORM TITLE -->
+        <div style="text-align:center;border-top:1.5px solid #000;border-bottom:1.5px solid #000;padding:5px 0;margin-bottom:12px;">
+          <div style="font-size:13px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;">Graduation Clearance Form</div>
+          <div style="font-size:8px;color:#666;margin-top:1px;">REG Form 07 &mdash; ${portion} Portion</div>
+        </div>
+
+        <!-- STUDENT INFO -->
+        <table style="width:100%;border:none;font-size:10px;margin-bottom:12px;" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="width:50%;padding:3px 0;">
+              <table style="width:100%;border:none;" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="width:95px;font-weight:bold;padding:2px 0;white-space:nowrap;">ID No:</td>
+                  <td style="padding:2px 0;border-bottom:1px solid #999;">${studentNum}</td>
+                </tr>
+              </table>
+            </td>
+            <td style="width:50%;padding:3px 0 3px 20px;">
+              <table style="width:100%;border:none;" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="width:95px;font-weight:bold;padding:2px 0;white-space:nowrap;">Date Applied:</td>
+                  <td style="padding:2px 0;border-bottom:1px solid #999;">${dateApplied}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:3px 0;">
+              <table style="width:100%;border:none;" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="width:95px;font-weight:bold;padding:2px 0;white-space:nowrap;">Name:</td>
+                  <td style="padding:2px 0;border-bottom:1px solid #999;font-weight:bold;">${studentName}</td>
+                </tr>
+              </table>
+            </td>
+            <td style="padding:3px 0 3px 20px;">
+              <table style="width:100%;border:none;" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="width:95px;font-weight:bold;padding:2px 0;white-space:nowrap;">Status:</td>
+                  <td style="padding:2px 0;border-bottom:1px solid #999;">${r.is_completed ? "Completed" : "In Progress"}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:3px 0;">
+              <table style="width:100%;border:none;" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="width:95px;font-weight:bold;padding:2px 0;white-space:nowrap;">Program:</td>
+                  <td style="padding:2px 0;border-bottom:1px solid #999;">${courseYear}</td>
+                </tr>
+              </table>
+            </td>
+            <td style="padding:3px 0 3px 20px;">
+              <table style="width:100%;border:none;" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="width:95px;font-weight:bold;padding:2px 0;white-space:nowrap;">Date Printed:</td>
+                  <td style="padding:2px 0;border-bottom:1px solid #999;">${today}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <!-- CLEARANCE TABLE -->
+        <table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:10px;">
+          <thead>
+            <tr style="background:#f0f0f0;">
+              <th style="border:1px solid #333;padding:5px 8px;text-align:center;width:30px;font-weight:bold;">NO.</th>
+              <th style="border:1px solid #333;padding:5px 8px;text-align:left;width:130px;font-weight:bold;">OFFICE / SIGNATORY</th>
+              <th style="border:1px solid #333;padding:5px 8px;text-align:left;font-weight:bold;">DESCRIPTION</th>
+              <th style="border:1px solid #333;padding:5px 8px;text-align:center;width:75px;font-weight:bold;">STATUS</th>
+              <th style="border:1px solid #333;padding:5px 8px;text-align:left;width:110px;font-weight:bold;">REMARKS</th>
+            </tr>
+          </thead>
+          <tbody style="font-size:10px;">${stageRows}</tbody>
+        </table>
+
+        <!-- PROGRESS SUMMARY -->
+        <div style="border:1px solid #333;padding:6px 10px;font-size:10px;margin-bottom:20px;background:#fafafa;">
+          <strong>Progress: ${approvedCount} of ${totalCount} stages cleared</strong>
+          &nbsp;&mdash;&nbsp;
+          ${r.is_completed
+            ? '<span style="color:#166534;font-weight:bold;">ALL STAGES CLEARED</span>'
+            : `<span style="color:#92400e;">${totalCount - approvedCount} stage(s) remaining</span>`}
+        </div>
+
+        <!-- SIGNATURES -->
+        <table style="width:100%;border:none;margin-top:35px;font-size:9px;" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="width:45%;text-align:center;padding-top:30px;">
+              <div style="border-top:1px solid #000;display:inline-block;min-width:200px;padding-top:3px;">Student's Signature Over Printed Name</div>
+            </td>
+            <td style="width:10%;"></td>
+            <td style="width:45%;text-align:center;padding-top:30px;">
+              <div style="border-top:1px solid #000;display:inline-block;min-width:200px;padding-top:3px;">Registrar / Authorized Officer</div>
+            </td>
+          </tr>
+        </table>
+
+        <!-- FOOTER NOTE -->
+        <div style="text-align:center;font-size:8px;color:#888;margin-top:18px;font-style:italic;">
+          This document was generated by the SmartClearance System of Isabela State University.<br/>
+          This is not an official clearance certificate. For official copies, please visit the Registrar's Office.
+        </div>
+      </div>
+    `;
+    document.body.appendChild(container);
+
+    const img = container.querySelector("img");
+    if (img && !img.complete) {
+      await new Promise((resolve) => { img.onload = resolve; img.onerror = resolve; });
+    }
+
+    try {
+      const canvas = await html2canvas(container.firstElementChild, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        width: 794,
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+
+      const pdfBlob = pdf.output("blob");
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      window.open(pdfUrl, "_blank");
+    } finally {
+      document.body.removeChild(container);
+    }
+  };
+
   const theme = getStudentTheme(isDarkMode);
 
   const menuItems = [
@@ -1227,7 +1411,7 @@ export default function StudentDashboardGraduation({
                     </h3>
                     {/* G9: Print clearance progress */}
                     <button
-                      onClick={() => window.print()}
+                      onClick={handlePrintClearance}
                       className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all print:hidden ${
                         isDarkMode
                           ? "bg-[#3c4043] hover:bg-[#5f6368] text-[#e8eaed]"

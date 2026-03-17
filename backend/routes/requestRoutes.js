@@ -5,6 +5,8 @@ const {
   notifyRequestSubmitted,
   notifyRequestApproved,
   notifyRequestRejected,
+  notifyNextStageStaff,
+  notifyRequestResubmitted,
 } = require("../services/notificationService");
 const { generateCertificate } = require("../services/certificateService");
 const { classifyAndRouteRequest } = require("../services/aiRequestRouter");
@@ -209,6 +211,10 @@ router.post("/:id/approve", requireAuth, async (req, res) => {
 
     if (isLastStage) {
       await generateCertificate(id);
+    } else {
+      // Notify the staff at the next stage that a request is waiting
+      const nextStage = request.document_types.required_stages[nextStageIndex];
+      notifyNextStageStaff(id, nextStage);
     }
 
     res.json({
@@ -300,7 +306,7 @@ router.post("/:id/resubmit", requireAuth, async (req, res) => {
 
     const { data: request, error: reqError } = await supabase
       .from("requests")
-      .select("*")
+      .select("*, document_types(*)")
       .eq("id", id)
       .eq("student_id", student_id)
       .single();
@@ -338,6 +344,10 @@ router.post("/:id/resubmit", requireAuth, async (req, res) => {
       "resubmitted",
       "Student resubmitted request",
     );
+
+    // Notify student + staff at current stage
+    const currentStage = request.document_types.required_stages[request.current_stage_index];
+    notifyRequestResubmitted(id, student_id, currentStage);
 
     res.json({
       success: true,

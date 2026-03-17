@@ -5,7 +5,7 @@ const rateLimit = require("express-rate-limit");
 const supabase = require("../supabaseClient");
 const { requireAuth, requireRole } = require("../middleware/authMiddleware");
 const { logAction, ACTIONS } = require("../services/auditService");
-const { resolveUserEmail, sendEmail } = require("../services/notificationService");
+const { resolveUserEmail, sendEmail, createInAppNotification, notifyBulkAction, notifyNextStageStaff } = require("../services/notificationService");
 const { escapeHtml } = require("../utils/escapeHtml");
 
 // ── S5 FIX: Rate limiting on graduation endpoints ────────────────────────────
@@ -172,11 +172,33 @@ async function notifyClearanceStatusChange(requestId, status, stageName, comment
       .single();
     if (!student) return;
 
-    const email = await resolveUserEmail(request.student_id);
-    if (!email) return;
-
     const isCompleted = status === "completed";
     const isRejected = status === "rejected";
+
+    // In-app notification for the student
+    const notifType = isCompleted ? "success" : isRejected ? "warning" : "info";
+    const notifTitle = isCompleted
+      ? "Graduation Clearance Completed!"
+      : isRejected
+        ? `Clearance On Hold — ${stageName}`
+        : `${stageName} Stage Approved`;
+    const notifMessage = isCompleted
+      ? "Congratulations! Your graduation clearance is complete. Download your certificate now."
+      : isRejected
+        ? `Your clearance was placed on hold at the ${stageName} stage.${comments ? ` Reason: ${comments}` : ""}`
+        : `Your graduation clearance has been approved at the ${stageName} stage.`;
+
+    await createInAppNotification(
+      request.student_id,
+      notifType,
+      notifTitle,
+      notifMessage,
+      requestId,
+    );
+
+    // Email notification (fire-and-forget)
+    const email = await resolveUserEmail(request.student_id);
+    if (!email) return;
 
     const subject = isCompleted
       ? "🎉 Graduation Clearance Completed!"
@@ -818,6 +840,8 @@ router.post("/request-reevaluation", requireAuth, requireRole("student"), async 
 
       const stageNames = { library: "Campus Librarian", cashier: "Chief Accountant", registrar: "Record Evaluator" };
       notifyClearanceStatusChange(request_id, "pending", stageNames[stage_key] || stage_key, "Student has requested re-evaluation after rejection.");
+      // Notify the staff at this stage that they have a request to re-review
+      notifyNextStageStaff(request_id, stage_key);
 
       res.json({ success: true, message: "Re-evaluation requested. The reviewer has been notified." });
     } else {
@@ -1496,6 +1520,7 @@ router.post("/bulk-approve", requireAuth, requireRole("librarian", "cashier", "r
     const approvedByField = { library: "library_approved_by", cashier: "cashier_approved_by", registrar: "registrar_approved_by" }[stage];
     const approvedAtField = { library: "library_approved_at", cashier: "cashier_approved_at", registrar: "registrar_approved_at" }[stage];
     const commentField = { library: "library_comments", cashier: "cashier_comments", registrar: "registrar_comments" }[stage];
+    const stageDisplayName = { library: "Campus Librarian", cashier: "Chief Accountant", registrar: "Record Evaluator" }[stage] || stage;
 
     if (!statusField || !Array.isArray(request_ids) || request_ids.length === 0) {
       return res.status(400).json({ success: false, error: "Invalid stage or empty request list" });
@@ -1527,6 +1552,9 @@ router.post("/bulk-approve", requireAuth, requireRole("librarian", "cashier", "r
       }
     }
 
+    // Single digest notification instead of one per request
+    notifyBulkAction(results.approved, "approved", stageDisplayName);
+
     res.json({ success: true, results });
   } catch (error) {
     console.error("Bulk approve error:", error);
@@ -1540,6 +1568,7 @@ router.post("/bulk-reject", requireAuth, requireRole("librarian", "cashier", "re
     const statusField = { library: "library_status", cashier: "cashier_status", registrar: "registrar_status" }[stage];
     const approvedByField = { library: "library_approved_by", cashier: "cashier_approved_by", registrar: "registrar_approved_by" }[stage];
     const commentField = { library: "library_comments", cashier: "cashier_comments", registrar: "registrar_comments" }[stage];
+    const stageDisplayName = { library: "Campus Librarian", cashier: "Chief Accountant", registrar: "Record Evaluator" }[stage] || stage;
 
     if (!statusField || !Array.isArray(request_ids) || request_ids.length === 0) {
       return res.status(400).json({ success: false, error: "Invalid stage or empty request list" });
@@ -1574,6 +1603,9 @@ router.post("/bulk-reject", requireAuth, requireRole("librarian", "cashier", "re
         logStatusChange(rid, stage, "pending", "rejected", admin_id, comments);
       }
     }
+
+    // Single digest notification instead of one per request
+    notifyBulkAction(results.rejected, "rejected", stageDisplayName);
 
     res.json({ success: true, results });
   } catch (error) {

@@ -11,7 +11,6 @@ import CashierDashboard from "./pages/CashierDashboard";
 import RegistrarDashboard from "./pages/RegistrarDashboard";
 import Settings from "./components/features/Settings";
 import Loader from "./components/ui/Loader";
-import ClickSpark from "./components/ui/ClickSpark";
 import LandingPage from "./pages/LandingPage";
 import AuthPage from "./pages/auth/AuthPage";
 import RoleSelectionPage from "./pages/auth/RoleSelectionPage";
@@ -85,7 +84,7 @@ function App() {
   if (showPasswordReset) return <PasswordResetPage />;
 
   return (
-    <ClickSpark sparkColor={isDarkMode ? "#22c55e" : "#10b981"} sparkSize={13} sparkRadius={15} sparkCount={10} duration={400}>
+    <>
       <div className={`min-h-screen w-full font-sans transition-colors duration-500 ${isAuthenticated ? (isDarkMode ? "bg-[#030712] text-white" : "bg-[#FAFAFA] text-slate-800") : isDarkMode ? "bg-[#030712] text-slate-100" : "bg-[#FAFAFA] text-slate-800"}`}>
         {isAuthenticated && <div className="fixed inset-0 z-0 grid-bg opacity-20 pointer-events-none"></div>}
         <AnimatePresence mode="wait">
@@ -148,7 +147,7 @@ function App() {
           <Settings user={user} profile={profile} onClose={() => setShowSettings(false)} theme={themePreference} setTheme={(t) => toggleTheme(t)} onAvatarUpdate={(url) => setUser(prev => ({ ...prev, user_metadata: { ...prev.user_metadata, avatar_url: url } }))} />
         )}
       </div>
-    </ClickSpark>
+    </>
   );
 }
 
