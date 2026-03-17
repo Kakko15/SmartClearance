@@ -102,10 +102,26 @@ function getTransporter() {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASSWORD,
       },
+      pool: true,
+      maxConnections: 3,
+      maxMessages: 100,
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
     });
   }
   return _transporter;
 }
+
+// Warm up SMTP connection on module load so first email is fast
+try {
+  const t = getTransporter();
+  t.verify().then(() => {
+    console.log("[SMTP] Connection pool ready");
+  }).catch((err) => {
+    console.warn("[SMTP] Warm-up failed (will retry on first send):", err.message);
+  });
+} catch (_) { /* ignore */ }
 
 router.post("/setup", async (req, res) => {
   try {
@@ -293,10 +309,18 @@ router.post("/send-email-otp", requireAuth, requireMatchingUserId, sendOtpLimite
       return res.status(500).json({ success: false, error: "Failed to create verification code. Please try again." });
     }
 
-    const expiryMinutes = Math.round(OTP_EXPIRY_MS / 60000);
+    // Respond immediately — send email in the background so the UI feels instant
+    res.json({
+      success: true,
+      message: "Verification code sent to your email",
+      expiresIn: OTP_EXPIRY_MS,
+      resendCooldown: Math.round(nextCooldownMs / 1000),
+    });
 
+    // Fire-and-forget: send the email after responding
+    const expiryMinutes = Math.round(OTP_EXPIRY_MS / 60000);
     const transporter = getTransporter();
-    await transporter.sendMail({
+    transporter.sendMail({
       from: process.env.EMAIL_FROM,
       to: email,
       subject: "Your Login Verification Code - SmartClearance",
@@ -323,13 +347,8 @@ router.post("/send-email-otp", requireAuth, requireMatchingUserId, sendOtpLimite
           </p>
         </div>
       `,
-    });
-
-    res.json({
-      success: true,
-      message: "Verification code sent to your email",
-      expiresIn: OTP_EXPIRY_MS,
-      resendCooldown: Math.round(nextCooldownMs / 1000),
+    }).catch((emailErr) => {
+      console.error("[send-email-otp] Background email send failed:", emailErr.message);
     });
   } catch (error) {
     console.error("Send email OTP error:", error.message, error.stack);

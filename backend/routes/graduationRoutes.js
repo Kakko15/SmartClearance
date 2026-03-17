@@ -518,6 +518,19 @@ router.get("/status/:studentId", requireAuth, requireRole("student"), async (req
       });
     }
 
+    // Ensure portion is always present — the view may not include it
+    if (!request.portion) {
+      const reqId = request.request_id || request.id;
+      const { data: reqRow } = await supabase
+        .from("requests")
+        .select("portion")
+        .eq("id", reqId)
+        .single();
+      if (reqRow?.portion) {
+        request.portion = reqRow.portion;
+      }
+    }
+
     const { data: professorApprovals } = await supabase
       .from("professor_approvals")
       .select(

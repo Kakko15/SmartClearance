@@ -128,7 +128,7 @@ export function AuthProvider({ children }) {
 
       if (!isMounted) return;
 
-      const twoFAVerified = sessionStorage.getItem("2fa_verified");
+      const twoFAVerified = localStorage.getItem("2fa_verified");
       if (data.totp_enabled && twoFAVerified !== sessionUser.id) {
         setPendingUser(sessionUser);
         setPendingProfile(data);
@@ -337,7 +337,7 @@ export function AuthProvider({ children }) {
   };
 
   const complete2FA = () => {
-    sessionStorage.setItem("2fa_verified", pendingUser.id);
+    localStorage.setItem("2fa_verified", pendingUser.id);
     setUser(pendingUser);
     setProfile(pendingProfile);
     setTwoFactorPending(false);
@@ -362,7 +362,7 @@ export function AuthProvider({ children }) {
     setTwoFactorPending(false);
     setPendingUser(null);
     setPendingProfile(null);
-    sessionStorage.removeItem("2fa_verified");
+    localStorage.removeItem("2fa_verified");
     roleMismatchRef.current = true;
     await supabase.auth.signOut();
   };
