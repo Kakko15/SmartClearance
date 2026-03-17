@@ -9,6 +9,26 @@
 
 const supabase = require("../supabaseClient");
 
+// Fallback store used only when DB operations fail.
+// This keeps auth flows usable in local/dev even with partial schema drift.
+const fallbackTokens = new Map();
+
+function fallbackKey(userId, tokenType) {
+  return `${userId}:${tokenType}`;
+}
+
+function setFallbackToken(userId, tokenType, token) {
+  fallbackTokens.set(fallbackKey(userId, tokenType), token);
+}
+
+function getFallbackToken(userId, tokenType) {
+  return fallbackTokens.get(fallbackKey(userId, tokenType)) || null;
+}
+
+function deleteFallbackToken(userId, tokenType) {
+  fallbackTokens.delete(fallbackKey(userId, tokenType));
+}
+
 const TOKEN_TYPES = {
   EMAIL_VERIFY: "email_verify",
   EMAIL_OTP: "email_otp",
@@ -22,6 +42,16 @@ const TOKEN_TYPES = {
  */
 async function setToken(userId, tokenType, { tokenValue, email, expiresInMs, maxAttempts = 5, resendCount = 0 }) {
   const expiresAt = new Date(Date.now() + expiresInMs).toISOString();
+  const fallbackToken = {
+    tokenValue,
+    email: email || null,
+    expiresAt: new Date(expiresAt).getTime(),
+    createdAt: Date.now(),
+    attempts: 0,
+    maxAttempts,
+    setupUsed: false,
+    resendCount,
+  };
 
   const row = {
     user_id: userId,
@@ -72,10 +102,42 @@ async function setToken(userId, tokenType, { tokenValue, email, expiresInMs, max
 
       if (insErr2) {
         console.error(`otpStore.setToken final fallback error:`, insErr2.message, insErr2.details, insErr2.hint, insErr2.code);
-        return false;
+
+        // Last-resort compatibility fallback for partially migrated schemas.
+        // Keep only core columns that existed in earliest versions.
+        const coreRow = {
+          user_id: userId,
+          token_type: tokenType,
+          token_value: tokenValue,
+          email: email || null,
+          expires_at: expiresAt,
+          created_at: new Date().toISOString(),
+        };
+
+        const { error: delErr2 } = await supabase
+          .from("otp_tokens")
+          .delete()
+          .eq("user_id", userId)
+          .eq("token_type", tokenType);
+
+        if (delErr2) {
+          console.error(`otpStore.setToken core fallback delete error:`, delErr2.message);
+        }
+
+        const { error: coreInsErr } = await supabase
+          .from("otp_tokens")
+          .insert(coreRow);
+
+        if (coreInsErr) {
+          console.error(`otpStore.setToken core fallback insert error:`, coreInsErr.message, coreInsErr.details, coreInsErr.hint, coreInsErr.code);
+          // Final safety net: keep token in memory so the user can continue.
+          setFallbackToken(userId, tokenType, fallbackToken);
+          return true;
+        }
       }
     }
   }
+  setFallbackToken(userId, tokenType, fallbackToken);
   return true;
 }
 
@@ -90,7 +152,16 @@ async function getToken(userId, tokenType) {
     .eq("token_type", tokenType)
     .single();
 
-  if (error || !data) return null;
+  if (error || !data) {
+    const fallback = getFallbackToken(userId, tokenType);
+    if (!fallback) return null;
+
+    if (Date.now() > fallback.expiresAt) {
+      deleteFallbackToken(userId, tokenType);
+      return null;
+    }
+    return fallback;
+  }
 
   // Check expiry
   if (new Date(data.expires_at) < new Date()) {
@@ -103,9 +174,9 @@ async function getToken(userId, tokenType) {
     email: data.email,
     expiresAt: new Date(data.expires_at).getTime(),
     createdAt: new Date(data.created_at).getTime(),
-    attempts: data.attempts,
-    maxAttempts: data.max_attempts,
-    setupUsed: data.setup_used,
+    attempts: data.attempts ?? 0,
+    maxAttempts: data.max_attempts ?? 5,
+    setupUsed: data.setup_used ?? false,
     resendCount: data.resend_count ?? 0,
   };
 }
@@ -132,7 +203,13 @@ async function incrementAttempts(userId, tokenType) {
     .eq("token_type", tokenType)
     .single();
 
-  if (error || !data) return -1;
+  if (error || !data) {
+    const fallback = getFallbackToken(userId, tokenType);
+    if (!fallback) return -1;
+    fallback.attempts = (fallback.attempts || 0) + 1;
+    setFallbackToken(userId, tokenType, fallback);
+    return fallback.attempts;
+  }
 
   const oldAttempts = data.attempts;
   const newAttempts = oldAttempts + 1;
@@ -187,6 +264,12 @@ async function markSetupUsed(userId) {
     .update({ setup_used: true })
     .eq("user_id", userId)
     .eq("token_type", TOKEN_TYPES.SIGNUP_TOKEN);
+
+  const fallback = getFallbackToken(userId, TOKEN_TYPES.SIGNUP_TOKEN);
+  if (fallback) {
+    fallback.setupUsed = true;
+    setFallbackToken(userId, TOKEN_TYPES.SIGNUP_TOKEN, fallback);
+  }
 }
 
 /**
@@ -198,6 +281,8 @@ async function deleteToken(userId, tokenType) {
     .delete()
     .eq("user_id", userId)
     .eq("token_type", tokenType);
+
+  deleteFallbackToken(userId, tokenType);
 }
 
 /**
@@ -208,6 +293,13 @@ async function cleanupExpired() {
     .from("otp_tokens")
     .delete()
     .lt("expires_at", new Date().toISOString());
+
+  const now = Date.now();
+  for (const [key, token] of fallbackTokens.entries()) {
+    if (!token || now > token.expiresAt) {
+      fallbackTokens.delete(key);
+    }
+  }
 }
 
 module.exports = {

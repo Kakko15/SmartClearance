@@ -282,6 +282,7 @@ router.post("/send-email-otp", requireAuth, requireMatchingUserId, sendOtpLimite
     console.log("[send-email-otp] Storing OTP for user:", userId);
     const stored = await setToken(userId, TOKEN_TYPES.EMAIL_OTP, {
       tokenValue: otp,
+      email,
       expiresInMs: OTP_EXPIRY_MS,
       maxAttempts: OTP_MAX_ATTEMPTS,
       resendCount: newResendCount,

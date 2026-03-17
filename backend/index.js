@@ -1,4 +1,5 @@
-require("dotenv").config();
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, ".env") });
 
 const express = require("express");
 const cors = require("cors");
@@ -39,9 +40,6 @@ const adminAccountRoutes = require("./routes/adminAccountRoutes");
 const twoFactorRoutes = require("./routes/twoFactorRoutes");
 const secretCodeRoutes = require("./routes/secretCodeRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
-const profileRoutes = require("./routes/profileRoutes");
-const delegationRoutes = require("./routes/delegationRoutes");
-const analyticsRoutes = require("./routes/analyticsRoutes");
 
 app.use("/api/requests", requestRoutes);
 app.use("/api/auth", authRoutes);
@@ -56,9 +54,6 @@ app.use("/api/graduation", graduationRoutes);
 app.use("/api/admin", adminAccountRoutes);
 app.use("/api/admin/secret-codes", secretCodeRoutes);
 app.use("/api/notifications", notificationRoutes);
-app.use("/api/profile", profileRoutes);
-app.use("/api/delegation", delegationRoutes);
-app.use("/api/analytics", analyticsRoutes);
 
 // Centralized error handler — must be after all routes
 const errorHandler = require("./middleware/errorHandler");
