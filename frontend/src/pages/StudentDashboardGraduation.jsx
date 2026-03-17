@@ -135,8 +135,16 @@ const StageNode = ({
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0">
             <div className="flex items-center gap-5">
-              <div className={`w-[48px] h-[48px] rounded-[14px] flex items-center justify-center border transition-colors ${config.boxClass}`}>
-                {stage.iconComponent}
+              <div className={`w-[48px] h-[48px] rounded-[14px] flex items-center justify-center border transition-colors overflow-hidden ${stage.avatarUrl ? '' : config.boxClass}`}>
+                {stage.avatarUrl ? (
+                  <img src={stage.avatarUrl} alt={stage.title} className="w-full h-full object-cover" />
+                ) : stage.title ? (
+                  <span className={`text-lg font-bold ${stage.status === 'locked' ? (isDarkMode ? 'text-[#5f6368]' : 'text-[#dadce0]') : (isDarkMode ? 'text-[#9aa0a6]' : 'text-[#5f6368]')}`}>
+                    {stage.title.charAt(0)}
+                  </span>
+                ) : (
+                  stage.iconComponent
+                )}
               </div>
               
               <div className="flex flex-col justify-center">
@@ -845,30 +853,33 @@ export default function StudentDashboardGraduation({
     const r = clearanceStatus.request;
     const profApprovals = clearanceStatus.professorApprovals || [];
 
-    const UNDERGRAD_NAMES = ["Department Chairman", "College Dean", "Director Student Affairs", "NSTP Director", "Executive Officer"];
-    const isUndergraduate = profApprovals.some((a) => UNDERGRAD_NAMES.includes(a.professor?.full_name));
+    // B5 FIX: Use stored portion from request, don't infer from professor names
+    const isUndergraduate = r.portion === "undergraduate";
 
     const findProf = (name) => profApprovals.find((a) => a.professor?.full_name === name);
 
-    const buildProfNode = (approval, locked) => {
-      if (!approval) return null;
-      const name = approval.professor?.full_name || "Unknown";
-      const profCC = clearanceComments.filter((c) => c.commenter_id === approval.professor_id);
+    const buildProfNode = (approval, locked, fallbackName) => {
+      const name = approval?.professor?.full_name || fallbackName || "Unknown";
+      const avatarUrl = approval?.professor?.avatar_url || null;
+      // If no approval record exists (signatory account not yet created), show as locked/pending
+      const effectiveStatus = !approval ? (locked ? "locked" : "pending") : (locked && approval.status === "pending" ? "locked" : approval.status);
+      const profCC = approval ? clearanceComments.filter((c) => c.commenter_id === approval.professor_id) : [];
       const unresolvedCount =
         profCC.filter((c) => !c.is_resolved).length +
-        (approval.comments && approval.comments.trim() && approval.status !== "approved" ? 1 : 0);
-      const hasComments = profCC.length > 0 || !!(approval.comments && approval.comments.trim());
+        (approval?.comments && approval.comments.trim() && approval.status !== "approved" ? 1 : 0);
+      const hasComments = profCC.length > 0 || !!(approval?.comments && approval.comments.trim());
       return {
-        key: `prof-${approval.id}`,
+        key: approval ? `prof-${approval.id}` : `prof-missing-${fallbackName}`,
         title: name,
         description: "Clearance Approval",
         iconComponent: <UsersIcon className="w-4 h-4 text-white" />,
-        status: locked && approval.status === "pending" ? "locked" : approval.status,
-        comments: approval.comments,
+        avatarUrl,
+        status: effectiveStatus,
+        comments: approval?.comments || null,
         hasChildren: false,
         hasComments,
         unresolvedCount,
-        approval,
+        approval: approval || null,
         type: "signatory",
       };
     };
@@ -912,11 +923,9 @@ export default function StudentDashboardGraduation({
     let isLocked = false;
     for (const step of steps) {
       if (step.type === "prof") {
-        const node = buildProfNode(findProf(step.name), isLocked);
-        if (node) {
-          result.push(node);
-          if (node.status !== "approved") isLocked = true;
-        }
+        const node = buildProfNode(findProf(step.name), isLocked, step.name);
+        result.push(node);
+        if (node.status !== "approved") isLocked = true;
       } else {
         const sField = { library: "library_status", cashier: "cashier_status", registrar: "registrar_status" }[step.key];
         const node = buildAdminNode(step.key, step.title, step.desc, step.icon, isLocked);
@@ -1151,14 +1160,7 @@ export default function StudentDashboardGraduation({
                           <span>Applied {new Date(clearanceStatus.request.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()}</span>
                         </div>
                         <span className={`px-3 py-1.5 rounded-lg text-[12px] font-bold uppercase tracking-[0.05em] shadow-sm border ${isDarkMode ? 'bg-[#3c4043] text-[#e8eaed] border-[#5f6368]' : 'bg-white text-slate-800 border-slate-200'}`}>
-                          {(() => {
-                            const profs = clearanceStatus?.professorApprovals || [];
-                            const isUG = profs.some((a) => [
-                              "Department Chairman", "College Dean", "Director Student Affairs",
-                              "NSTP Director", "Executive Officer"
-                            ].includes(a.professor?.full_name));
-                            return isUG ? "Undergraduate Portion" : "Graduate Portion";
-                          })()}
+                          {clearanceStatus.request.portion === "undergraduate" ? "Undergraduate Portion" : "Graduate Portion"}
                         </span>
                       </div>
 
@@ -1281,7 +1283,7 @@ export default function StudentDashboardGraduation({
                       unresolvedCount={stage.unresolvedCount}
                       hasComments={stage.hasComments}
                       onViewComments={() => {
-                        if (stage.type === "signatory") {
+                        if (stage.type === "signatory" && stage.approval) {
                           openSignatoryComments(stage.approval);
                         } else {
                           openStageComments(stage);

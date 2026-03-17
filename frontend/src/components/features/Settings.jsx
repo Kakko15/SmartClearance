@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../../lib/supabase";
@@ -7,61 +7,120 @@ import PasswordStrengthMeter from "../ui/PasswordStrengthMeter";
 import {
   UserCircleIcon,
   ShieldCheckIcon,
-  PaintBrushIcon,
   BellAlertIcon,
   XMarkIcon,
-  MoonIcon,
-  SunIcon,
-  ComputerDesktopIcon
 } from "../ui/Icons";
 import AvatarManager from "./AvatarManager";
 import ProfileEditForm from "./ProfileEditForm";
 
-export default function Settings({ user, profile, onClose, theme, setTheme, mode = "full" }) {
-  const [activeTab, setActiveTab] = useState(mode === "account" ? "account" : "account");
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
+export default function Settings({ user, profile, onClose, theme, setTheme, onAvatarUpdate }) {
+  const [activeTab, setActiveTab] = useState("account");
   const [loading, setLoading] = useState(false);
-
-
-  const [fullName, setFullName] = useState(profile?.full_name || "");
-
-
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
+  const [clearanceNotifs, setClearanceNotifs] = useState(true);
+  const [announcementNotifs, setAnnouncementNotifs] = useState(true);
+  const [commentNotifs, setCommentNotifs] = useState(true);
+  const [emailDelivery, setEmailDelivery] = useState(true);
 
-  const [emailNotifs, setEmailNotifs] = useState(true);
-  const [smsNotifs, setSmsNotifs] = useState(false);
-  const [marketingNotifs, setMarketingNotifs] = useState(false);
+  const has2FA = !!profile?.totp_enabled;
+  const lastSignIn = user?.last_sign_in_at;
+
+  // Reset authenticator state
+  const [resetStep, setResetStep] = useState(null); // null | "password" | "scan" | "verify"
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetQrCode, setResetQrCode] = useState(null);
+  const [resetManualKey, setResetManualKey] = useState("");
+  const [resetCode, setResetCode] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [showResetKey, setShowResetKey] = useState(false);
+  const [resetCopied, setResetCopied] = useState(false);
+  const resetInputRefs = useRef([]);
+
+  const getAuthHeaders = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const headers = { "Content-Type": "application/json" };
+    if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+    return headers;
+  };
+
+  const handleResetStart = async () => {
+    if (!resetPassword) { toast.error("Enter your password"); return; }
+    setResetLoading(true);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`${API_URL}/auth/2fa/reset-setup`, {
+        method: "POST", headers,
+        body: JSON.stringify({ userId: user.id, email: user.email, password: resetPassword }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setResetQrCode(data.qrCode);
+        setResetManualKey(data.manualKey);
+        setResetStep("scan");
+        setResetPassword("");
+      } else {
+        toast.error(data.error || "Failed to reset authenticator");
+      }
+    } catch { toast.error("Failed to connect to server"); }
+    finally { setResetLoading(false); }
+  };
+
+  const handleResetVerify = async () => {
+    if (resetCode.replace(/\D/g, "").length !== 6) { toast.error("Enter a 6-digit code"); return; }
+    setResetLoading(true);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`${API_URL}/auth/2fa/verify-reset`, {
+        method: "POST", headers,
+        body: JSON.stringify({ userId: user.id, token: resetCode.replace(/\D/g, "") }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Authenticator reset successfully");
+        setResetStep(null);
+        setResetCode("");
+        setResetQrCode(null);
+        setResetManualKey("");
+      } else {
+        toast.error(data.error || "Invalid code");
+        setResetCode("");
+        resetInputRefs.current[0]?.focus();
+      }
+    } catch { toast.error("Verification failed"); }
+    finally { setResetLoading(false); }
+  };
+
+  const handleResetCodeChange = (index, value) => {
+    if (!/^\d*$/.test(value)) return;
+    const digits = resetCode.split("");
+    while (digits.length < 6) digits.push("");
+    digits[index] = value.slice(-1);
+    const newCode = digits.join("");
+    setResetCode(newCode);
+    if (value && index < 5) resetInputRefs.current[index + 1]?.focus();
+  };
+
+  const handleResetKeyDown = (index, e) => {
+    if (e.key === "Backspace" && !resetCode[index] && index > 0) resetInputRefs.current[index - 1]?.focus();
+  };
+
+  const handleResetPaste = (e) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    setResetCode(pasted);
+    resetInputRefs.current[Math.min(pasted.length, 5)]?.focus();
+  };
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
     localStorage.setItem("theme", theme);
   }, [theme]);
-
-  const handleThemeChange = (newTheme) => {
-    setTheme(newTheme);
-    toast.success(`Switched to ${newTheme} mode`);
-  };
-
-  const handleUpdateProfile = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ full_name: fullName })
-        .eq("id", user.id);
-      if (error) throw error;
-      toast.success("Profile updated");
-    } catch (_error) {
-      toast.error("Failed to update profile");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handlePasswordChange = async (e) => {
     e.preventDefault();
@@ -106,16 +165,11 @@ export default function Settings({ user, profile, onClose, theme, setTheme, mode
     toast.success(`${name} notifications ${!state ? "enabled" : "disabled"}`);
   };
 
-  const allTabs = [
+  const tabs = [
     { id: "account", label: "Account Info", icon: <UserCircleIcon className="w-5 h-5" /> },
-    { id: "editProfile", label: "Edit Profile", icon: <UserCircleIcon className="w-5 h-5" /> },
     { id: "security", label: "Security", icon: <ShieldCheckIcon className="w-5 h-5" /> },
-    { id: "appearance", label: "Appearance", icon: <PaintBrushIcon className="w-5 h-5" /> },
     { id: "notifications", label: "Notifications", icon: <BellAlertIcon className="w-5 h-5" /> },
   ];
-
-  const accountOnlyTabIds = ["account", "editProfile", "security"];
-  const tabs = mode === "account" ? allTabs.filter(t => accountOnlyTabIds.includes(t.id)) : allTabs;
 
   const isDark = theme === "dark";
 
@@ -157,7 +211,7 @@ export default function Settings({ user, profile, onClose, theme, setTheme, mode
                   )}
                 </div>
                 <div className="overflow-hidden">
-                  <h2 className={`text-[22px] font-medium tracking-tight truncate ${textPrimary}`}>{mode === "account" ? "Manage Account" : "Settings"}</h2>
+                  <h2 className={`text-[22px] font-medium tracking-tight truncate ${textPrimary}`}>Manage Account</h2>
                   <p className={`text-[14px] truncate ${textSecondary}`}>{user?.email}</p>
                 </div>
               </div>
@@ -208,63 +262,45 @@ export default function Settings({ user, profile, onClose, theme, setTheme, mode
                   >
                     <h3 className={`text-[28px] font-normal mb-8 ${textPrimary}`}>Account Information</h3>
                     
-                    <AvatarManager user={user} profile={profile} isDark={isDark} />
+                    <AvatarManager user={user} profile={profile} isDark={isDark} onAvatarUpdate={onAvatarUpdate} />
 
                     <div className={`p-6 rounded-2xl border ${bgCard} mb-8`}>
-                      <form onSubmit={handleUpdateProfile} className="space-y-6">
+                      <h4 className={`text-lg font-medium mb-1 ${textPrimary}`}>Personal Information</h4>
+                      <p className={`text-sm mb-6 ${textSecondary}`}>This information is managed by your institution</p>
+                      <div className="space-y-5">
                         <div>
                           <label className={`block text-sm font-medium mb-2 ${textSecondary}`}>Full Name</label>
-                          <input
-                            type="text"
-                            value={fullName}
-                            onChange={(e) => setFullName(e.target.value)}
-                            className={inputClass}
-                          />
+                          <input type="text" value={profile?.full_name || ""} disabled className={`${inputClass} opacity-60 cursor-not-allowed`} />
+                        </div>
+                        <div>
+                          <label className={`block text-sm font-medium mb-2 ${textSecondary}`}>Email</label>
+                          <input type="text" value={user?.email || ""} disabled className={`${inputClass} opacity-60 cursor-not-allowed`} />
                         </div>
                         <div>
                           <label className={`block text-sm font-medium mb-2 ${textSecondary}`}>Role</label>
-                          <input
-                            type="text"
-                            value={profile?.role?.replace("_", " ").toUpperCase() || ""}
-                            disabled
-                            className={`${inputClass} opacity-60 cursor-not-allowed uppercase`}
-                          />
+                          <input type="text" value={profile?.role?.replace("_", " ").toUpperCase() || ""} disabled className={`${inputClass} opacity-60 cursor-not-allowed uppercase`} />
                         </div>
-                         {profile?.student_number && (
+                        {profile?.student_number && (
                           <div>
                             <label className={`block text-sm font-medium mb-2 ${textSecondary}`}>Student Number</label>
-                            <input
-                              type="text"
-                              value={profile.student_number}
-                              disabled
-                              className={`${inputClass} opacity-60 cursor-not-allowed`}
-                            />
+                            <input type="text" value={profile.student_number} disabled className={`${inputClass} opacity-60 cursor-not-allowed uppercase`} />
                           </div>
                         )}
-                        <div className="pt-2 flex justify-end">
-                          <button type="submit" disabled={loading || fullName === profile?.full_name} className={btnPrimary}>
-                            {loading ? "Saving..." : "Save changes"}
-                          </button>
-                        </div>
-                      </form>
+                        {profile?.course && (
+                          <div>
+                            <label className={`block text-sm font-medium mb-2 ${textSecondary}`}>Course & Year</label>
+                            <input type="text" value={`${profile.course}${profile.year_level ? ` - ${profile.year_level}` : ""}`} disabled className={`${inputClass} opacity-60 cursor-not-allowed`} />
+                          </div>
+                        )}
+                      </div>
                     </div>
 
+                    <div className="mt-2">
+                      <h4 className={`text-[22px] font-normal mb-1 ${textPrimary}`}>Request Profile Change</h4>
+                      <p className={`text-sm mb-6 ${textSecondary}`}>Submit a request to update your profile information</p>
+                      <ProfileEditForm profile={profile} isDarkMode={isDark} />
+                    </div>
 
-                  </motion.div>
-                )}
-
-                {activeTab === "editProfile" && (
-                  <motion.div
-                    key="editProfile"
-                    initial={{ opacity: 0, y: 15 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -15 }}
-                    transition={{ type: "spring", bounce: 0, duration: 0.4 }}
-                    className="max-w-3xl mx-auto"
-                  >
-                    <h3 className={`text-[28px] font-normal mb-2 ${textPrimary}`}>Edit Profile</h3>
-                    <p className={`text-sm mb-8 ${textSecondary}`}>Request changes to your profile information</p>
-                    <ProfileEditForm profile={profile} isDarkMode={isDark} />
                   </motion.div>
                 )}
 
@@ -277,11 +313,109 @@ export default function Settings({ user, profile, onClose, theme, setTheme, mode
                     transition={{ type: "spring", bounce: 0, duration: 0.4 }}
                     className="max-w-3xl mx-auto"
                   >
-                    <h3 className={`text-[28px] font-normal mb-8 ${textPrimary}`}>Security settings</h3>
+                    <h3 className={`text-[28px] font-normal mb-8 ${textPrimary}`}>Security</h3>
+
+                    <div className={`p-6 rounded-2xl border ${bgCard} mb-8`}>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className={`text-lg font-medium mb-1 ${textPrimary}`}>Two-Factor Authentication</h4>
+                          <p className={`text-sm ${textSecondary}`}>Add an extra layer of security to your account</p>
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${has2FA ? (isDark ? 'bg-green-900/30 text-green-400' : 'bg-green-50 text-green-700') : (isDark ? 'bg-yellow-900/30 text-yellow-400' : 'bg-yellow-50 text-yellow-700')}`}>
+                          {has2FA ? "Enabled" : "Not enabled"}
+                        </span>
+                      </div>
+
+                      {has2FA && !resetStep && (
+                        <div className="mt-4 pt-4 border-t border-inherit">
+                          <p className={`text-sm mb-3 ${textSecondary}`}>Lost access to your authenticator app? Reset it to set up a new one.</p>
+                          <button onClick={() => setResetStep("password")} className={`px-5 py-2 rounded-full text-sm font-medium border transition-colors ${isDark ? 'border-[#5f6368] text-[#e8eaed] hover:bg-[#3c4043]' : 'border-[#dadce0] text-[#3c4043] hover:bg-[#f1f3f4]'}`}>
+                            Reset Authenticator
+                          </button>
+                        </div>
+                      )}
+
+                      {resetStep === "password" && (
+                        <div className="mt-4 pt-4 border-t border-inherit">
+                          <p className={`text-sm mb-4 ${textSecondary}`}>Confirm your password to reset your authenticator</p>
+                          <div className="flex gap-3 items-end">
+                            <div className="flex-1">
+                              <PasswordInput label="Password" value={resetPassword} onChange={(e) => setResetPassword(e.target.value)} isDark={isDark} />
+                            </div>
+                            <button onClick={handleResetStart} disabled={resetLoading || !resetPassword} className={`${btnPrimary} shrink-0 mb-px`}>
+                              {resetLoading ? "Verifying..." : "Continue"}
+                            </button>
+                          </div>
+                          <button onClick={() => { setResetStep(null); setResetPassword(""); }} className={`mt-3 text-sm ${textSecondary} hover:underline`}>Cancel</button>
+                        </div>
+                      )}
+
+                      {resetStep === "scan" && resetQrCode && (
+                        <div className="mt-4 pt-4 border-t border-inherit">
+                          <p className={`text-sm mb-4 font-medium ${textPrimary}`}>Scan this QR code with your authenticator app</p>
+                          <div className="flex justify-center mb-4">
+                            <div className="bg-white p-3 rounded-xl shadow-sm">
+                              <img src={resetQrCode} alt="2FA QR Code" className="w-48 h-48" />
+                            </div>
+                          </div>
+                          <div className="text-center mb-4">
+                            <p className={`text-xs font-semibold uppercase tracking-wider mb-2 ${textSecondary}`}>Or enter this key manually</p>
+                            <div className={`inline-flex items-center gap-2 p-3 rounded-xl ${isDark ? 'bg-[#202124] border border-[#5f6368]' : 'bg-[#f8f9fa] border border-[#dadce0]'}`}>
+                              <code className={`text-sm font-mono font-bold tracking-wider select-none ${isDark ? 'text-green-400' : 'text-green-700'}`}>
+                                {showResetKey ? resetManualKey : "••••  ••••  ••••  ••••"}
+                              </code>
+                              <button type="button" onClick={() => setShowResetKey(v => !v)} className={`p-1 rounded-lg transition-colors ${isDark ? 'hover:bg-[#3c4043] text-[#9aa0a6]' : 'hover:bg-[#e8eaed] text-[#5f6368]'}`}>
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={showResetKey ? "M13.875 18.825A10.05 10.05 0 0112 19c-5 0-9.27-3.11-11-7.5a11.72 11.72 0 013.168-4.477M6.343 6.343A9.97 9.97 0 0112 5c5 0 9.27 3.11 11 7.5a11.72 11.72 0 01-4.168 4.477M6.343 6.343L3 3m3.343 3.343l2.829 2.829m4.243 4.243l2.829 2.829M6.343 6.343l11.314 11.314M14.121 14.121A3 3 0 009.879 9.879" : "M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"} /></svg>
+                              </button>
+                              <button type="button" onClick={() => { navigator.clipboard.writeText(resetManualKey); setResetCopied(true); toast.success("Key copied"); setTimeout(() => setResetCopied(false), 2000); }} className={`p-1 rounded-lg transition-colors ${isDark ? 'hover:bg-[#3c4043] text-[#9aa0a6]' : 'hover:bg-[#e8eaed] text-[#5f6368]'}`}>
+                                {resetCopied ? <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>}
+                              </button>
+                            </div>
+                          </div>
+                          <button onClick={() => setResetStep("verify")} className={btnPrimary}>I've scanned it</button>
+                          <button onClick={() => { setResetStep(null); setResetQrCode(null); setResetManualKey(""); }} className={`ml-3 text-sm ${textSecondary} hover:underline`}>Cancel</button>
+                        </div>
+                      )}
+
+                      {resetStep === "verify" && (
+                        <div className="mt-4 pt-4 border-t border-inherit">
+                          <p className={`text-sm mb-4 font-medium ${textPrimary}`}>Enter the 6-digit code from your new authenticator</p>
+                          <div className="flex justify-center gap-2 mb-4" onPaste={handleResetPaste}>
+                            {Array.from({ length: 6 }).map((_, i) => (
+                              <input
+                                key={i}
+                                ref={(el) => (resetInputRefs.current[i] = el)}
+                                type="text"
+                                inputMode="numeric"
+                                maxLength={1}
+                                aria-label={`Digit ${i + 1} of 6`}
+                                value={resetCode[i] || ""}
+                                onChange={(e) => handleResetCodeChange(i, e.target.value)}
+                                onKeyDown={(e) => handleResetKeyDown(i, e)}
+                                className={`w-12 h-14 text-center text-xl font-bold rounded-xl border-2 outline-none transition-all ${isDark ? 'bg-[#202124] border-[#5f6368] text-[#e8eaed] focus:border-green-500' : 'bg-white border-[#dadce0] text-[#202124] focus:border-green-500 focus:ring-1 focus:ring-green-500'}`}
+                              />
+                            ))}
+                          </div>
+                          <button onClick={handleResetVerify} disabled={resetLoading || resetCode.replace(/\D/g, "").length !== 6} className={btnPrimary}>
+                            {resetLoading ? "Verifying..." : "Verify & Reset"}
+                          </button>
+                          <button onClick={() => { setResetStep("scan"); setResetCode(""); }} className={`ml-3 text-sm ${textSecondary} hover:underline`}>Back</button>
+                        </div>
+                      )}
+                    </div>
+
+                    {lastSignIn && (
+                      <div className={`p-6 rounded-2xl border ${bgCard} mb-8`}>
+                        <h4 className={`text-lg font-medium mb-1 ${textPrimary}`}>Last Sign-in</h4>
+                        <p className={`text-sm ${textSecondary}`}>
+                          {new Date(lastSignIn).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })} at {new Date(lastSignIn).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      </div>
+                    )}
                     
                     <div className={`p-6 rounded-2xl border ${bgCard} mb-8`}>
                        <h4 className={`text-lg font-medium mb-1 ${textPrimary}`}>Change Password</h4>
-                       <p className={`text-sm mb-6 ${textSecondary}`}>Ensure your account is using a long, random password to stay secure.</p>
+                       <p className={`text-sm mb-6 ${textSecondary}`}>Use a strong password that you don't use elsewhere</p>
                       
                        <form onSubmit={handlePasswordChange} className="space-y-5">
                         <PasswordInput
@@ -326,59 +460,6 @@ export default function Settings({ user, profile, onClose, theme, setTheme, mode
                         </div>
                       </form>
                     </div>
-
-                    <div className={`p-6 rounded-2xl border border-red-200 ${isDark ? 'bg-[#45272a] border-red-900/50' : 'bg-red-50/50'}`}>
-                      <h4 className={`text-lg font-medium mb-1 ${isDark ? 'text-red-400' : 'text-red-600'}`}>Danger Zone</h4>
-                      <p className={`text-sm mb-4 ${isDark ? 'text-red-300' : 'text-red-700'}`}>Once you delete your account, there is no going back. Please be certain.</p>
-                      <button
-                        onClick={() => setShowDeleteModal(true)}
-                        className={`px-6 py-2 rounded-full font-medium border transition-colors ${isDark ? 'border-red-500 text-red-500 hover:bg-red-500 hover:text-white' : 'border-red-600 text-red-600 hover:bg-red-600 hover:text-white'}`}
-                      >
-                        Delete account
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-
-                {activeTab === "appearance" && (
-                  <motion.div
-                    key="appearance"
-                    initial={{ opacity: 0, y: 15 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -15 }}
-                    transition={{ type: "spring", bounce: 0, duration: 0.4 }}
-                    className="max-w-3xl mx-auto"
-                  >
-                    <h3 className={`text-[28px] font-normal mb-8 ${textPrimary}`}>Appearance</h3>
-                    <div className={`p-6 rounded-2xl border ${bgCard}`}>
-                      <h4 className={`text-lg font-medium mb-1 ${textPrimary}`}>Theme preferences</h4>
-                      <p className={`text-sm mb-6 ${textSecondary}`}>Select how you want SmartClearance to normally look.</p>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <button
-                          onClick={() => handleThemeChange("light")}
-                          className={`relative flex flex-col outline-none items-center p-6 rounded-2xl border-2 transition-all ${
-                            theme === "light"
-                                ? "border-primary-600 bg-primary-50 bg-opacity-30"
-                                : isDark ? "border-[#5f6368] hover:border-[#9aa0a6]" : "border-[#dadce0] hover:border-[#bdc1c6]"
-                          }`}
-                        >
-                           <SunIcon className={`w-8 h-8 mb-3 ${theme === "light" ? "text-primary-600" : textSecondary}`} />
-                           <span className={`font-medium ${theme === "light" ? "text-primary-600" : textPrimary}`}>Light theme</span>
-                        </button>
-                        <button
-                          onClick={() => handleThemeChange("dark")}
-                          className={`relative flex flex-col outline-none items-center p-6 rounded-2xl border-2 transition-all ${
-                            theme === "dark"
-                                ? "border-primary-400 bg-primary-900/30"
-                                : isDark ? "border-[#5f6368] hover:border-[#9aa0a6]" : "border-[#dadce0] hover:border-[#bdc1c6]"
-                          }`}
-                        >
-                           <MoonIcon className={`w-8 h-8 mb-3 ${theme === "dark" ? "text-primary-400" : textSecondary}`} />
-                           <span className={`font-medium ${theme === "dark" ? "text-primary-400" : textPrimary}`}>Dark theme</span>
-                        </button>
-                      </div>
-                    </div>
                   </motion.div>
                 )}
 
@@ -393,46 +474,59 @@ export default function Settings({ user, profile, onClose, theme, setTheme, mode
                   >
                      <h3 className={`text-[28px] font-normal mb-8 ${textPrimary}`}>Notifications</h3>
                      <div className={`p-6 rounded-2xl border ${bgCard}`}>
-                      <h4 className={`text-lg font-medium mb-1 ${textPrimary}`}>Communication Preferences</h4>
-                      <p className={`text-sm mb-6 ${textSecondary}`}>Choose how we notify you about your clearance status.</p>
+                      <h4 className={`text-lg font-medium mb-1 ${textPrimary}`}>Notification Preferences</h4>
+                      <p className={`text-sm mb-6 ${textSecondary}`}>Choose what you get notified about</p>
 
                       <div className="space-y-6">
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className={`font-medium ${textPrimary}`}>Email Notifications</p>
-                            <p className={`text-sm ${textSecondary}`}>Receive alerts when clearance stages update.</p>
+                            <p className={`font-medium ${textPrimary}`}>Clearance Status Updates</p>
+                            <p className={`text-sm ${textSecondary}`}>When a clearance stage is approved or requires action</p>
                           </div>
                           <button
-                            onClick={() => handleNotifToggle(setEmailNotifs, emailNotifs, "Email")}
-                            className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 ${emailNotifs ? (isDark ? 'bg-primary-400' : 'bg-primary-600') : (isDark ? 'bg-[#5f6368]' : 'bg-[#dadce0]')}`}
+                            onClick={() => handleNotifToggle(setClearanceNotifs, clearanceNotifs, "Clearance")}
+                            className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 ${clearanceNotifs ? (isDark ? 'bg-primary-400' : 'bg-primary-600') : (isDark ? 'bg-[#5f6368]' : 'bg-[#dadce0]')}`}
                           >
-                            <span className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${emailNotifs ? 'translate-x-[20px]' : 'translate-x-0'}`} />
+                            <span className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${clearanceNotifs ? 'translate-x-[20px]' : 'translate-x-0'}`} />
                           </button>
                         </div>
-                        <div className="h-px w-full bg-[#dadce0] dark:bg-[#3c4043]" />
+                        <div className={`h-px w-full ${isDark ? 'bg-[#3c4043]' : 'bg-[#dadce0]'}`} />
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className={`font-medium ${textPrimary}`}>SMS Notifications (Premium)</p>
-                            <p className={`text-sm ${textSecondary}`}>Instant mobile updates for critical stage changes.</p>
+                            <p className={`font-medium ${textPrimary}`}>Announcements</p>
+                            <p className={`text-sm ${textSecondary}`}>Important updates from your school administration</p>
                           </div>
                           <button
-                            onClick={() => handleNotifToggle(setSmsNotifs, smsNotifs, "SMS")}
-                            className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 ${smsNotifs ? (isDark ? 'bg-primary-400' : 'bg-primary-600') : (isDark ? 'bg-[#5f6368]' : 'bg-[#dadce0]')}`}
+                            onClick={() => handleNotifToggle(setAnnouncementNotifs, announcementNotifs, "Announcement")}
+                            className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 ${announcementNotifs ? (isDark ? 'bg-primary-400' : 'bg-primary-600') : (isDark ? 'bg-[#5f6368]' : 'bg-[#dadce0]')}`}
                           >
-                            <span className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${smsNotifs ? 'translate-x-[20px]' : 'translate-x-0'}`} />
+                            <span className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${announcementNotifs ? 'translate-x-[20px]' : 'translate-x-0'}`} />
                           </button>
                         </div>
-                        <div className="h-px w-full bg-[#dadce0] dark:bg-[#3c4043]" />
+                        <div className={`h-px w-full ${isDark ? 'bg-[#3c4043]' : 'bg-[#dadce0]'}`} />
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className={`font-medium ${textPrimary}`}>Marketing & Surveys</p>
-                            <p className={`text-sm ${textSecondary}`}>Occasional emails about platform improvements.</p>
+                            <p className={`font-medium ${textPrimary}`}>Comment Replies</p>
+                            <p className={`text-sm ${textSecondary}`}>When someone replies to your clearance comments</p>
                           </div>
                           <button
-                            onClick={() => handleNotifToggle(setMarketingNotifs, marketingNotifs, "Marketing")}
-                            className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 ${marketingNotifs ? (isDark ? 'bg-primary-400' : 'bg-primary-600') : (isDark ? 'bg-[#5f6368]' : 'bg-[#dadce0]')}`}
+                            onClick={() => handleNotifToggle(setCommentNotifs, commentNotifs, "Comment")}
+                            className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 ${commentNotifs ? (isDark ? 'bg-primary-400' : 'bg-primary-600') : (isDark ? 'bg-[#5f6368]' : 'bg-[#dadce0]')}`}
                           >
-                            <span className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${marketingNotifs ? 'translate-x-[20px]' : 'translate-x-0'}`} />
+                            <span className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${commentNotifs ? 'translate-x-[20px]' : 'translate-x-0'}`} />
+                          </button>
+                        </div>
+                        <div className={`h-px w-full ${isDark ? 'bg-[#3c4043]' : 'bg-[#dadce0]'}`} />
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className={`font-medium ${textPrimary}`}>Email Delivery</p>
+                            <p className={`text-sm ${textSecondary}`}>Also send notifications to your email</p>
+                          </div>
+                          <button
+                            onClick={() => handleNotifToggle(setEmailDelivery, emailDelivery, "Email delivery")}
+                            className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 ${emailDelivery ? (isDark ? 'bg-primary-400' : 'bg-primary-600') : (isDark ? 'bg-[#5f6368]' : 'bg-[#dadce0]')}`}
+                          >
+                            <span className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${emailDelivery ? 'translate-x-[20px]' : 'translate-x-0'}`} />
                           </button>
                         </div>
                       </div>
@@ -446,35 +540,6 @@ export default function Settings({ user, profile, onClose, theme, setTheme, mode
         </motion.div>
 
 
-      {showDeleteModal && (
-        <motion.div
-           initial={{ opacity: 0 }}
-           animate={{ opacity: 1 }}
-           className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-         >
-           <motion.div
-             initial={{ scale: 0.9, y: 20 }}
-             animate={{ scale: 1, y: 0 }}
-             className={`max-w-md w-full rounded-[24px] p-6 shadow-2xl ${isDark ? "bg-[#303134] border border-[#5f6368]" : "bg-white"}`}
-             style={{ fontFamily: 'Google Sans, sans-serif' }}
-           >
-             <h3 className={`text-[22px] font-normal mb-3 ${isDark ? "text-[#e8eaed]" : "text-[#202124]"}`}>
-               Contact Administrator
-             </h3>
-             <p className={`text-sm mb-6 leading-relaxed ${isDark ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>
-               Due to institutional security policies, account deletion must be requested directly through your IT administrator. Data retention requires manual clearance protocol.
-             </p>
-             <div className="flex justify-end pr-2">
-               <button
-                 onClick={() => setShowDeleteModal(false)}
-                 className={`px-5 py-2 rounded-full font-medium transition-colors ${isDark ? 'hover:bg-[#3c4043] text-primary-400' : 'hover:bg-[#f1f3f4] text-primary-600'}`}
-               >
-                 Acknowledge
-               </button>
-             </div>
-           </motion.div>
-         </motion.div>
-      )}
     </AnimatePresence>
   );
 }

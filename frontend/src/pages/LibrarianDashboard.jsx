@@ -22,6 +22,7 @@ import { exportToCSV } from "../utils/exportData";
 
 export default function LibraryAdminDashboard({
   adminId,
+  user,
   onSignOut,
   onOpenSettings,
   onManageAccount,
@@ -205,7 +206,7 @@ export default function LibraryAdminDashboard({
       menuItems={menuItems}
       activeView={activeView}
       setActiveView={setActiveView}
-      userInfo={{ name: "Campus Librarian", subtitle: "Library Admin" }}
+      userInfo={{ name: "Campus Librarian", subtitle: "Library Admin", avatar: user?.user_metadata?.avatar_url }}
       onSignOut={onSignOut}
       onOpenSettings={onOpenSettings}
       onManageAccount={onManageAccount}

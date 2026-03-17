@@ -1,52 +1,86 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
+import { supabase } from "../../lib/supabase";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
+/** Helper: get the current Supabase access token for authenticated requests. */
+async function getAccessToken() {
+  const { data } = await supabase.auth.getSession();
+  if (data?.session?.access_token) return data.session.access_token;
+  // Session may have expired — try refreshing
+  const { data: refreshed } = await supabase.auth.refreshSession();
+  return refreshed?.session?.access_token || null;
+}
+
 export default function TwoFactorVerify({ userId, email, isDark, onVerified, onCancel }) {
-  const [method, setMethod] = useState("authenticator");
+  const [method, setMethod] = useState(() => sessionStorage.getItem("2fa_method") || "authenticator");
   const [code, setCode] = useState("");
   const [verifying, setVerifying] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
+  const [emailSent, setEmailSent] = useState(() => {
+    const expiresAt = sessionStorage.getItem("2fa_email_expires_at");
+    if (expiresAt && Date.now() < Number(expiresAt)) return true;
+    sessionStorage.removeItem("2fa_email_sent_at");
+    sessionStorage.removeItem("2fa_email_expires_at");
+    return false;
+  });
   const [sendingEmail, setSendingEmail] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [expired, setExpired] = useState(false);
+  const [locked, setLocked] = useState(false);
   const inputRefs = useRef([]);
   const timerRef = useRef(null);
   const cooldownRef = useRef(null);
+  const submittingRef = useRef(false);
 
   const clearTimers = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     if (cooldownRef.current) clearInterval(cooldownRef.current);
   }, []);
 
+  useEffect(() => clearTimers, [clearTimers]);
+
+  // Restore countdown on mount
   useEffect(() => {
-    return clearTimers;
-  }, [clearTimers]);
+    const expiresAt = Number(sessionStorage.getItem("2fa_email_expires_at") || 0);
+    if (emailSent && expiresAt > Date.now()) {
+      startCountdown(expiresAt - Date.now());
+    } else if (emailSent && expiresAt <= Date.now()) {
+      setExpired(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const startCountdown = (ms) => {
     if (timerRef.current) clearInterval(timerRef.current);
     const endTime = Date.now() + ms;
     setCountdown(Math.ceil(ms / 1000));
+    setExpired(false);
     timerRef.current = setInterval(() => {
       const remaining = Math.ceil((endTime - Date.now()) / 1000);
       if (remaining <= 0) {
         clearInterval(timerRef.current);
         timerRef.current = null;
         setCountdown(0);
-        setEmailSent(false);
-        toast.error("Code expired. Please request a new one.");
+        setExpired(true);
+        // Clear resend cooldown so user can immediately request a new code
+        if (cooldownRef.current) clearInterval(cooldownRef.current);
+        cooldownRef.current = null;
+        setResendCooldown(0);
+        sessionStorage.removeItem("2fa_email_sent_at");
+        sessionStorage.removeItem("2fa_email_expires_at");
       } else {
         setCountdown(remaining);
       }
     }, 1000);
   };
 
-  const startResendCooldown = () => {
+  const startResendCooldown = (seconds = 30) => {
     if (cooldownRef.current) clearInterval(cooldownRef.current);
-    const endTime = Date.now() + 60000;
-    setResendCooldown(60);
+    const endTime = Date.now() + seconds * 1000;
+    setResendCooldown(seconds);
     cooldownRef.current = setInterval(() => {
       const remaining = Math.ceil((endTime - Date.now()) / 1000);
       if (remaining <= 0) {
@@ -65,15 +99,66 @@ export default function TwoFactorVerify({ userId, email, isDark, onVerified, onC
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
+  // Auto-submit when 6 digits are entered
+  const submitCode = useCallback(async (codeToSubmit) => {
+    const cleanCode = codeToSubmit.replace(/\D/g, "");
+    if (cleanCode.length !== 6) return;
+    if (submittingRef.current) return;
+    if (expired || locked) return;
+    submittingRef.current = true;
+    setVerifying(true);
+    try {
+      const endpoint = method === "authenticator" ? "/auth/2fa/verify-totp" : "/auth/2fa/verify-email-otp";
+      const body = method === "authenticator"
+        ? { userId, token: cleanCode }
+        : { userId, otp: cleanCode };
+
+      const accessToken = await getAccessToken();
+      const headers = { "Content-Type": "application/json" };
+      if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+
+      const res = await fetch(`${API_URL}${endpoint}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (data.success) {
+        clearTimers();
+        sessionStorage.removeItem("2fa_method");
+        sessionStorage.removeItem("2fa_email_sent_at");
+        sessionStorage.removeItem("2fa_email_expires_at");
+        toast.success("Verified!");
+        onVerified();
+      } else {
+        if (data.expired) setExpired(true);
+        if (data.locked) setLocked(true);
+        toast.error(data.error || "Invalid code");
+        setCode("");
+        inputRefs.current[0]?.focus();
+      }
+    } catch {
+      toast.error("Verification failed");
+    } finally {
+      setVerifying(false);
+      submittingRef.current = false;
+    }
+  }, [method, userId, clearTimers, onVerified, expired, locked]);
+
   const handleCodeChange = (index, value) => {
     if (!/^\d*$/.test(value)) return;
     const digits = code.split("");
     while (digits.length < 6) digits.push("");
     digits[index] = value.slice(-1);
     const newCode = digits.join("");
+    const digitOnly = newCode.replace(/\D/g, "");
     setCode(newCode);
     if (value && index < 5) {
       inputRefs.current[index + 1]?.focus();
+    }
+    // Auto-submit when all 6 digits entered.
+    if (digitOnly.length === 6) {
+      setTimeout(() => submitCode(newCode), 100);
     }
   };
 
@@ -89,81 +174,156 @@ export default function TwoFactorVerify({ userId, email, isDark, onVerified, onC
     setCode(pasted);
     const nextIdx = Math.min(pasted.length, 5);
     inputRefs.current[nextIdx]?.focus();
+    if (pasted.length === 6) {
+      setTimeout(() => submitCode(pasted), 100);
+    }
   };
 
   const sendEmailOTP = async () => {
     if (resendCooldown > 0) return;
     setSendingEmail(true);
     try {
+      const accessToken = await getAccessToken();
+      const headers = { "Content-Type": "application/json" };
+      if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+
       const res = await fetch(`${API_URL}/auth/2fa/send-email-otp`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ userId, email }),
       });
       const data = await res.json();
       if (data.success) {
         setEmailSent(true);
+        setExpired(false);
+        setLocked(false);
         setCode("");
+        const expiresInMs = data.expiresIn || 180000;
+        const nextCooldown = data.resendCooldown || 30;
+        sessionStorage.setItem("2fa_email_sent_at", Date.now().toString());
+        sessionStorage.setItem("2fa_email_expires_at", (Date.now() + expiresInMs).toString());
         toast.success("Verification code sent to your email");
-        startCountdown(data.expiresIn || 180000);
-        startResendCooldown();
+        startCountdown(expiresInMs);
+        startResendCooldown(nextCooldown);
       } else {
+        if (data.retryAfter) {
+          startResendCooldown(data.retryAfter);
+        }
         toast.error(data.error || "Failed to send code");
       }
-    } catch (err) {
+    } catch {
       toast.error("Failed to send verification code");
     } finally {
       setSendingEmail(false);
     }
   };
 
-  const handleVerify = async (e) => {
+  const handleManualVerify = (e) => {
     e.preventDefault();
-    if (code.length !== 6) {
-      toast.error("Please enter a 6-digit code");
-      return;
-    }
-    setVerifying(true);
-    try {
-      const endpoint = method === "authenticator" ? "/auth/2fa/verify-totp" : "/auth/2fa/verify-email-otp";
-      const body = method === "authenticator"
-        ? { userId, token: code }
-        : { userId, otp: code };
-
-      const res = await fetch(`${API_URL}${endpoint}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (data.success) {
-        clearTimers();
-        toast.success("Verified!");
-        onVerified();
-      } else {
-        toast.error(data.error || "Invalid code");
-        setCode("");
-        inputRefs.current[0]?.focus();
-      }
-    } catch (err) {
-      toast.error("Verification failed");
-    } finally {
-      setVerifying(false);
-    }
+    submittingRef.current = false;
+    submitCode(code);
   };
 
   const switchMethod = (newMethod) => {
     setMethod(newMethod);
+    sessionStorage.setItem("2fa_method", newMethod);
     setCode("");
-    setEmailSent(false);
-    clearTimers();
-    setCountdown(0);
-    setResendCooldown(0);
+    // When switching back to email, restore emailSent state from session storage
+    if (newMethod === "email") {
+      const expiresAt = Number(sessionStorage.getItem("2fa_email_expires_at") || 0);
+      if (expiresAt > Date.now()) {
+        setEmailSent(true);
+        setExpired(false);
+        setLocked(false);
+        startCountdown(expiresAt - Date.now());
+      } else if (expiresAt > 0) {
+        setEmailSent(false);
+        setExpired(false);
+        setLocked(false);
+        sessionStorage.removeItem("2fa_email_sent_at");
+        sessionStorage.removeItem("2fa_email_expires_at");
+      }
+    }
+  };
+
+  const handleCancel = () => {
+    sessionStorage.removeItem("2fa_method");
+    sessionStorage.removeItem("2fa_email_sent_at");
+    sessionStorage.removeItem("2fa_email_expires_at");
+    onCancel();
   };
 
   const maskedEmail = email
     ? email.replace(/(.{2})(.*)(@.*)/, (_, a, b, c) => a + "*".repeat(b.length) + c)
     : "";
+
+  const isInputDisabled = expired || locked || verifying;
+
+  const codeInputs = (
+    <div className="flex justify-center gap-2 mb-5" onPaste={handlePaste}>
+      {Array.from({ length: 6 }).map((_, i) => (
+        <input
+          key={i}
+          ref={(el) => (inputRefs.current[i] = el)}
+          type="text"
+          inputMode="numeric"
+          maxLength={1}
+          aria-label={`Digit ${i + 1} of 6`}
+          value={code[i] || ""}
+          onChange={(e) => handleCodeChange(i, e.target.value)}
+          onKeyDown={(e) => handleKeyDown(i, e)}
+          disabled={isInputDisabled}
+          className={`w-12 h-14 text-center text-xl font-bold rounded-xl border-2 outline-none transition-all ${
+            isInputDisabled ? "opacity-40 cursor-not-allowed" : ""
+          } ${
+            isDark
+              ? "bg-slate-800 border-slate-600 text-white focus:border-green-500"
+              : "bg-white border-gray-200 text-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500"
+          }`}
+        />
+      ))}
+    </div>
+  );
+
+  const verifyButton = (
+    <button
+      type="submit"
+      disabled={verifying || code.replace(/\D/g, "").length !== 6 || isInputDisabled}
+      className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-full shadow-lg transition-all disabled:opacity-50 mb-3"
+    >
+      {verifying ? (
+        <span className="flex items-center justify-center gap-2">
+          <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          Verifying...
+        </span>
+      ) : "Verify"}
+    </button>
+  );
+
+  const expiredOrLockedMessage = (expired || locked) && (
+    <motion.div
+      initial={{ opacity: 0, y: -5 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`text-center mb-4 p-3 rounded-xl ${isDark ? "bg-red-900/20" : "bg-red-50"}`}
+    >
+      <p className={`text-sm font-medium ${isDark ? "text-red-400" : "text-red-600"}`}>
+        {locked ? "Too many failed attempts." : "Code expired."}
+      </p>
+      <button
+        type="button"
+        onClick={sendEmailOTP}
+        disabled={sendingEmail || resendCooldown > 0}
+        className={`text-sm font-semibold mt-1 transition-colors ${
+          resendCooldown > 0 ? "opacity-40 cursor-not-allowed" : ""
+        } ${isDark ? "text-blue-400 hover:text-blue-300" : "text-blue-600 hover:text-blue-700"}`}
+      >
+        {sendingEmail ? "Sending..." : resendCooldown > 0 ? `Request new code in ${resendCooldown}s` : "Request a new code"}
+      </button>
+    </motion.div>
+  );
 
   return (
     <motion.div
@@ -192,29 +352,19 @@ export default function TwoFactorVerify({ userId, email, isDark, onVerified, onC
           style={{ width: "calc(50% - 4px)", left: method === "authenticator" ? 4 : "calc(50% + 0px)" }}
           transition={{ type: "spring", stiffness: 500, damping: 35 }}
         />
-        <button
-          type="button"
-          onClick={() => switchMethod("authenticator")}
+        <button type="button" onClick={() => switchMethod("authenticator")}
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold relative z-10 transition-colors duration-200 ${
-            method === "authenticator"
-              ? isDark ? "text-white" : "text-gray-900"
-              : isDark ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-gray-900"
-          }`}
-        >
+            method === "authenticator" ? (isDark ? "text-white" : "text-gray-900") : (isDark ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-gray-900")
+          }`}>
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
           </svg>
           Authenticator
         </button>
-        <button
-          type="button"
-          onClick={() => switchMethod("email")}
+        <button type="button" onClick={() => switchMethod("email")}
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold relative z-10 transition-colors duration-200 ${
-            method === "email"
-              ? isDark ? "text-white" : "text-gray-900"
-              : isDark ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-gray-900"
-          }`}
-        >
+            method === "email" ? (isDark ? "text-white" : "text-gray-900") : (isDark ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-gray-900")
+          }`}>
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
           </svg>
@@ -222,143 +372,77 @@ export default function TwoFactorVerify({ userId, email, isDark, onVerified, onC
         </button>
       </div>
 
-      <div className="min-h-[200px]">
+      <div className="relative">
       <AnimatePresence mode="wait" initial={false}>
         {method === "authenticator" ? (
-          <motion.div
-            key="authenticator"
+          <motion.div key="authenticator"
             initial={{ opacity: 0, x: -20, filter: "blur(4px)" }}
-            animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
-            exit={{ opacity: 0, x: 20, filter: "blur(4px)" }}
-            transition={{ duration: 0.15, ease: [0.25, 0.46, 0.45, 0.94] }}
-          >
+            animate={{ opacity: 1, x: 0, filter: "blur(0px)", pointerEvents: "auto" }}
+            exit={{ opacity: 0, x: 20, filter: "blur(4px)", pointerEvents: "none" }}
+            transition={{ duration: 0.15, ease: [0.25, 0.46, 0.45, 0.94] }}>
             <p className={`text-sm text-center mb-4 ${isDark ? "text-gray-400" : "text-gray-500"}`}>
               Enter the 6-digit code from your authenticator app
             </p>
-
-            <form onSubmit={handleVerify}>
-              <div className="flex justify-center gap-2 mb-5" onPaste={handlePaste}>
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <input
-                    key={i}
-                    ref={(el) => (inputRefs.current[i] = el)}
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={1}
-                    aria-label={`Digit ${i + 1} of 6`}
-                    value={code[i] || ""}
-                    onChange={(e) => handleCodeChange(i, e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(i, e)}
-                    className={`w-12 h-14 text-center text-xl font-bold rounded-xl border-2 outline-none transition-all ${
-                      isDark
-                        ? "bg-slate-800 border-slate-600 text-white focus:border-green-500"
-                        : "bg-white border-gray-200 text-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500"
-                    }`}
-                  />
-                ))}
-              </div>
-
-              <button
-                type="submit"
-                disabled={verifying || code.length !== 6}
-                className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-full shadow-lg transition-all disabled:opacity-50 mb-3"
-              >
-                {verifying ? "Verifying..." : "Verify"}
-              </button>
+            <form onSubmit={handleManualVerify}>
+              {codeInputs}
+              {verifyButton}
             </form>
           </motion.div>
         ) : (
-          <motion.div
-            key="email"
+          <motion.div key="email"
             initial={{ opacity: 0, x: 20, filter: "blur(4px)" }}
-            animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
-            exit={{ opacity: 0, x: -20, filter: "blur(4px)" }}
-            transition={{ duration: 0.15, ease: [0.25, 0.46, 0.45, 0.94] }}
-          >
+            animate={{ opacity: 1, x: 0, filter: "blur(0px)", pointerEvents: "auto" }}
+            exit={{ opacity: 0, x: -20, filter: "blur(4px)", pointerEvents: "none" }}
+            transition={{ duration: 0.15, ease: [0.25, 0.46, 0.45, 0.94] }}>
             {!emailSent ? (
               <div className="text-center mb-4">
                 <p className={`text-sm mb-3 ${isDark ? "text-gray-400" : "text-gray-500"}`}>
                   We'll send a verification code to <strong className={isDark ? "text-white" : "text-gray-900"}>{maskedEmail}</strong>
                 </p>
-                <button
-                  type="button"
-                  onClick={sendEmailOTP}
-                  disabled={sendingEmail}
+                <button type="button" onClick={sendEmailOTP} disabled={sendingEmail || resendCooldown > 0}
                   className={`px-6 py-2.5 rounded-full font-semibold text-sm transition-all ${
-                    isDark
-                      ? "bg-blue-500 hover:bg-blue-600 text-white"
-                      : "bg-blue-600 hover:bg-blue-700 text-white"
-                  } disabled:opacity-50`}
-                >
-                  {sendingEmail ? "Sending..." : "Send Code"}
+                    isDark ? "bg-blue-500 hover:bg-blue-600 text-white" : "bg-blue-600 hover:bg-blue-700 text-white"
+                  } disabled:opacity-50`}>
+                  {sendingEmail ? "Sending..." : resendCooldown > 0 ? `Wait ${resendCooldown}s` : "Send Code"}
                 </button>
               </div>
             ) : (
               <>
-                <div className="text-center mb-4">
-                  <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>
-                    Enter the code sent to <strong className={isDark ? "text-white" : "text-gray-900"}>{maskedEmail}</strong>
-                  </p>
-                  {countdown > 0 && (
-                    <motion.p
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className={`text-xs mt-1.5 font-semibold ${
-                        countdown <= 30
-                          ? "text-red-500"
-                          : countdown <= 60
-                            ? isDark ? "text-yellow-400" : "text-yellow-600"
-                            : isDark ? "text-green-400" : "text-green-600"
-                      }`}
-                    >
-                      Code expires in {formatTime(countdown)}
-                    </motion.p>
-                  )}
-                </div>
+                {expiredOrLockedMessage}
 
-                <form onSubmit={handleVerify}>
-                  <div className="flex justify-center gap-2 mb-5" onPaste={handlePaste}>
-                    {Array.from({ length: 6 }).map((_, i) => (
-                      <input
-                        key={i}
-                        ref={(el) => (inputRefs.current[i] = el)}
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={1}
-                        aria-label={`Digit ${i + 1} of 6`}
-                        value={code[i] || ""}
-                        onChange={(e) => handleCodeChange(i, e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(i, e)}
-                        className={`w-12 h-14 text-center text-xl font-bold rounded-xl border-2 outline-none transition-all ${
-                          isDark
-                            ? "bg-slate-800 border-slate-600 text-white focus:border-green-500"
-                            : "bg-white border-gray-200 text-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500"
-                        }`}
-                      />
-                    ))}
+                {!expired && !locked && (
+                  <div className="text-center mb-4">
+                    <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+                      Enter the code sent to <strong className={isDark ? "text-white" : "text-gray-900"}>{maskedEmail}</strong>
+                    </p>
+                    {countdown > 0 && (
+                      <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                        className={`text-xs mt-1.5 font-semibold ${
+                          countdown <= 30 ? "text-red-500"
+                            : countdown <= 60 ? (isDark ? "text-yellow-400" : "text-yellow-600")
+                            : (isDark ? "text-green-400" : "text-green-600")
+                        }`}>
+                        Code expires in {formatTime(countdown)}
+                      </motion.p>
+                    )}
                   </div>
+                )}
 
-                  <button
-                    type="submit"
-                    disabled={verifying || code.length !== 6}
-                    className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-full shadow-lg transition-all disabled:opacity-50 mb-3"
-                  >
-                    {verifying ? "Verifying..." : "Verify"}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={sendEmailOTP}
-                    disabled={sendingEmail || resendCooldown > 0}
-                    className={`w-full text-sm font-semibold py-2 transition-colors disabled:opacity-40 ${isDark ? "text-blue-400 hover:text-blue-300" : "text-blue-600 hover:text-blue-700"}`}
-                  >
-                    {sendingEmail
-                      ? "Sending..."
-                      : resendCooldown > 0
-                        ? `Resend code in ${resendCooldown}s`
+                {!expired && !locked && (
+                  <form onSubmit={handleManualVerify}>
+                    {codeInputs}
+                    {verifyButton}
+                    <button type="button" onClick={sendEmailOTP}
+                      disabled={sendingEmail || resendCooldown > 0}
+                      className={`w-full text-sm font-semibold py-2 transition-colors disabled:opacity-40 ${
+                        isDark ? "text-blue-400 hover:text-blue-300" : "text-blue-600 hover:text-blue-700"
+                      }`}>
+                      {sendingEmail ? "Sending..."
+                        : resendCooldown > 0 ? `Resend code in ${resendCooldown}s`
                         : "Resend code"}
-                  </button>
-                </form>
+                    </button>
+                  </form>
+                )}
               </>
             )}
           </motion.div>
@@ -366,11 +450,8 @@ export default function TwoFactorVerify({ userId, email, isDark, onVerified, onC
       </AnimatePresence>
       </div>
 
-      <button
-        type="button"
-        onClick={onCancel}
-        className={`w-full text-sm font-semibold py-2 mt-2 transition-colors ${isDark ? "text-gray-500 hover:text-gray-300" : "text-gray-400 hover:text-gray-600"}`}
-      >
+      <button type="button" onClick={handleCancel}
+        className={`w-full text-sm font-semibold py-2 mt-2 transition-colors ${isDark ? "text-gray-500 hover:text-gray-300" : "text-gray-400 hover:text-gray-600"}`}>
         Cancel & Sign Out
       </button>
     </motion.div>

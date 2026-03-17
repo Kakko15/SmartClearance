@@ -20,6 +20,7 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
   const [showPassword, setShowPassword] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const [recaptchaToken, setRecaptchaToken] = useState(null);
+  const [recaptchaExpired, setRecaptchaExpired] = useState(false);
   const [adminSecretCode, setAdminSecretCode] = useState("");
   const [show2FASetup, setShow2FASetup] = useState(false);
   const [showEmailVerification, setShowEmailVerification] = useState(false);
@@ -49,11 +50,11 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
     const trimmed = emailVal.trim().toLowerCase();
     if (!trimmed) {
       setEmailError("Email is required.");
-      return;
+      return true; // has error
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
       setEmailError("Please enter a valid email address.");
-      return;
+      return true;
     }
     setCheckingEmail(true);
     try {
@@ -63,14 +64,17 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
         body: JSON.stringify({ email: trimmed }),
       });
       const data = await res.json();
-      if (data.success && data.exists) {
-        setEmailError("This email is already registered. Please sign in instead.");
+      if (data.success && data.message) {
+        setEmailError(data.message);
+        return true;
       } else {
         setEmailError("");
+        return false;
       }
     } catch (err) {
       console.error("Email check failed:", err);
       setEmailError("");
+      return false; // allow submit on network error — backend will catch duplicates
     } finally {
       setCheckingEmail(false);
     }
@@ -122,7 +126,9 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
 
   const handleSignUp = async (e) => {
     e.preventDefault();
-    if (emailError) return;
+    // Validate email on submit in case the user never blurred the field
+    const hasEmailError = await validateAndCheckEmail(email);
+    if (hasEmailError) return;
     setLoading(true);
     try {
       if (
@@ -201,6 +207,11 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
           setShow2FASetup(false);
           setShowEmailVerification(true);
         }}
+        onSkip={() => {
+          toast("You can enable 2FA later from Settings.", { icon: "ℹ️" });
+          setShow2FASetup(false);
+          setShowEmailVerification(true);
+        }}
       />
     );
   }
@@ -210,6 +221,7 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
       <EmailVerification
         email={signupEmail}
         userId={signupUserId}
+        signupToken={signupToken}
         isDark={isDark}
         onVerified={async () => {
           toast.success("You're all set! Signing you in...");
@@ -706,14 +718,20 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
             key={isDark ? "dark" : "light"}
             ref={recaptchaRef}
             sitekey={RECAPTCHA_SITE_KEY}
-            onChange={(token) => setRecaptchaToken(token)}
+            onChange={(token) => { setRecaptchaToken(token); setRecaptchaExpired(false); }}
             onExpired={() => {
               setRecaptchaToken(null);
-              toast.error("Captcha expired");
+              setRecaptchaExpired(true);
             }}
             theme={isDark ? "dark" : "light"}
           />
         </div>
+      )}
+
+      {recaptchaExpired && !recaptchaToken && !IS_LOCALHOST && (
+        <p className="text-center text-xs font-semibold text-amber-500 -mt-1 mb-1">
+          reCAPTCHA expired. Please re-verify above.
+        </p>
       )}
 
       <motion.button

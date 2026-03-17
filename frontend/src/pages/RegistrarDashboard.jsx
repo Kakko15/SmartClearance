@@ -23,6 +23,7 @@ import { exportToCSV } from "../utils/exportData";
 
 export default function RegistrarAdminDashboard({
   adminId,
+  user,
   onSignOut,
   onOpenSettings,
   onManageAccount,
@@ -300,7 +301,7 @@ export default function RegistrarAdminDashboard({
       menuItems={menuItems}
       activeView={activeView}
       setActiveView={setActiveView}
-      userInfo={{ name: "Registrar", subtitle: "Registrar Admin" }}
+      userInfo={{ name: "Registrar", subtitle: "Registrar Admin", avatar: user?.user_metadata?.avatar_url }}
       onSignOut={onSignOut}
       onOpenSettings={onOpenSettings}
       onManageAccount={onManageAccount}

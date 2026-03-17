@@ -40,16 +40,16 @@ function LoaderPage() {
 }
 
 function DashboardContent(props) {
-  const { user, profile, handleSignOut, isDarkMode, toggleTheme, setShowSettings, setSettingsMode } = props;
+  const { user, profile, handleSignOut, isDarkMode, toggleTheme, setShowSettings } = props;
   const dp = { onSignOut: handleSignOut, isDarkMode, toggleTheme };
   const sp = {
-    onOpenSettings: (tab) => { setSettingsMode(tab === "appearance" ? "appearance" : "full"); setShowSettings(true); },
-    onManageAccount: () => { setSettingsMode("account"); setShowSettings(true); },
+    onOpenSettings: () => { setShowSettings(true); },
+    onManageAccount: () => { setShowSettings(true); },
   };
 
-  if (profile.role === "librarian") return <LibrarianDashboard adminId={user.id} {...dp} {...sp} />;
-  if (profile.role === "cashier") return <CashierDashboard adminId={user.id} {...dp} {...sp} />;
-  if (profile.role === "registrar") return <RegistrarDashboard adminId={user.id} {...dp} {...sp} />;
+  if (profile.role === "librarian") return <LibrarianDashboard adminId={user.id} user={user} {...dp} {...sp} />;
+  if (profile.role === "cashier") return <CashierDashboard adminId={user.id} user={user} {...dp} {...sp} />;
+  if (profile.role === "registrar") return <RegistrarDashboard adminId={user.id} user={user} {...dp} {...sp} />;
   if (profile.role === "signatory") return <SignatoryDashboard professorId={user.id} professorInfo={profile} user={user} {...dp} {...sp} />;
   if (profile.role === "student") return <StudentDashboardGraduation studentId={user.id} studentInfo={profile} user={user} {...dp} {...sp} />;
   if (profile.role === "super_admin") return <SuperAdminDashboard adminId={user.id} adminRole={profile.role} onSignOut={handleSignOut} />;
@@ -64,19 +64,18 @@ function DashboardContent(props) {
 
 function App() {
   const auth = useAuth();
-  const { user, profile, initializing, selectedRole, showPasswordReset } = auth;
+  const { user, setUser, profile, initializing, selectedRole, showPasswordReset } = auth;
   const { twoFactorPending, pendingUser } = auth;
   const { handleLoginSuccess, handleSignOut, handleRoleSelect, backToRoleSelection, complete2FA, cancel2FA } = auth;
   const { isDarkMode, themePreference, toggleTheme } = useTheme();
   const location = useLocation();
   const [showSettings, setShowSettings] = useState(false);
-  const [settingsMode, setSettingsMode] = useState("full");
   const isAuthenticated = !!user && !!profile;
 
   if (twoFactorPending && pendingUser) {
     return (
       <div className={`min-h-screen flex items-center justify-center p-4 ${isDarkMode ? "bg-slate-950" : "bg-gray-50"}`}>
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className={`w-full max-w-md p-8 rounded-3xl shadow-xl border ${isDarkMode ? "bg-slate-900 border-slate-700" : "bg-white border-gray-200"}`}>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className={`w-full max-w-md p-8 rounded-3xl shadow-xl border overflow-hidden ${isDarkMode ? "bg-slate-900 border-slate-700" : "bg-white border-gray-200"}`}>
           <TwoFactorVerify userId={pendingUser.id} email={pendingUser.email} isDark={isDarkMode} onVerified={complete2FA} onCancel={cancel2FA} />
         </motion.div>
       </div>
@@ -132,7 +131,7 @@ function App() {
                 ) : <Navigate to={selectedRole ? "/auth" : "/select-role"} replace />
               ) : (
                 <motion.div key="dashboard" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1 }} className="relative z-10 min-h-screen">
-                  <DashboardContent user={user} profile={profile} handleSignOut={handleSignOut} isDarkMode={isDarkMode} toggleTheme={toggleTheme} setShowSettings={setShowSettings} setSettingsMode={setSettingsMode} />
+                  <DashboardContent user={user} profile={profile} handleSignOut={handleSignOut} isDarkMode={isDarkMode} toggleTheme={toggleTheme} setShowSettings={setShowSettings} />
                 </motion.div>
               )
             } />
@@ -146,7 +145,7 @@ function App() {
           </Routes>
         </AnimatePresence>
         {showSettings && (
-          <Settings user={user} profile={profile} mode={settingsMode} onClose={() => setShowSettings(false)} theme={themePreference} setTheme={(t) => toggleTheme(t)} />
+          <Settings user={user} profile={profile} onClose={() => setShowSettings(false)} theme={themePreference} setTheme={(t) => toggleTheme(t)} onAvatarUpdate={(url) => setUser(prev => ({ ...prev, user_metadata: { ...prev.user_metadata, avatar_url: url } }))} />
         )}
       </div>
     </ClickSpark>

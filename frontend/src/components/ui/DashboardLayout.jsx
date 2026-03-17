@@ -23,7 +23,7 @@ export default function DashboardLayout({
   toggleTheme,
   children,
 }) {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [dropdownView, setDropdownView] = useState("main");
@@ -142,7 +142,7 @@ export default function DashboardLayout({
                     {item.icon}
                   </span>
                 </div>
-                {!sidebarOpen && (
+                {!sidebarOpen && !isActive && (
                   <div className={`pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md border px-3 py-1.5 text-sm font-medium opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 ${theme.bg === 'bg-[#030712]' ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-900'}`}>
                     {item.label}
                   </div>
@@ -178,37 +178,6 @@ export default function DashboardLayout({
         </nav>
 
         <div className="mt-auto px-3 pb-6 flex flex-col gap-2">
-          {onOpenSettings && (
-            <button
-              onClick={onOpenSettings}
-              className={`w-full flex items-center relative group rounded-full transition-colors h-[44px] ${theme.topbarBtn || 'hover:bg-slate-50 text-slate-500'}`}
-            >
-              <div className="flex items-center justify-center w-[44px] h-[44px] flex-shrink-0">
-                <CogIcon className="w-[22px] h-[22px]" />
-              </div>
-              {!sidebarOpen && (
-                <div className={`pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md border px-3 py-1.5 text-sm font-medium opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 ${theme.bg === 'bg-[#030712]' ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-900'}`}>
-                  Settings
-                </div>
-              )}
-              <AnimatePresence>
-                {sidebarOpen && (
-                  <motion.div
-                    layout
-                    initial={{ opacity: 0, width: 0 }}
-                    animate={{ opacity: 1, width: "auto" }}
-                    exit={{ opacity: 0, width: 0 }}
-                    transition={{ opacity: { duration: 0.15 }, width: { type: "spring", bounce: 0, duration: 0.3 } }}
-                    className="overflow-hidden whitespace-nowrap pr-4"
-                  >
-                    <span className={`font-medium text-[14px] ${theme.topbarText || 'text-slate-600'}`}>
-                      Settings
-                    </span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </button>
-          )}
         </div>
       </motion.div>
 

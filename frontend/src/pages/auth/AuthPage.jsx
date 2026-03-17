@@ -45,6 +45,7 @@ export default function AuthPage({
     const savedMode = sessionStorage.getItem("authMode") === "signup";
     return canSignUp && savedMode;
   });
+  const [loginInitialView, setLoginInitialView] = useState("login");
 
   useEffect(() => {
     sessionStorage.setItem("authMode", isSignUp ? "signup" : "login");
@@ -183,7 +184,7 @@ export default function AuthPage({
               </button>
               {isSignUp && (
                 <button
-                  onClick={() => { setIsSignUp(false); }}
+                  onClick={() => { setLoginInitialView("forgot"); setIsSignUp(false); }}
                   className={`ml-3 font-bold transition-colors text-sm ${isDark ? "text-green-400 hover:text-green-300" : "text-green-600 hover:text-green-700"}`}
                 >
                   Forgot password?
@@ -204,10 +205,12 @@ export default function AuthPage({
                 transition={{ duration: 0.3, ease: "easeInOut" }}
               >
                 <LoginForm
-                  onSwitchMode={() => canSignUp && setIsSignUp(true)}
+                  key={loginInitialView}
+                  onSwitchMode={() => { setLoginInitialView("login"); canSignUp && setIsSignUp(true); }}
                   isDark={isDark}
                   selectedRole={selectedRole}
                   onLoginSuccess={onLoginSuccess}
+                  initialView={loginInitialView}
                 />
               </motion.div>
             ) : (

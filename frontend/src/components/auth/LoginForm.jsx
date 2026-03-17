@@ -44,18 +44,27 @@ function persistSavedLoginEmails(emails, role) {
   );
 }
 
-export default function LoginForm({ isDark, onLoginSuccess, selectedRole }) {
+export default function LoginForm({ isDark, onLoginSuccess, selectedRole, initialView }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [view, setView] = useState("login");
+  const [view, setView] = useState(initialView || "login");
   const [resetEmail, setResetEmail] = useState("");
   const [resettingPassword, setResettingPassword] = useState(false);
   const [resetSent, setResetSent] = useState(false);
-  const [showEmailVerification, setShowEmailVerification] = useState(false);
-  const [unverifiedUserId, setUnverifiedUserId] = useState(null);
-  const [unverifiedEmail, setUnverifiedEmail] = useState("");
+  const [showEmailVerification, setShowEmailVerification] = useState(() => {
+    return !!sessionStorage.getItem("unverified_user_id");
+  });
+  const [unverifiedUserId, setUnverifiedUserId] = useState(() => {
+    return sessionStorage.getItem("unverified_user_id") || null;
+  });
+  const [unverifiedEmail, setUnverifiedEmail] = useState(() => {
+    return sessionStorage.getItem("unverified_email") || "";
+  });
+  const [unverifiedVerifyToken, setUnverifiedVerifyToken] = useState(() => {
+    return sessionStorage.getItem("unverified_verify_token") || null;
+  });
 
   const [touched, setTouched] = useState({});
   const [loginFeedback, setLoginFeedback] = useState(null);
@@ -287,6 +296,7 @@ export default function LoginForm({ isDark, onLoginSuccess, selectedRole }) {
             emailNotVerified: true,
             unverifiedUserId: data.userId,
             unverifiedEmail: data.email,
+            unverifiedVerifyToken: data.verifyToken,
           });
           return;
         }
@@ -381,19 +391,28 @@ export default function LoginForm({ isDark, onLoginSuccess, selectedRole }) {
       <EmailVerification
         email={unverifiedEmail}
         userId={unverifiedUserId}
+        verifyToken={unverifiedVerifyToken}
         isDark={isDark}
         onVerified={() => {
           toast.success("Email verified! You can now sign in.");
           setShowEmailVerification(false);
           setUnverifiedUserId(null);
           setUnverifiedEmail("");
+          setUnverifiedVerifyToken(null);
           setLoginFeedback(null);
+          sessionStorage.removeItem("unverified_user_id");
+          sessionStorage.removeItem("unverified_email");
+          sessionStorage.removeItem("unverified_verify_token");
         }}
         onSwitchToLogin={() => {
           setShowEmailVerification(false);
           setUnverifiedUserId(null);
           setUnverifiedEmail("");
+          setUnverifiedVerifyToken(null);
           setLoginFeedback(null);
+          sessionStorage.removeItem("unverified_user_id");
+          sessionStorage.removeItem("unverified_email");
+          sessionStorage.removeItem("unverified_verify_token");
         }}
       />
     );
@@ -612,7 +631,7 @@ export default function LoginForm({ isDark, onLoginSuccess, selectedRole }) {
                 onKeyDown={handleEmailKeyDown}
                 onBlur={() => handleBlur("email")}
                 required
-                autoComplete="username"
+                autoComplete="off"
                 autoCapitalize="none"
                 spellCheck={false}
                 aria-autocomplete="list"
@@ -636,7 +655,7 @@ export default function LoginForm({ isDark, onLoginSuccess, selectedRole }) {
                   id="saved-login-email-list"
                   role="listbox"
                   onMouseLeave={() => setActiveSavedEmailIndex(-1)}
-                  className="absolute left-0 right-0 top-full z-30 mt-2 rounded-2xl border border-slate-700 bg-slate-950/95 shadow-[0_18px_50px_rgba(15,23,42,0.45)] backdrop-blur-xl"
+                  className="absolute left-0 right-0 top-full z-30 mt-2 max-h-60 overflow-y-auto overflow-x-hidden rounded-2xl border border-slate-700 bg-slate-950/95 shadow-[0_18px_50px_rgba(15,23,42,0.45)] backdrop-blur-xl"
                 >
                   {filteredSavedEmails.map((savedEmail, index) => (
                     <div
@@ -755,7 +774,7 @@ export default function LoginForm({ isDark, onLoginSuccess, selectedRole }) {
                 }}
                 onBlur={() => handleBlur("password")}
                 required
-                autoComplete="current-password"
+                autoComplete="new-password"
                 className={`w-full border rounded-xl px-4 py-3 outline-none transition-all font-medium ${isDark ? "bg-slate-900 border-slate-700 text-white caret-green-500 focus:border-green-500" : "bg-white border-gray-200 text-gray-900 caret-green-500 focus:border-green-500 focus:ring-1 focus:ring-green-500"} ${getFieldError("password", password) ? "!border-red-500 focus:!border-red-500 !ring-red-500 bg-red-50 text-red-900" : ""}`}
               />
             </SpotlightBorder>
@@ -854,6 +873,12 @@ export default function LoginForm({ isDark, onLoginSuccess, selectedRole }) {
                   onClick={() => {
                     setUnverifiedUserId(loginFeedback.unverifiedUserId);
                     setUnverifiedEmail(loginFeedback.unverifiedEmail);
+                    setUnverifiedVerifyToken(loginFeedback.unverifiedVerifyToken);
+                    sessionStorage.setItem("unverified_user_id", loginFeedback.unverifiedUserId);
+                    sessionStorage.setItem("unverified_email", loginFeedback.unverifiedEmail);
+                    if (loginFeedback.unverifiedVerifyToken) {
+                      sessionStorage.setItem("unverified_verify_token", loginFeedback.unverifiedVerifyToken);
+                    }
                     setShowEmailVerification(true);
                   }}
                   className={`mt-2 text-xs font-bold underline transition-colors ${isDark ? "text-green-400 hover:text-green-300" : "text-green-600 hover:text-green-700"}`}

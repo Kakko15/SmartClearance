@@ -22,6 +22,7 @@ import { exportToCSV } from "../utils/exportData";
 
 export default function CashierAdminDashboard({
   adminId,
+  user,
   onSignOut,
   onOpenSettings,
   onManageAccount,
@@ -205,7 +206,7 @@ export default function CashierAdminDashboard({
       menuItems={menuItems}
       activeView={activeView}
       setActiveView={setActiveView}
-      userInfo={{ name: "Chief Accountant", subtitle: "Cashier Admin" }}
+      userInfo={{ name: "Chief Accountant", subtitle: "Cashier Admin", avatar: user?.user_metadata?.avatar_url }}
       onSignOut={onSignOut}
       onOpenSettings={onOpenSettings}
       onManageAccount={onManageAccount}

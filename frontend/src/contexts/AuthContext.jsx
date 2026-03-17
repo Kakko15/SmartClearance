@@ -167,16 +167,25 @@ export function AuthProvider({ children }) {
 
   const runSessionValidation = (sessionUser, isMounted = true) => {
     if (!sessionUser || !isMounted) return Promise.resolve();
+    // Return the existing promise if a validation is already in flight.
+    // The ref is set synchronously here (before any await) so concurrent
+    // callers in the same microtask always see it — closing the race
+    // window where both onAuthStateChange and handleLoginSuccess could
+    // start duplicate validations.
     if (sessionValidationPromiseRef.current) {
       return sessionValidationPromiseRef.current;
     }
-    sessionValidationPromiseRef.current = validateAndSetSession(
-      sessionUser,
-      isMounted,
-    ).finally(() => {
-      sessionValidationPromiseRef.current = null;
-    });
-    return sessionValidationPromiseRef.current;
+    const promise = validateAndSetSession(sessionUser, isMounted).finally(
+      () => {
+        // Only clear if we're still the active promise (avoids clearing a
+        // newer validation that started after this one resolved).
+        if (sessionValidationPromiseRef.current === promise) {
+          sessionValidationPromiseRef.current = null;
+        }
+      },
+    );
+    sessionValidationPromiseRef.current = promise;
+    return promise;
   };
 
   const handleLoginSuccess = (sessionUser) => {
@@ -243,6 +252,12 @@ export function AuthProvider({ children }) {
           (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") &&
           session?.user
         ) {
+          // Guard: ignore sessions for unverified emails.
+          // The backend signs out unverified users, but this catches the
+          // race where SIGNED_IN fires before the signOut propagates.
+          if (event === "SIGNED_IN" && !session.user.email_confirmed_at) {
+            return;
+          }
           scheduleSessionValidation(session.user);
         } else if (event === "SIGNED_OUT") {
           setUser(null);
@@ -347,6 +362,7 @@ export function AuthProvider({ children }) {
     setTwoFactorPending(false);
     setPendingUser(null);
     setPendingProfile(null);
+    sessionStorage.removeItem("2fa_verified");
     roleMismatchRef.current = true;
     await supabase.auth.signOut();
   };
@@ -432,6 +448,7 @@ export function AuthProvider({ children }) {
 
   const value = {
     user,
+    setUser,
     profile,
     initializing,
     selectedRole,

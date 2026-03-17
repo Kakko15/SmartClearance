@@ -342,18 +342,19 @@ router.post("/apply", requireAuth, requireRole("student"), async (req, res) => {
           ignoreDuplicates: true,
         });
 
-      // Upsert professor approvals (trigger may have already created them)
+      // Upsert professor approvals — force reset status to "pending" for fresh applications
       const approvalRecords = wantedSignatories.map((p) => ({
         request_id: request.id,
         professor_id: p.id,
         status: "pending",
+        comments: null,
+        approved_at: null,
       }));
 
       const { error: approvalError } = await supabase
         .from("professor_approvals")
         .upsert(approvalRecords, {
           onConflict: "request_id,professor_id",
-          ignoreDuplicates: true,
         });
 
       if (approvalError) {
@@ -424,6 +425,26 @@ router.delete("/cancel/:studentId", requireAuth, requireRole("student"), async (
     // Delete ALL pending graduation requests for this student (handles orphaned duplicates)
     for (const existingRequest of requests) {
       if (existingRequest.is_completed) continue;
+
+      // Clean up clearance_comments for this request
+      const { error: commentsDeleteError } = await supabase
+        .from("clearance_comments")
+        .delete()
+        .eq("clearance_request_id", existingRequest.id);
+
+      if (commentsDeleteError) {
+        console.warn("Clearance comments cleanup warning:", commentsDeleteError.message);
+      }
+
+      // Clean up status history for this request
+      const { error: historyDeleteError } = await supabase
+        .from("clearance_status_history")
+        .delete()
+        .eq("request_id", existingRequest.id);
+
+      if (historyDeleteError) {
+        console.warn("Status history cleanup warning:", historyDeleteError.message);
+      }
 
       const { error: approvalDeleteError } = await supabase
         .from("professor_approvals")
@@ -508,7 +529,8 @@ router.get("/status/:studentId", requireAuth, requireRole("student"), async (req
         approved_at,
         professor:professor_id (
           full_name,
-          email
+          email,
+          avatar_url
         )
       `,
       )

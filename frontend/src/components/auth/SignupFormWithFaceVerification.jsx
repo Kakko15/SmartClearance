@@ -24,8 +24,10 @@ export default function SignupFormWithFaceVerification({
     const saved = sessionStorage.getItem("signupStep");
     if (saved) {
       const step = parseInt(saved, 10);
-
-      return step >= 3 ? 2 : step;
+      // Allow step 3 only if the ID descriptor was persisted
+      const hasDescriptor = !!sessionStorage.getItem("signupIdDescriptor");
+      if (step >= 3 && !hasDescriptor) return 2;
+      return step;
     }
     return 1;
   });
@@ -35,7 +37,9 @@ export default function SignupFormWithFaceVerification({
     const saved = sessionStorage.getItem("signupFormData");
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        // Never restore passwords from storage — always start fresh
+        return { ...parsed, password: "", confirmPassword: "" };
       } catch (_e) {
         sessionStorage.removeItem("signupFormData");
       }
@@ -52,10 +56,23 @@ export default function SignupFormWithFaceVerification({
     };
   });
 
-  const [idDescriptor, setIdDescriptor] = useState(null);
+  const [idDescriptor, setIdDescriptor] = useState(() => {
+    // Restore face descriptor from sessionStorage if available.
+    // It's stored as a JSON array and converted back to Float32Array.
+    const saved = sessionStorage.getItem("signupIdDescriptor");
+    if (saved) {
+      try {
+        return new Float32Array(JSON.parse(saved));
+      } catch (_e) {
+        sessionStorage.removeItem("signupIdDescriptor");
+      }
+    }
+    return null;
+  });
 
   const [loading, setLoading] = useState(false);
   const [recaptchaToken, setRecaptchaToken] = useState(null);
+  const [recaptchaExpired, setRecaptchaExpired] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [show2FASetup, setShow2FASetup] = useState(false);
@@ -111,7 +128,10 @@ export default function SignupFormWithFaceVerification({
   }, [currentStep]);
 
   useEffect(() => {
-    sessionStorage.setItem("signupFormData", JSON.stringify(formData));
+    // Persist form data but NEVER store passwords in sessionStorage.
+    // On shared university computers, sessionStorage persists until the tab closes.
+    const { password: _pw, confirmPassword: _cpw, ...safeData } = formData;
+    sessionStorage.setItem("signupFormData", JSON.stringify(safeData));
   }, [formData]);
 
   useEffect(() => {
@@ -149,8 +169,8 @@ export default function SignupFormWithFaceVerification({
         body: JSON.stringify({ email: trimmed }),
       });
       const data = await res.json();
-      if (data.success && data.exists) {
-        setEmailError("This email is already registered. Please sign in instead.");
+      if (data.success && data.message) {
+        setEmailError(data.message);
       } else {
         setEmailError("");
       }
@@ -218,11 +238,22 @@ export default function SignupFormWithFaceVerification({
 
   const handleIDVerified = (descriptor) => {
     setIdDescriptor(descriptor);
+    // Persist descriptor so step 3 survives a page refresh
+    sessionStorage.setItem("signupIdDescriptor", JSON.stringify(Array.from(descriptor)));
     toast.success("ID verified! Now take a selfie.");
     setCurrentStep(3);
   };
 
   const handleFaceMatch = async (isMatch, similarity) => {
+    if (!isMatch) {
+      toast.error(
+        `Face verification failed (${similarity.toFixed(1)}% similarity). Please retake your selfie or re-upload your ID.`,
+      );
+      // Go back to step 2 (ID upload) so the user can retry
+      setCurrentStep(2);
+      sessionStorage.setItem("signupStep", "2");
+      return;
+    }
     await submitSignup(isMatch, similarity);
   };
 
@@ -270,6 +301,7 @@ export default function SignupFormWithFaceVerification({
 
       sessionStorage.removeItem("signupStep");
       sessionStorage.removeItem("signupFormData");
+      sessionStorage.removeItem("signupIdDescriptor");
       setSignupUserId(result.user.id);
       setSignupToken(result.signupToken);
       setShow2FASetup(true);
@@ -328,6 +360,11 @@ export default function SignupFormWithFaceVerification({
           setShow2FASetup(false);
           setShowEmailVerification(true);
         }}
+        onSkip={() => {
+          toast("You can enable 2FA later from Settings.", { icon: "ℹ️" });
+          setShow2FASetup(false);
+          setShowEmailVerification(true);
+        }}
       />
     );
   }
@@ -337,6 +374,7 @@ export default function SignupFormWithFaceVerification({
       <EmailVerification
         email={formData.email}
         userId={signupUserId}
+        signupToken={signupToken}
         isDark={isDark}
         onVerified={async () => {
           toast.success("You're all set! Signing you in...");
@@ -924,11 +962,17 @@ export default function SignupFormWithFaceVerification({
               <ReCAPTCHA
                 ref={recaptchaRef}
                 sitekey={RECAPTCHA_SITE_KEY}
-                onChange={(token) => setRecaptchaToken(token)}
-                onExpired={() => setRecaptchaToken(null)}
+                onChange={(token) => { setRecaptchaToken(token); setRecaptchaExpired(false); }}
+                onExpired={() => { setRecaptchaToken(null); setRecaptchaExpired(true); }}
                 theme={isDark ? "dark" : "light"}
               />
             </div>
+          )}
+
+          {recaptchaExpired && !recaptchaToken && !IS_LOCALHOST && (
+            <p className="text-center text-xs font-semibold text-amber-500 -mt-1 mb-1">
+              reCAPTCHA expired. Please re-verify above.
+            </p>
           )}
 
           <button

@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
-export default function TwoFactorSetup({ userId, email, signupToken, isDark, onComplete }) {
+export default function TwoFactorSetup({ userId, email, signupToken, isDark, onComplete, onSkip }) {
   const [qrCode, setQrCode] = useState(null);
   const [manualKey, setManualKey] = useState("");
   const [loading, setLoading] = useState(true);
@@ -223,6 +223,16 @@ export default function TwoFactorSetup({ userId, email, signupToken, isDark, onC
           {verifying ? "Verifying..." : "Verify & Enable 2FA"}
         </button>
       </form>
+
+      {onSkip && (
+        <button
+          type="button"
+          onClick={onSkip}
+          className={`w-full text-sm font-semibold py-2 mt-3 transition-colors ${isDark ? "text-gray-500 hover:text-gray-300" : "text-gray-400 hover:text-gray-600"}`}
+        >
+          Skip for now — I'll set up 2FA later
+        </button>
+      )}
     </motion.div>
   );
 }

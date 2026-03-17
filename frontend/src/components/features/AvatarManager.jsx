@@ -180,6 +180,9 @@ export default function AvatarManager({ user, profile, isDark, onAvatarUpdate })
         data: { avatar_url: dataUrl }
       });
       if (error) throw error;
+
+      // Sync to profiles table so other users can see it
+      await supabase.from("profiles").update({ avatar_url: dataUrl }).eq("id", user.id);
       
       setAvatar(dataUrl);
       toast.success("Avatar updated successfully!");
@@ -199,6 +202,9 @@ export default function AvatarManager({ user, profile, isDark, onAvatarUpdate })
         data: { avatar_url: null }
       });
       if (error) throw error;
+
+      // Sync to profiles table
+      await supabase.from("profiles").update({ avatar_url: null }).eq("id", user.id);
       
       setAvatar(null);
       toast.success("Avatar removed successfully!");

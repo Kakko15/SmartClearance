@@ -26,6 +26,7 @@ import { exportToCSV } from "../utils/exportData";
 export default function ProfessorDashboard({
   professorId,
   professorInfo,
+  user,
   onSignOut,
   onOpenSettings,
   onManageAccount,
@@ -59,7 +60,7 @@ export default function ProfessorDashboard({
   }, [professorId]);
 
   useEffect(() => {
-    document.title = "Professor Dashboard | ISU Clearance";
+    document.title = "Signatory Dashboard | ISU Clearance";
     fetchStudents();
   }, [fetchStudents]);
 
@@ -203,7 +204,7 @@ export default function ProfessorDashboard({
       menuItems={menuItems}
       activeView={activeView}
       setActiveView={setActiveView}
-      userInfo={{ name: professorInfo?.full_name, subtitle: "Signatory" }}
+      userInfo={{ name: professorInfo?.full_name, subtitle: "Signatory", avatar: user?.user_metadata?.avatar_url }}
       onSignOut={onSignOut}
       onOpenSettings={onOpenSettings}
       onManageAccount={onManageAccount}

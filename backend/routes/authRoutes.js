@@ -7,9 +7,34 @@ const supabase = require("../supabaseClient");
 const twoFactorRoutes = require("./twoFactorRoutes");
 const { validatePassword } = require("../utils/validatePassword");
 
+const crypto = require("crypto");
 const { TOKEN_TYPES, setToken, getToken, incrementAttempts, deleteToken } = require("../services/otpStore");
 
 const EMAIL_VERIFY_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
+const EMAIL_VERIFY_TOKEN_EXPIRY_MS = 30 * 60 * 1000; // 30 minutes
+
+/**
+ * Generate a short-lived token that authorizes email verification requests.
+ * Issued after signup or when an unverified user attempts login.
+ */
+async function generateEmailVerifyToken(userId) {
+  const token = crypto.randomBytes(32).toString("hex");
+  await setToken(userId, TOKEN_TYPES.EMAIL_VERIFY_TOKEN, {
+    tokenValue: token,
+    expiresInMs: EMAIL_VERIFY_TOKEN_EXPIRY_MS,
+  });
+  return token;
+}
+
+async function validateEmailVerifyToken(userId, token) {
+  const stored = await getToken(userId, TOKEN_TYPES.EMAIL_VERIFY_TOKEN);
+  if (!stored) return false;
+  if (Date.now() > stored.expiresAt) {
+    await deleteToken(userId, TOKEN_TYPES.EMAIL_VERIFY_TOKEN);
+    return false;
+  }
+  return stored.tokenValue === token;
+}
 const EMAIL_VERIFY_COOLDOWN_MS = 60 * 1000; // 60 seconds between resends
 const EMAIL_VERIFY_MAX_ATTEMPTS = 5;
 
@@ -226,12 +251,23 @@ router.post(
     // Check if email is verified
     const user = data.user;
     if (!user.email_confirmed_at) {
+      // Sign out immediately to destroy the session created by signInWithPassword.
+      // Without this, the Supabase session persists and the frontend's
+      // onAuthStateChange can fire SIGNED_IN before the 403 is processed,
+      // briefly granting an authenticated state to unverified users.
+      await supabase.auth.signOut();
+
+      // Generate a short-lived token so the frontend can request
+      // verification emails without a full session.
+      const verifyToken = await generateEmailVerifyToken(user.id);
+
       return res.status(403).json({
         success: false,
         error: "Please verify your email before signing in. Check your inbox for the verification code.",
         emailNotVerified: true,
         userId: user.id,
         email: user.email,
+        verifyToken,
       });
     }
 
@@ -287,7 +323,13 @@ router.post("/check-email", checkEmailLimiter, async (req, res) => {
       await new Promise((r) => setTimeout(r, MIN_RESPONSE_MS - elapsed));
     }
 
-    return res.json({ success: true, exists });
+    // Never return an explicit exists boolean — that's an enumeration vector.
+    // Instead, return a validation message only when the email is taken.
+    // The response shape is identical either way (success: true + optional message).
+    if (exists) {
+      return res.json({ success: true, message: "This email is already registered." });
+    }
+    return res.json({ success: true });
   } catch (error) {
     console.error("Check email error:", error);
     return res.status(500).json({ success: false, error: "Server error" });
@@ -468,16 +510,27 @@ router.post("/signup", signupLimiter, async (req, res) => {
       );
     }
 
-    // Send email verification code
-    await sendVerificationEmail(authData.user.id, email);
+    // Send email verification code — non-blocking.
+    // The account is already created; if the email fails the user can
+    // request a new code from the login "verify email" flow.
+    let emailSent = true;
+    try {
+      await sendVerificationEmail(authData.user.id, email);
+    } catch (emailErr) {
+      console.error("Verification email failed (admin signup):", emailErr.message);
+      emailSent = false;
+    }
 
     // Generate a short-lived signup token for 2FA setup authentication
     const signupToken = await twoFactorRoutes.generateSignupToken(authData.user.id);
 
     res.json({
       success: true,
-      message: "Account created successfully! Please verify your email.",
+      message: emailSent
+        ? "Account created successfully! Please verify your email."
+        : "Account created, but we couldn't send the verification email. You can request a new code later.",
       emailVerificationRequired: true,
+      emailSent,
       signupToken,
       user: {
         id: authData.user.id,
@@ -676,8 +729,16 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
       );
     }
 
-    // Send email verification code
-    await sendVerificationEmail(authData.user.id, email);
+    // Send email verification code — non-blocking.
+    // The account is already created; if the email fails the user can
+    // request a new code from the login "verify email" flow.
+    let emailSent = true;
+    try {
+      await sendVerificationEmail(authData.user.id, email);
+    } catch (emailErr) {
+      console.error("Verification email failed (student signup):", emailErr.message);
+      emailSent = false;
+    }
 
     // Generate a short-lived signup token for 2FA setup authentication
     const signupToken = await twoFactorRoutes.generateSignupToken(authData.user.id);
@@ -687,10 +748,11 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
       autoApproved: isAutoApproved,
       similarity: similarity,
       emailVerificationRequired: true,
+      emailSent,
       signupToken,
       message: isAutoApproved
-        ? "Account approved! Please verify your email."
-        : "Account pending review. Please verify your email.",
+        ? (emailSent ? "Account approved! Please verify your email." : "Account approved, but we couldn't send the verification email. You can request a new code later.")
+        : (emailSent ? "Account pending review. Please verify your email." : "Account pending review. We couldn't send the verification email — you can request a new code later."),
       user: {
         id: authData.user.id,
         email: authData.user.email,
@@ -761,18 +823,47 @@ const verifyEmailLimiter = rateLimit({
 
 const sendVerifyEmailLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isDev ? 20 : 5,
+  max: isDev ? 20 : 3,
   message: { success: false, error: "Too many requests. Please try again later." },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-router.post("/send-verification-email", sendVerifyEmailLimiter, async (req, res) => {
+// Per-userId rate limit to prevent distributed email bombing targeting one user
+const sendVerifyEmailUserLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 20 : 3,
+  keyGenerator: (req) => req.body?.userId || "unknown",
+  message: { success: false, error: "Too many verification requests for this account." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+router.post("/send-verification-email", sendVerifyEmailLimiter, sendVerifyEmailUserLimiter, async (req, res) => {
   try {
-    const { userId, email } = req.body;
+    const { userId, email, signupToken, verifyToken } = req.body;
 
     if (!userId || !email) {
       return res.status(400).json({ success: false, error: "User ID and email are required" });
+    }
+
+    // Require proof of identity: either a signup token (post-signup flow)
+    // or a verify token (login flow for unverified users).
+    let authorized = false;
+
+    if (signupToken) {
+      if (typeof twoFactorRoutes.validateSignupToken === "function") {
+        const check = await twoFactorRoutes.validateSignupToken(userId, signupToken);
+        authorized = check.valid;
+      }
+    }
+
+    if (!authorized && verifyToken) {
+      authorized = await validateEmailVerifyToken(userId, verifyToken);
+    }
+
+    if (!authorized) {
+      return res.status(401).json({ success: false, error: "Unauthorized. Please sign up or log in again." });
     }
 
     // Enforce cooldown

@@ -60,9 +60,9 @@ export function getRegistrarTheme(isDarkMode) {
 export function getSignatoryTheme(isDarkMode) {
   return {
     ...baseTheme(isDarkMode),
-    name: "Professor Panel",
-    abbrev: "PP",
-    dashboardTitle: "Professor Dashboard",
+    name: "Signatory Panel",
+    abbrev: "SP",
+    dashboardTitle: "Signatory Dashboard",
   };
 }
 

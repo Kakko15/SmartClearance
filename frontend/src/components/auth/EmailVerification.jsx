@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
-export default function EmailVerification({ email, userId, isDark, onVerified, onSwitchToLogin }) {
+export default function EmailVerification({ email, userId, isDark, onVerified, onSwitchToLogin, signupToken, verifyToken }) {
   const [code, setCode] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
@@ -23,10 +23,39 @@ export default function EmailVerification({ email, userId, isDark, onVerified, o
     return clearTimers;
   }, [clearTimers]);
 
-  // Start expiry countdown on mount (10 min = 600s)
+  // Start expiry countdown on mount — restore from sessionStorage if available
+  // so navigating away and back doesn't reset the countdown.
   useEffect(() => {
-    startCountdown(600);
-    startResendCooldown(60);
+    const storedExpiry = sessionStorage.getItem("email_verify_expires_at");
+    if (storedExpiry) {
+      const remaining = Math.ceil((Number(storedExpiry) - Date.now()) / 1000);
+      if (remaining > 0) {
+        startCountdown(remaining);
+      } else {
+        setCountdown(0);
+        sessionStorage.removeItem("email_verify_expires_at");
+      }
+    } else {
+      // First mount — set 10 min expiry
+      const expiresAt = Date.now() + 600 * 1000;
+      sessionStorage.setItem("email_verify_expires_at", expiresAt.toString());
+      startCountdown(600);
+    }
+
+    const storedCooldown = sessionStorage.getItem("email_verify_resend_until");
+    if (storedCooldown) {
+      const remaining = Math.ceil((Number(storedCooldown) - Date.now()) / 1000);
+      if (remaining > 0) {
+        startResendCooldown(remaining);
+      } else {
+        setResendCooldown(0);
+        sessionStorage.removeItem("email_verify_resend_until");
+      }
+    } else {
+      const cooldownUntil = Date.now() + 60 * 1000;
+      sessionStorage.setItem("email_verify_resend_until", cooldownUntil.toString());
+      startResendCooldown(60);
+    }
   }, []);
 
   const startCountdown = (seconds) => {
@@ -113,6 +142,8 @@ export default function EmailVerification({ email, userId, isDark, onVerified, o
       const data = await res.json();
       if (data.success) {
         clearTimers();
+        sessionStorage.removeItem("email_verify_expires_at");
+        sessionStorage.removeItem("email_verify_resend_until");
         toast.success("Email verified successfully!");
         onVerified();
       } else {
@@ -134,13 +165,17 @@ export default function EmailVerification({ email, userId, isDark, onVerified, o
       const res = await fetch(`${API_URL}/auth/send-verification-email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, email }),
+        body: JSON.stringify({ userId, email, signupToken, verifyToken }),
       });
       const data = await res.json();
       if (data.success) {
         toast.success("New verification code sent!");
         setCode("");
+        const expiresAt = Date.now() + 600 * 1000;
+        sessionStorage.setItem("email_verify_expires_at", expiresAt.toString());
         startCountdown(600);
+        const cooldownUntil = Date.now() + 60 * 1000;
+        sessionStorage.setItem("email_verify_resend_until", cooldownUntil.toString());
         startResendCooldown(60);
       } else {
         toast.error(data.error || "Failed to resend code");
