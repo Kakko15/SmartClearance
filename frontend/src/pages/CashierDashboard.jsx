@@ -64,6 +64,12 @@ export default function CashierAdminDashboard({
   // Live updates — re-fetch silently when requests table changes
   useRealtimeSubscription("requests", () => fetchPendingRequests(true));
 
+  // Polling fallback
+  useEffect(() => {
+    const interval = setInterval(() => fetchPendingRequests(true), 10000);
+    return () => clearInterval(interval);
+  }, [fetchPendingRequests]);
+
   const handleApprove = async () => {
     if (!selectedRequest) return;
     setActionLoading(true);

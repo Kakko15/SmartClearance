@@ -87,6 +87,12 @@ export default function RegistrarAdminDashboard({
   useRealtimeSubscription("requests", () => fetchPendingRequests(true));
   useRealtimeSubscription("profiles", () => fetchPendingAccounts(true));
 
+  // Polling fallback
+  useEffect(() => {
+    const interval = setInterval(() => { fetchPendingRequests(true); fetchPendingAccounts(true); }, 10000);
+    return () => clearInterval(interval);
+  }, [fetchPendingRequests, fetchPendingAccounts]);
+
   const handleApproveAccount = async (userId) => {
     setActionLoading(true);
     try {

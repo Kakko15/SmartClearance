@@ -688,6 +688,12 @@ export default function StudentDashboardGraduation({
   useRealtimeSubscription("requests", () => fetchClearanceStatus(true));
   useRealtimeSubscription("professor_approvals", () => fetchClearanceStatus(true));
 
+  // Polling fallback — refresh every 10s in case Supabase Realtime is not enabled
+  useEffect(() => {
+    const interval = setInterval(() => fetchClearanceStatus(true), 10000);
+    return () => clearInterval(interval);
+  }, []);
+
   // B10 FIX: Focus trap for cancel modal — traps Tab/Shift+Tab and Escape
   const cancelModalRef = useRef(null);
   useEffect(() => {
@@ -944,6 +950,7 @@ export default function StudentDashboardGraduation({
 
     const { default: jsPDF } = await import("jspdf");
     const { default: html2canvas } = await import("html2canvas");
+    const QRCode = (await import("qrcode")).default;
 
     const studentName = (studentInfo?.full_name || "N/A").toUpperCase();
     const studentNum = studentInfo?.student_number || "N/A";
@@ -952,8 +959,35 @@ export default function StudentDashboardGraduation({
     const dateApplied = new Date(r.created_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
     const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 
+    // Generate QR code data URL
+    const verifyUrl = `${window.location.origin}/verify/${r.certificate_number || r.id}`;
+    let qrDataUrl = "";
+    try {
+      qrDataUrl = await QRCode.toDataURL(verifyUrl, { width: 80, margin: 1 });
+    } catch (_) { /* QR generation failed, skip */ }
+
+    // Build stage rows with signatory name + date columns
+    const profApprovals = clearanceStatus.professorApprovals || [];
     const stageRows = stages.map((s, i) => {
-      const status = s.status === "approved" ? "CLEARED"
+      let approverName = "";
+      let dateCleared = "";
+
+      if (s.type === "signatory" && s.approval) {
+        approverName = s.approval.professor?.full_name || "";
+        if (s.status === "approved" && s.approval.approved_at) {
+          dateCleared = new Date(s.approval.approved_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+        }
+      } else if (s.type === "stage") {
+        const atField = { library: "library_approved_at", cashier: "cashier_approved_at", registrar: "registrar_approved_at" }[s.key];
+        const byField = { library: "library_approved_by", cashier: "cashier_approved_by", registrar: "registrar_approved_by" }[s.key];
+        if (r[atField] && s.status === "approved") {
+          dateCleared = new Date(r[atField]).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+        }
+        // We don't have the approver name in the request object, just show the office title
+        if (s.status === "approved") approverName = s.title;
+      }
+
+      const statusText = s.status === "approved" ? (approverName ? `CLEARED — ${approverName}` : "CLEARED")
         : s.status === "rejected" ? "ON HOLD"
         : s.status === "locked" ? "LOCKED"
         : "PENDING";
@@ -963,8 +997,8 @@ export default function StudentDashboardGraduation({
       return `<tr>
         <td style="border:1px solid #333;padding:5px 8px;text-align:center;">${i + 1}</td>
         <td style="border:1px solid #333;padding:5px 8px;">${s.title}</td>
-        <td style="border:1px solid #333;padding:5px 8px;">${s.description || (s.type === "signatory" ? "Clearance Approval" : "Admin Clearance")}</td>
-        <td style="border:1px solid #333;padding:5px 8px;text-align:center;font-weight:bold;color:${statusColor};">${status}</td>
+        <td style="border:1px solid #333;padding:5px 8px;text-align:center;font-weight:bold;color:${statusColor};font-size:9px;">${statusText}</td>
+        <td style="border:1px solid #333;padding:5px 8px;text-align:center;font-size:9px;">${dateCleared}</td>
         <td style="border:1px solid #333;padding:5px 8px;font-size:9px;color:#444;">${s.comments || ""}</td>
       </tr>`;
     }).join("");
@@ -1055,9 +1089,9 @@ export default function StudentDashboardGraduation({
             <tr style="background:#f0f0f0;">
               <th style="border:1px solid #333;padding:5px 8px;text-align:center;width:30px;font-weight:bold;">NO.</th>
               <th style="border:1px solid #333;padding:5px 8px;text-align:left;width:130px;font-weight:bold;">OFFICE / SIGNATORY</th>
-              <th style="border:1px solid #333;padding:5px 8px;text-align:left;font-weight:bold;">DESCRIPTION</th>
-              <th style="border:1px solid #333;padding:5px 8px;text-align:center;width:75px;font-weight:bold;">STATUS</th>
-              <th style="border:1px solid #333;padding:5px 8px;text-align:left;width:110px;font-weight:bold;">REMARKS</th>
+              <th style="border:1px solid #333;padding:5px 8px;text-align:center;width:140px;font-weight:bold;">STATUS</th>
+              <th style="border:1px solid #333;padding:5px 8px;text-align:center;width:80px;font-weight:bold;">DATE</th>
+              <th style="border:1px solid #333;padding:5px 8px;text-align:left;font-weight:bold;">REMARKS</th>
             </tr>
           </thead>
           <tbody style="font-size:10px;">${stageRows}</tbody>
@@ -1086,9 +1120,15 @@ export default function StudentDashboardGraduation({
         </table>
 
         <!-- FOOTER NOTE -->
-        <div style="text-align:center;font-size:8px;color:#888;margin-top:18px;font-style:italic;">
-          This document was generated by the SmartClearance System of Isabela State University.<br/>
-          This is not an official clearance certificate. For official copies, please visit the Registrar's Office.
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-top:18px;">
+          <div style="flex:1;text-align:center;font-size:8px;color:#888;font-style:italic;">
+            This document was generated by the SmartClearance System of Isabela State University.<br/>
+            This is not an official clearance certificate. For official copies, please visit the Registrar's Office.
+          </div>
+          ${qrDataUrl ? `<div style="flex-shrink:0;margin-left:15px;text-align:center;">
+            <img src="${qrDataUrl}" style="width:60px;height:60px;" />
+            <div style="font-size:7px;color:#888;margin-top:2px;">Scan to verify</div>
+          </div>` : ""}
         </div>
       </div>
     `;
@@ -1512,6 +1552,7 @@ export default function StudentDashboardGraduation({
             <GraduationCertificate
               requestId={clearanceStatus.request.request_id}
               studentId={studentId}
+              studentInfo={studentInfo}
             />
           ) : (
             <GlassCard className="p-12 text-center">

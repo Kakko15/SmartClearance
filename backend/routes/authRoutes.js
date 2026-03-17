@@ -4,6 +4,7 @@ const axios = require("axios");
 const rateLimit = require("express-rate-limit");
 const nodemailer = require("nodemailer");
 const supabase = require("../supabaseClient");
+const { createClient } = require("@supabase/supabase-js");
 const twoFactorRoutes = require("./twoFactorRoutes");
 const { validatePassword } = require("../utils/validatePassword");
 
@@ -238,7 +239,17 @@ router.post(
       });
     }
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    // Use a disposable client for signInWithPassword so the shared
+    // service-role client's auth state is never mutated. Mutating it
+    // causes all subsequent DB queries to run under the logged-in
+    // user's RLS context instead of the service-role bypass.
+    const loginClient = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_KEY,
+      { auth: { autoRefreshToken: false, persistSession: false } },
+    );
+
+    const { data, error } = await loginClient.auth.signInWithPassword({ email, password });
 
     if (error) {
       return res.status(401).json({
@@ -251,12 +262,6 @@ router.post(
     // Check if email is verified
     const user = data.user;
     if (!user.email_confirmed_at) {
-      // Sign out immediately to destroy the session created by signInWithPassword.
-      // Without this, the Supabase session persists and the frontend's
-      // onAuthStateChange can fire SIGNED_IN before the 403 is processed,
-      // briefly granting an authenticated state to unverified users.
-      await supabase.auth.signOut();
-
       // Generate a short-lived token so the frontend can request
       // verification emails without a full session.
       const verifyToken = await generateEmailVerifyToken(user.id);

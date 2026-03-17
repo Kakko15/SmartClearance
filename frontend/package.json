@@ -20,6 +20,7 @@
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "ogl": "^1.0.11",
+    "qrcode": "^1.5.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-easy-crop": "^5.5.6",

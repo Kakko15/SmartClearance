@@ -6,6 +6,7 @@ import { BellIcon } from "../ui/Icons";
 export default function NotificationBell({ isDarkMode = false }) {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [pendingCount, setPendingCount] = useState(0);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const ref = useRef(null);
@@ -22,11 +23,21 @@ export default function NotificationBell({ isDarkMode = false }) {
     }
   }, []);
 
+  const fetchPendingCount = useCallback(async () => {
+    try {
+      const { data } = await authAxios.get("notifications/pending-count");
+      if (data.success) setPendingCount(data.pendingCount || 0);
+    } catch {
+      // silent — students or roles without pending counts will 404 or return 0
+    }
+  }, []);
+
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000);
+    fetchPendingCount();
+    const interval = setInterval(() => { fetchNotifications(); fetchPendingCount(); }, 30000);
     return () => clearInterval(interval);
-  }, [fetchNotifications]);
+  }, [fetchNotifications, fetchPendingCount]);
 
   useEffect(() => {
     const handleClick = (e) => {
@@ -104,9 +115,25 @@ export default function NotificationBell({ isDarkMode = false }) {
         )}
       </button>
 
+      {/* Pending requests badge for staff */}
+      {pendingCount > 0 && (
+        <motion.span
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          className={`absolute -bottom-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full text-[9px] font-bold px-1 ${
+            isDarkMode ? "bg-amber-500 text-black" : "bg-amber-400 text-amber-900"
+          }`}
+          title={`${pendingCount} pending request${pendingCount !== 1 ? "s" : ""} awaiting your action`}
+          aria-hidden="true"
+        >
+          {pendingCount > 99 ? "99+" : pendingCount}
+        </motion.span>
+      )}
+
       {/* F10: Screen reader live region for notification count updates */}
       <div aria-live="polite" aria-atomic="true" className="sr-only">
         {unreadCount > 0 ? `${unreadCount} unread notification${unreadCount !== 1 ? "s" : ""}` : "No unread notifications"}
+        {pendingCount > 0 ? `. ${pendingCount} pending request${pendingCount !== 1 ? "s" : ""} awaiting your action` : ""}
       </div>
 
       <AnimatePresence>
@@ -142,6 +169,16 @@ export default function NotificationBell({ isDarkMode = false }) {
             </div>
 
             <div className="overflow-y-auto max-h-[360px]">
+              {pendingCount > 0 && (
+                <div className={`px-4 py-2.5 border-b flex items-center gap-2 ${
+                  isDarkMode ? "border-[#3c4043] bg-amber-500/10" : "border-[#e8eaed] bg-amber-50"
+                }`}>
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isDarkMode ? "bg-amber-400" : "bg-amber-500"}`} />
+                  <span className={`text-xs font-medium ${isDarkMode ? "text-amber-400" : "text-amber-700"}`}>
+                    {pendingCount} pending request{pendingCount !== 1 ? "s" : ""} awaiting your action
+                  </span>
+                </div>
+              )}
               {notifications.length === 0 ? (
                 <div className={`py-10 text-center text-sm ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>
                   No notifications yet

@@ -66,6 +66,13 @@ export default function ProfessorDashboard({
 
   // Live updates when professor_approvals change
   useRealtimeSubscription("professor_approvals", () => fetchStudents(true));
+  useRealtimeSubscription("requests", () => fetchStudents(true));
+
+  // Polling fallback — refresh every 10s in case Realtime is not enabled
+  useEffect(() => {
+    const interval = setInterval(() => fetchStudents(true), 10000);
+    return () => clearInterval(interval);
+  }, [fetchStudents]);
 
   const handleApprove = async (approvalId) => {
     setActionLoading(true);
