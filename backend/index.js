@@ -20,7 +20,7 @@ app.use(
     credentials: true,
   }),
 );
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "10mb" }));
 
 // CSRF protection — validates Origin/Referer on state-changing requests
 const csrfProtection = require("./middleware/csrfProtection");

@@ -24,9 +24,11 @@ export default function SignupFormWithFaceVerification({
     const saved = sessionStorage.getItem("signupStep");
     if (saved) {
       const step = parseInt(saved, 10);
-      // Allow step 3 only if the ID descriptor was persisted
-      const hasDescriptor = !!sessionStorage.getItem("signupIdDescriptor");
-      if (step >= 3 && !hasDescriptor) return 2;
+      if (step >= 2) {
+        // Don't allow skipping step 1 on page refresh — password is never persisted
+        // so the signup would fail. Force back to step 1.
+        return 1;
+      }
       return step;
     }
     return 1;
@@ -83,6 +85,9 @@ export default function SignupFormWithFaceVerification({
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [touched, setTouched] = useState({});
   const recaptchaRef = useRef(null);
+  // Keep password in a ref as backup — sessionStorage intentionally excludes it,
+  // so if the component remounts mid-flow the password would be lost from state.
+  const passwordRef = useRef(formData.password);
 
   const handleBlur = (field) => {
     setTouched((prev) => ({ ...prev, [field]: true }));
@@ -132,6 +137,8 @@ export default function SignupFormWithFaceVerification({
     // On shared university computers, sessionStorage persists until the tab closes.
     const { password: _pw, confirmPassword: _cpw, ...safeData } = formData;
     sessionStorage.setItem("signupFormData", JSON.stringify(safeData));
+    // Keep password ref in sync so it survives component remounts
+    if (formData.password) passwordRef.current = formData.password;
   }, [formData]);
 
   useEffect(() => {
@@ -186,12 +193,10 @@ export default function SignupFormWithFaceVerification({
       e.preventDefault();
 
       // Mark all fields as touched so errors show
-      const allFields = ["firstName", "lastName", "password", "confirmPassword", "studentNumber", "course", "yearLevel"];
+      const allFields = ["firstName", "lastName", "email", "password", "confirmPassword", "studentNumber", "course", "yearLevel"];
       const allTouched = {};
       allFields.forEach((f) => (allTouched[f] = true));
       setTouched((prev) => ({ ...prev, ...allTouched }));
-
-      if (emailError) return;
 
       // Check if any field has a validation error
       const hasError = allFields.some((f) => {
@@ -199,6 +204,7 @@ export default function SignupFormWithFaceVerification({
         switch (f) {
           case "firstName": return !val || val.trim().length < 2;
           case "lastName": return !val || val.trim().length < 2;
+          case "email": return !val || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
           case "password": return !val || val.length < 8 || !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])/.test(val);
           case "confirmPassword": return !val || val !== formData.password;
           case "studentNumber": return !val || !val.trim();
@@ -208,12 +214,12 @@ export default function SignupFormWithFaceVerification({
         }
       });
 
-      if (hasError) return;
-
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-        setEmailError("Please enter a valid email address.");
+      if (hasError) {
+        toast.error("Please fill in all required fields correctly.");
         return;
       }
+
+      if (emailError) return;
 
       if (!recaptchaToken && !IS_LOCALHOST) {
         toast.error("Please verify reCAPTCHA");
@@ -261,25 +267,36 @@ export default function SignupFormWithFaceVerification({
     setLoading(true);
 
     try {
+      const payload = {
+        email: formData.email,
+        password: formData.password || passwordRef.current,
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        role: "student",
+        studentNumber: formData.studentNumber.trim(),
+        courseYear: `${formData.course} - ${formData.yearLevel}`,
+        recaptchaToken: recaptchaToken,
+        faceVerification: {
+          verified: faceVerified,
+          similarity: similarity,
+        },
+      };
+      console.log("[Signup] Payload check:", {
+        email: payload.email || '✗ EMPTY',
+        password: payload.password ? '✓ has value' : '✗ EMPTY',
+        firstName: payload.firstName || '✗ EMPTY',
+        lastName: payload.lastName || '✗ EMPTY',
+        studentNumber: payload.studentNumber || '✗ EMPTY',
+        courseYear: payload.courseYear || '✗ EMPTY',
+        recaptchaToken: payload.recaptchaToken ? '✓ has value' : '✗ EMPTY/NULL',
+      });
+
       const response = await fetch(
         `${import.meta.env.VITE_API_URL}/auth/signup-student`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: formData.email,
-            password: formData.password,
-            firstName: formData.firstName.trim(),
-            lastName: formData.lastName.trim(),
-            role: "student",
-            studentNumber: formData.studentNumber.trim(),
-            courseYear: `${formData.course} - ${formData.yearLevel}`,
-            recaptchaToken: recaptchaToken,
-            faceVerification: {
-              verified: faceVerified,
-              similarity: similarity,
-            },
-          }),
+          body: JSON.stringify(payload),
         },
       );
 

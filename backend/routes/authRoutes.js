@@ -584,6 +584,7 @@ router.post("/verify-recaptcha", async (req, res) => {
 
 router.post("/signup-student", signupLimiter, async (req, res) => {
   try {
+    console.log("signup-student req.body keys:", Object.keys(req.body || {}));
     const {
       email,
       password,
@@ -603,6 +604,7 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
       !studentNumber ||
       !courseYear
     ) {
+      console.log("Missing fields check:", { email: !!email, password: !!password, firstName: !!firstName, lastName: !!lastName, studentNumber: !!studentNumber, courseYear: !!courseYear });
       return res.status(400).json({
         success: false,
         error: "Missing required fields",

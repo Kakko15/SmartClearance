@@ -105,10 +105,10 @@ export function compareFaces(descriptor1, descriptor2) {
     const distance = faceapi.euclideanDistance(descriptor1, descriptor2);
 
     // face-api.js euclidean distance: <0.6 = same person, >0.6 = different person
-    // Quadratic mapping tuned so same person (dist ~0.4) → ~91%, different person (dist ~0.6) → ~77%
+    // Tuned for real-world ID card photos (glare, wear, small printed photos)
     const similarity = Math.max(
       0,
-      Math.min(100, (1 - (distance * distance) / 1.1) * 100),
+      Math.min(100, (1 - (distance * distance) / 1.8) * 100),
     );
 
     console.log(`[Face Compare] distance=${distance.toFixed(4)}, similarity=${similarity.toFixed(1)}%`);
