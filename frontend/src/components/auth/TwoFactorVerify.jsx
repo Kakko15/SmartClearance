@@ -273,7 +273,7 @@ export default function TwoFactorVerify({ userId, email, isDark, onVerified, onC
   const isInputDisabled = expired || locked || verifying;
 
   const codeInputs = (
-    <div className="flex justify-center gap-2 mb-5" onPaste={handlePaste}>
+    <div className="flex justify-center gap-2 mb-6" onPaste={handlePaste}>
       {Array.from({ length: 6 }).map((_, i) => (
         <input
           key={i}
@@ -286,12 +286,12 @@ export default function TwoFactorVerify({ userId, email, isDark, onVerified, onC
           onChange={(e) => handleCodeChange(i, e.target.value)}
           onKeyDown={(e) => handleKeyDown(i, e)}
           disabled={isInputDisabled}
-          className={`w-12 h-14 text-center text-xl font-bold rounded-xl border-2 outline-none transition-all ${
+          className={`w-[50px] h-[60px] text-center text-2xl font-normal rounded outline-none transition-all duration-200 ${
             isInputDisabled ? "opacity-40 cursor-not-allowed" : ""
           } ${
             isDark
-              ? "bg-slate-800 border-slate-600 text-white focus:border-green-500"
-              : "bg-white border-gray-200 text-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500"
+              ? "bg-transparent border border-slate-500 text-slate-100 focus:border-2 focus:border-primary-400"
+              : "bg-transparent border border-gray-400 text-gray-900 focus:border-2 focus:border-primary-600"
           }`}
         />
       ))}
@@ -302,17 +302,16 @@ export default function TwoFactorVerify({ userId, email, isDark, onVerified, onC
     <button
       type="submit"
       disabled={verifying || code.replace(/\D/g, "").length !== 6 || isInputDisabled}
-      className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-full shadow-lg transition-all disabled:opacity-50 mb-3"
+      className={`w-full py-3 mb-3 btn-premium flex items-center justify-center transition-all ${
+        (verifying || code.replace(/\D/g, "").length !== 6 || isInputDisabled) ? "opacity-50 cursor-not-allowed shadow-none" : ""
+      }`}
     >
       {verifying ? (
         <span className="flex items-center justify-center gap-2">
-          <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-          </svg>
+          <span className="material-symbols-rounded animate-spin text-[20px]">progress_activity</span>
           Verifying...
         </span>
-      ) : "Verify"}
+      ) : "Verify code"}
     </button>
   );
 
@@ -344,43 +343,37 @@ export default function TwoFactorVerify({ userId, email, isDark, onVerified, onC
       animate={{ opacity: 1, y: 0 }}
       className="w-full max-w-md mx-auto"
     >
-      <div className="text-center mb-6">
-        <div className={`w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center ${isDark ? "bg-blue-500/20" : "bg-blue-100"}`}>
-          <svg className={`w-8 h-8 ${isDark ? "text-blue-400" : "text-blue-600"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-          </svg>
+      <div className="text-center mb-8">
+        <div className={`w-[52px] h-[52px] rounded-full mx-auto mb-5 flex items-center justify-center ${isDark ? "bg-primary-900/30" : "bg-primary-50"}`}>
+          <span className={`material-symbols-rounded text-3xl ${isDark ? "text-primary-400" : "text-primary-600"}`}>shield_lock</span>
         </div>
-        <h2 className={`text-2xl font-bold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}>
-          Two-Factor Authentication
+        <h2 className={`text-2xl font-medium tracking-tight mb-2 font-display ${isDark ? "text-slate-100" : "text-gray-900"}`}>
+          Two-Step Verification
         </h2>
-        <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+        <p className={`text-[15px] ${isDark ? "text-slate-400" : "text-gray-600"}`}>
           Verify your identity to continue
         </p>
       </div>
 
-      <div className={`flex rounded-xl p-1 mb-5 relative ${isDark ? "bg-slate-800" : "bg-gray-100"}`}>
+      <div className={`flex rounded-full p-1 mb-8 border relative overflow-hidden transition-colors ${isDark ? "bg-transparent border-slate-700" : "bg-transparent border-gray-300"}`}>
         <motion.div
           layoutId="2fa-tab-indicator"
-          className={`absolute top-1 bottom-1 rounded-lg ${isDark ? "bg-green-500 shadow-lg" : "bg-white shadow-md"}`}
+          className={`absolute top-1 bottom-1 rounded-full ${isDark ? "bg-primary-900/40" : "bg-primary-100/60"}`}
           style={{ width: "calc(50% - 4px)", left: method === "authenticator" ? 4 : "calc(50% + 0px)" }}
-          transition={{ type: "spring", stiffness: 500, damping: 35 }}
+          transition={{ duration: 0.2, ease: [0.05, 0.7, 0.1, 1] }}
         />
         <button type="button" onClick={() => switchMethod("authenticator")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold relative z-10 transition-colors duration-200 ${
-            method === "authenticator" ? (isDark ? "text-white" : "text-gray-900") : (isDark ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-gray-900")
+          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-full text-sm font-medium relative z-10 transition-colors duration-200 ${
+            method === "authenticator" ? (isDark ? "text-primary-400" : "text-primary-800") : (isDark ? "text-slate-400 hover:bg-slate-800" : "text-gray-600 hover:bg-gray-50")
           }`}>
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-          </svg>
+          <span className="material-symbols-rounded text-[18px]">smartphone</span>
           Authenticator
         </button>
         <button type="button" onClick={() => switchMethod("email")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold relative z-10 transition-colors duration-200 ${
-            method === "email" ? (isDark ? "text-white" : "text-gray-900") : (isDark ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-gray-900")
+          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-full text-sm font-medium relative z-10 transition-colors duration-200 ${
+            method === "email" ? (isDark ? "text-primary-400" : "text-primary-800") : (isDark ? "text-slate-400 hover:bg-slate-800" : "text-gray-600 hover:bg-gray-50")
           }`}>
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-          </svg>
+          <span className="material-symbols-rounded text-[18px]">mail</span>
           Email OTP
         </button>
       </div>
@@ -389,11 +382,11 @@ export default function TwoFactorVerify({ userId, email, isDark, onVerified, onC
       <AnimatePresence mode="wait" initial={false}>
         {method === "authenticator" ? (
           <motion.div key="authenticator"
-            initial={{ opacity: 0, x: -20, filter: "blur(4px)" }}
+            initial={{ opacity: 0, x: -20, filter: "blur(2px)" }}
             animate={{ opacity: 1, x: 0, filter: "blur(0px)", pointerEvents: "auto" }}
-            exit={{ opacity: 0, x: 20, filter: "blur(4px)", pointerEvents: "none" }}
-            transition={{ duration: 0.15, ease: [0.25, 0.46, 0.45, 0.94] }}>
-            <p className={`text-sm text-center mb-4 ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+            exit={{ opacity: 0, x: 20, filter: "blur(2px)", pointerEvents: "none" }}
+            transition={{ duration: 0.2, ease: [0.05, 0.7, 0.1, 1] }}>
+            <p className={`text-[15px] text-center mb-6 ${isDark ? "text-gray-400" : "text-gray-500"}`}>
               Enter the 6-digit code from your authenticator app
             </p>
             <form onSubmit={handleManualVerify}>
@@ -403,20 +396,20 @@ export default function TwoFactorVerify({ userId, email, isDark, onVerified, onC
           </motion.div>
         ) : (
           <motion.div key="email"
-            initial={{ opacity: 0, x: 20, filter: "blur(4px)" }}
+            initial={{ opacity: 0, x: 20, filter: "blur(2px)" }}
             animate={{ opacity: 1, x: 0, filter: "blur(0px)", pointerEvents: "auto" }}
-            exit={{ opacity: 0, x: -20, filter: "blur(4px)", pointerEvents: "none" }}
-            transition={{ duration: 0.15, ease: [0.25, 0.46, 0.45, 0.94] }}>
+            exit={{ opacity: 0, x: -20, filter: "blur(2px)", pointerEvents: "none" }}
+            transition={{ duration: 0.2, ease: [0.05, 0.7, 0.1, 1] }}>
             {!emailSent ? (
               <div className="text-center mb-4">
-                <p className={`text-sm mb-3 ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+                <p className={`text-[15px] mb-6 ${isDark ? "text-gray-400" : "text-gray-500"}`}>
                   We'll send a verification code to <strong className={isDark ? "text-white" : "text-gray-900"}>{maskedEmail}</strong>
                 </p>
                 <button type="button" onClick={sendEmailOTP} disabled={sendingEmail || resendCooldown > 0}
-                  className={`px-6 py-2.5 rounded-full font-semibold text-sm transition-all ${
-                    isDark ? "bg-blue-500 hover:bg-blue-600 text-white" : "bg-blue-600 hover:bg-blue-700 text-white"
-                  } disabled:opacity-50`}>
-                  {sendingEmail ? "Sending..." : resendCooldown > 0 ? `Wait ${resendCooldown}s` : "Send Code"}
+                  className={`px-8 py-2.5 btn-premium inline-flex items-center gap-2 transition-all ${
+                    (sendingEmail || resendCooldown > 0) ? "opacity-50 cursor-not-allowed shadow-none" : ""
+                  }`}>
+                  {sendingEmail ? <><span className="material-symbols-rounded animate-spin text-[18px]">progress_activity</span> Sending...</> : resendCooldown > 0 ? `Wait ${resendCooldown}s` : "Send Code"}
                 </button>
               </div>
             ) : (
@@ -464,7 +457,7 @@ export default function TwoFactorVerify({ userId, email, isDark, onVerified, onC
       </div>
 
       <button type="button" onClick={handleCancel}
-        className={`w-full text-sm font-semibold py-2 mt-2 transition-colors ${isDark ? "text-gray-500 hover:text-gray-300" : "text-gray-400 hover:text-gray-600"}`}>
+        className={`w-full text-[14px] font-medium py-2 mt-4 rounded-full transition-colors ${isDark ? "text-primary-400 hover:bg-primary-900/20" : "text-primary-600 hover:bg-primary-50"}`}>
         Cancel & Sign Out
       </button>
     </motion.div>

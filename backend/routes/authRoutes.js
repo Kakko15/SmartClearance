@@ -831,33 +831,23 @@ async function sendVerificationEmail(userId, email) {
   });
 
   const transporter = getEmailTransporter();
+  const { buildGoogleEmail, getLogoAttachment } = require("../utils/emailTemplate");
+  const htmlBody = buildGoogleEmail(
+    "Verify Your Email",
+    "Verify Your Email Address",
+    "Use the code below to verify your email and activate your account:",
+    {
+      code: otp,
+      footerNote: "This code expires in 10 minutes. If you didn't create an account, you can safely ignore this email."
+    }
+  );
+
   await transporter.sendMail({
     from: process.env.EMAIL_FROM,
     to: email,
     subject: "Verify Your Email - SmartClearance",
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #22c55e; margin: 0;">SmartClearance</h1>
-        </div>
-        <h2 style="color: #1f2937;">Verify Your Email Address</h2>
-        <p style="color: #4b5563; font-size: 16px;">
-          Use the code below to verify your email and activate your account:
-        </p>
-        <div style="text-align: center; margin: 30px 0;">
-          <div style="display: inline-block; background: #f3f4f6; border-radius: 12px; padding: 20px 40px; letter-spacing: 8px; font-size: 32px; font-weight: bold; color: #1f2937; border: 2px solid #e5e7eb;">
-            ${otp}
-          </div>
-        </div>
-        <p style="color: #6b7280; font-size: 14px;">
-          This code expires in 10 minutes. If you didn't create an account, you can safely ignore this email.
-        </p>
-        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;" />
-        <p style="color: #9ca3af; font-size: 12px; text-align: center;">
-          SmartClearance - Isabela State University
-        </p>
-      </div>
-    `,
+    html: htmlBody,
+    attachments: getLogoAttachment(),
   });
 }
 
@@ -1039,34 +1029,23 @@ router.post("/forgot-password", async (req, res) => {
     }
 
     const transporter = getEmailTransporter();
+    const { buildGoogleEmail, getLogoAttachment } = require("../utils/emailTemplate");
+    const htmlBody = buildGoogleEmail(
+      "Password Reset",
+      "Reset Your Password",
+      "We received a request to reset your password. Click the button below to create a new password:",
+      {
+        button: { text: "Reset Password", url: resetLink },
+        footerNote: "If you didn't request this, you can safely ignore this email. This link will expire in 24 hours."
+      }
+    );
 
     await transporter.sendMail({
       from: process.env.EMAIL_FROM,
       to: email,
       subject: "Reset Your Password - SmartClearance",
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="text-align: center; margin-bottom: 30px;">
-            <h1 style="color: #22c55e; margin: 0;">SmartClearance</h1>
-          </div>
-          <h2 style="color: #1f2937;">Reset Your Password</h2>
-          <p style="color: #4b5563; font-size: 16px;">
-            We received a request to reset your password. Click the button below to create a new password:
-          </p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${resetLink}" style="background-color: #22c55e; color: white; padding: 14px 32px; text-decoration: none; border-radius: 50px; font-weight: bold; font-size: 16px; display: inline-block;">
-              Reset Password
-            </a>
-          </div>
-          <p style="color: #6b7280; font-size: 14px;">
-            If you didn't request this, you can safely ignore this email. This link will expire in 24 hours.
-          </p>
-          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;" />
-          <p style="color: #9ca3af; font-size: 12px; text-align: center;">
-            SmartClearance - Isabela State University
-          </p>
-        </div>
-      `,
+      html: htmlBody,
+      attachments: getLogoAttachment(),
     });
 
     res.json({ success: true, message: "Password reset link sent to your email." });

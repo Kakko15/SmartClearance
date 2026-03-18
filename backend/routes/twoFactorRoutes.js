@@ -320,33 +320,24 @@ router.post("/send-email-otp", requireAuth, requireMatchingUserId, sendOtpLimite
     // Fire-and-forget: send the email after responding
     const expiryMinutes = Math.round(OTP_EXPIRY_MS / 60000);
     const transporter = getTransporter();
+
+    const { buildGoogleEmail, getLogoAttachment } = require("../utils/emailTemplate");
+    const htmlBody = buildGoogleEmail(
+      "Login Verification",
+      "Identity verification",
+      "You are currently requesting a verification code to access your SmartClearance account. Use the code below to complete your sign-in:",
+      {
+        code: otp,
+        footerNote: `This code expires in <strong>${expiryMinutes} minutes</strong>. If you didn't request this attempt, you can safely ignore this email.`
+      }
+    );
+
     transporter.sendMail({
       from: process.env.EMAIL_FROM,
       to: email,
       subject: "Your Login Verification Code - SmartClearance",
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="text-align: center; margin-bottom: 30px;">
-            <h1 style="color: #22c55e; margin: 0;">SmartClearance</h1>
-          </div>
-          <h2 style="color: #1f2937;">Your Verification Code</h2>
-          <p style="color: #4b5563; font-size: 16px;">
-            Use the code below to complete your login:
-          </p>
-          <div style="text-align: center; margin: 30px 0;">
-            <div style="display: inline-block; background: #f3f4f6; border-radius: 12px; padding: 20px 40px; letter-spacing: 8px; font-size: 32px; font-weight: bold; color: #1f2937; border: 2px solid #e5e7eb;">
-              ${otp}
-            </div>
-          </div>
-          <p style="color: #6b7280; font-size: 14px;">
-            This code expires in <strong>${expiryMinutes} minutes</strong>. If you didn't request this, please ignore this email.
-          </p>
-          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;" />
-          <p style="color: #9ca3af; font-size: 12px; text-align: center;">
-            SmartClearance - Isabela State University
-          </p>
-        </div>
-      `,
+      html: htmlBody,
+      attachments: getLogoAttachment(),
     }).catch((emailErr) => {
       console.error("[send-email-otp] Background email send failed:", emailErr.message);
     });

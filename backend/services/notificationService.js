@@ -67,11 +67,20 @@ async function sendEmail(userId, requestId, recipient, subject, message) {
 
     logData = data;
 
+    const { buildGoogleEmail, getLogoAttachment } = require("../utils/emailTemplate");
+    const formulatedHtml = buildGoogleEmail(
+      subject, 
+      null, 
+      message,
+      { footerNote: "Please sign in to SmartClearance to view more details." }
+    );
+
     const info = await emailTransporter.sendMail({
       from: process.env.EMAIL_FROM,
       to: recipient,
       subject: subject,
-      html: message,
+      html: formulatedHtml,
+      attachments: getLogoAttachment(),
     });
 
     await supabase

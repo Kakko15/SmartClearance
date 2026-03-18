@@ -427,23 +427,11 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
                 <div
                   className={`absolute inset-0 w-full h-full -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent`}
                 />
-                <span className="flex items-center gap-3">
-                  ACCESS SYSTEM
-                  <svg
-                    className="w-5 h-5 transition-transform group-hover:translate-x-1"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2.5}
-                      d="M13 10V3L4 14h7v7l9-11h-7z"
-                    />
-                  </svg>
-                </span>
-              </button>
+                  <span className="flex items-center gap-3">
+                    ACCESS SYSTEM
+                    <span className="material-symbols-rounded transition-transform group-hover:translate-x-1">arrow_forward</span>
+                  </span>
+                </button>
             </motion.div>
 
             <motion.div
@@ -488,20 +476,8 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
                   className={`p-5 rounded-2xl backdrop-blur-md flex justify-between items-center ${isDark ? "bg-slate-800/80 border border-slate-700" : "bg-white/80 border border-slate-100"}`}
                 >
                   <div className="flex gap-4 items-center">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-primary-500 to-secondary-500 flex items-center justify-center shadow-lg">
-                      <svg
-                        className="w-6 h-6 text-white"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                        />
-                      </svg>
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-primary-500 to-primary-700 flex items-center justify-center shadow-m3-2">
+                      <span className="material-symbols-rounded text-white">verified_user</span>
                     </div>
                     <div>
                       <div
@@ -545,19 +521,7 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
                         100%
                       </p>
                     </div>
-                    <svg
-                      className="w-8 h-8 text-primary-500"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2.5}
-                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
+                    <span className="material-symbols-rounded text-primary-500 text-[32px]">check_circle</span>
                   </div>
                   <div
                     className={`h-2 w-full rounded-full overflow-hidden ${isDark ? "bg-slate-800" : "bg-slate-200"}`}
@@ -581,20 +545,8 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
               className={`absolute -bottom-10 -left-10 p-5 rounded-2xl shadow-2xl border backdrop-blur-xl flex items-center gap-4 animate-float ${isDark ? "bg-slate-800/90 border-slate-700" : "bg-white/90 border-slate-100"}`}
               style={{ animationDelay: "1s" }}
             >
-              <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center text-green-500">
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
-                  />
-                </svg>
+              <div className="w-12 h-12 rounded-full bg-primary-50 flex items-center justify-center text-primary-600">
+                <span className="material-symbols-rounded">eco</span>
               </div>
               <div>
                 <p
@@ -651,19 +603,7 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
                 title: "Login Authentication",
                 text: "Securely sign in using your portal credentials.",
                 icon: (
-                  <svg
-                    className="w-8 h-8"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
-                    />
-                  </svg>
+                  <span className="material-symbols-rounded text-[32px]">login</span>
                 ),
               },
               {
@@ -671,19 +611,7 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
                 title: "Digital Processing",
                 text: "Offices verify your clearance in real-time.",
                 icon: (
-                  <svg
-                    className="w-8 h-8"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-                    />
-                  </svg>
+                  <span className="material-symbols-rounded text-[32px]">manage_history</span>
                 ),
               },
               {
@@ -691,19 +619,7 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
                 title: "Instant Verification",
                 text: "Generate your secure digital clearance.",
                 icon: (
-                  <svg
-                    className="w-8 h-8"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"
-                    />
-                  </svg>
+                  <span className="material-symbols-rounded text-[32px]">verified</span>
                 ),
               },
             ].map((item, idx) => (
@@ -785,19 +701,7 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
               desc="Eliminate physical forms and reduce campus waste. Help build our Smart-Green University vision while saving your time."
               color="bg-primary-500"
               icon={
-                <svg
-                  className="w-8 h-8"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"
-                  />
-                </svg>
+                <span className="material-symbols-rounded text-[32px]">nature</span>
               }
             />
             <FeatureCard
