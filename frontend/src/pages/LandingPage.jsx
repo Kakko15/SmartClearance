@@ -766,7 +766,7 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
             className="flex flex-col md:flex-row items-center gap-12"
           >
             <div className="flex-shrink-0">
-              <img src={isuLogo} alt="Isabela State University" className="w-32 h-32 md:w-40 md:h-40 rounded-2xl shadow-xl object-cover" />
+              <img src={isuLogo} alt="Isabela State University" className="w-32 h-32 md:w-40 md:h-40 rounded-full shadow-2xl object-cover" />
             </div>
             <div>
               <h2 className={`text-3xl md:text-4xl font-black tracking-tight mb-4 ${isDark ? "text-white" : "text-slate-900"}`}>

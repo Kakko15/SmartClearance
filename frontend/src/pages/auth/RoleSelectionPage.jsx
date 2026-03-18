@@ -1,20 +1,25 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import Particles from "../../components/visuals/Particles";
 import logo from "../../assets/logo.png";
 
 export default function RoleSelectionPage({
   onRoleSelect,
-  onBackToHome,
   isDark,
 }) {
   const [showAdminModal, setShowAdminModal] = useState(false);
+  const [time, setTime] = useState(new Date());
   const navigate = useNavigate();
   const modalRef = useRef(null);
   const triggerRef = useRef(null);
 
-  // Focus trap for admin modal
+  // Live Clock
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Admin Modal Focus Trap
   const handleModalKeyDown = useCallback((e) => {
     if (e.key === "Escape") {
       setShowAdminModal(false);
@@ -35,79 +40,73 @@ export default function RoleSelectionPage({
     }
   }, []);
 
-  // Auto-focus first button when modal opens
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (!showAdminModal) {
+        if (e.key === '1') handleRoleClick('student');
+        if (e.key === '2') handleRoleClick('signatory');
+        if (e.key === '3') setShowAdminModal(true);
+      } else {
+        if (e.key === '1') handleStaffSelect('librarian');
+        if (e.key === '2') handleStaffSelect('cashier');
+        if (e.key === '3') handleStaffSelect('registrar');
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [showAdminModal]);
+
   useEffect(() => {
     if (showAdminModal && modalRef.current) {
-      const firstBtn = modalRef.current.querySelector("button");
+      const firstBtn = modalRef.current.querySelector("button:not([aria-label='Close'])");
       firstBtn?.focus();
     }
   }, [showAdminModal]);
 
-  useEffect(() => {
-    document.title = "SmartClearance";
-  }, []);
-
   const roles = [
     {
       id: "student",
-      title: "Student",
-      description: "Apply for graduation clearance",
-      icon: (
-        <span className="material-symbols-rounded text-[40px] leading-none">school</span>
-      ),
-      color: "green",
+      title: "Student Portal",
+      description: "Access and track your graduation clearance progress.",
+      icon: "school",
+      shortcut: "1",
+      glow: isDark ? "from-emerald-900/40 to-green-900/40" : "from-emerald-100/60 to-green-50/60",
+      iconColor: isDark ? "text-emerald-400" : "text-emerald-600",
+      hoverBorder: isDark ? "group-hover:border-emerald-500/50" : "group-hover:border-emerald-300"
     },
     {
       id: "signatory",
-      title: "Signatory",
-      description: "Approve student clearances",
-      icon: (
-        <span className="material-symbols-rounded text-[40px] leading-none">history_edu</span>
-      ),
-      color: "green",
+      title: "Signatory Portal",
+      description: "Review and approve pending student clearance requests.",
+      icon: "history_edu",
+      shortcut: "2",
+      glow: isDark ? "from-blue-900/40 to-indigo-900/40" : "from-blue-100/60 to-indigo-50/60",
+      iconColor: isDark ? "text-blue-400" : "text-blue-600",
+      hoverBorder: isDark ? "group-hover:border-blue-500/50" : "group-hover:border-blue-300"
     },
     {
       id: "staff",
-      title: "Staff",
-      description: "Process clearances & approvals",
-      icon: (
-        <span className="material-symbols-rounded text-[40px] leading-none">admin_panel_settings</span>
-      ),
-      color: "indigo",
-      isStaff: true,
+      title: "Staff & Admin",
+      description: "Manage system clearances, records, and global settings.",
+      icon: "admin_panel_settings",
+      shortcut: "3",
+      glow: isDark ? "from-purple-900/40 to-fuchsia-900/40" : "from-purple-100/60 to-fuchsia-50/60",
+      iconColor: isDark ? "text-purple-400" : "text-purple-600",
+      hoverBorder: isDark ? "group-hover:border-purple-500/50" : "group-hover:border-purple-300"
     },
   ];
 
   const staffTypes = [
-    {
-      id: "librarian",
-      title: "Librarian",
-      description: "Process library clearances",
-      icon: (
-        <span className="material-symbols-rounded text-[32px] leading-none">local_library</span>
-      ),
-    },
-    {
-      id: "cashier",
-      title: "Cashier",
-      description: "Process financial clearances",
-      icon: (
-        <span className="material-symbols-rounded text-[32px] leading-none">payments</span>
-      ),
-    },
-    {
-      id: "registrar",
-      title: "Registrar",
-      description: "Final approval & certificates",
-      icon: (
-        <span className="material-symbols-rounded text-[32px] leading-none">description</span>
-      ),
-    },
+    { id: "librarian", title: "Librarian", description: "Manage library accountables", icon: "local_library", shortcut: "1" },
+    { id: "cashier", title: "Cashier", description: "Settle financial obligations", icon: "payments", shortcut: "2" },
+    { id: "registrar", title: "Registrar", description: "Validate final graduation documents", icon: "description", shortcut: "3" },
   ];
 
   const handleRoleClick = (roleId, e) => {
     if (roleId === "staff") {
-      triggerRef.current = e?.currentTarget;
+      if (e) triggerRef.current = e.currentTarget;
       setShowAdminModal(true);
     } else {
       onRoleSelect(roleId);
@@ -127,242 +126,256 @@ export default function RoleSelectionPage({
   };
 
   return (
-    <div
-      className={`relative flex min-h-screen items-center justify-center p-4 overflow-hidden transition-colors duration-500 ${isDark ? "bg-slate-950" : "bg-[#f8fafc]"}`}
-    >
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute inset-0 grid-bg opacity-[0.15]"></div>
-        <div className="absolute inset-0 z-0">
-          <Particles
-            particleColors={
-              isDark ? ["#4ade80", "#facc15"] : ["#22c55e", "#eab308"]
-            }
-            particleCount={40}
-            particleSpread={10}
-            speed={0.1}
-            particleBaseSize={100}
-            moveParticlesOnHover={true}
-            alphaParticles={false}
-            disableRotation={false}
-          />
-        </div>
-        <div
-          className={`absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full blur-[80px] animate-float transition-colors duration-500 ${isDark ? "bg-green-900/20" : "bg-green-200/40"}`}
-        ></div>
-        <div
-          className={`absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full blur-[80px] transition-colors duration-500 ${isDark ? "bg-emerald-900/20" : "bg-emerald-200/30"}`}
-        ></div>
+    <div className={`flex min-h-screen font-sans transition-colors duration-700 overflow-hidden relative ${isDark ? 'bg-[#030303] text-white' : 'bg-[#FDFDFD] text-slate-900'}`}>
+      
+      {/* 
+        ========================================
+        TOP NAVIGATION HEADER
+        ========================================
+      */}
+      <div className="absolute top-0 inset-x-0 p-6 md:p-10 flex justify-between items-center z-30">
+        <motion.button
+          initial={{ opacity: 0, x: -10 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+          onClick={() => navigate("/home")}
+          className={`group flex items-center gap-2 px-5 py-2.5 rounded-full transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] backdrop-blur-md border 
+            ${isDark ? "bg-white/5 border-white/10 hover:bg-white/10 text-slate-300 hover:text-white" : "bg-white/50 border-black/5 hover:bg-white hover:shadow-md hover:border-black/10 text-slate-600 hover:text-slate-900"}`}
+        >
+          <span className="material-symbols-rounded text-[18px] transition-transform duration-300 group-hover:-translate-x-1" style={{ fontVariationSettings: "'FILL' 0" }}>arrow_back</span>
+          <span className="text-sm font-semibold tracking-wide">Back</span>
+        </motion.button>
+
+        <motion.div 
+           initial={{ opacity: 0 }}
+           animate={{ opacity: 1 }}
+           transition={{ duration: 1 }}
+           className={`text-sm font-semibold tracking-widest uppercase ${isDark ? 'text-slate-500' : 'text-slate-400'}`}
+        >
+          {time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </motion.div>
       </div>
 
-      <div className="relative z-20 w-full max-w-6xl">
-        <div className="text-center mb-12">
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, ease: "easeOut" }}
-            className="flex items-center justify-center gap-4 mb-6"
-          >
-            <img
-              src={logo}
-              alt="SmartClearance Logo"
-              className="w-16 h-16 object-contain drop-shadow-lg"
-            />
-            <h1
-              className={`text-5xl font-extrabold font-display transition-colors ${isDark ? "text-white" : "text-gray-900"}`}
-            >
-              Smart<span className="text-primary-600">Clearance</span>
-            </h1>
-          </motion.div>
+      {/* 
+        ========================================
+        AMBIENT MESH BACKGROUND 
+        ========================================
+      */}
+      <div className="absolute inset-0 pointer-events-none z-0 flex items-center justify-center overflow-hidden">
+        <motion.div 
+          animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 0] }}
+          transition={{ duration: 35, repeat: Infinity, ease: "linear" }}
+          className={`absolute w-[60vw] h-[60vw] rounded-full opacity-[0.14] mix-blend-screen filter blur-[100px] 
+            ${isDark ? 'bg-emerald-800 -translate-x-1/2 -translate-y-1/4' : 'bg-emerald-200 -translate-x-1/2 -translate-y-1/4'}`}
+        />
+        <motion.div 
+          animate={{ scale: [1, 1.1, 1], rotate: [0, -90, 0] }}
+          transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
+          className={`absolute w-[70vw] h-[70vw] rounded-full opacity-[0.14] mix-blend-screen filter blur-[120px] 
+            ${isDark ? 'bg-blue-900 translate-x-1/4 translate-y-1/3' : 'bg-blue-200/60 translate-x-1/4 translate-y-1/4'}`}
+        />
+      </div>
 
-          <motion.p
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.1, ease: "easeOut" }}
-            className={`text-xl font-medium transition-colors ${isDark ? "text-slate-300" : "text-gray-600"}`}
-          >
-            Select your role to continue
-          </motion.p>
+      {/* Grain Overlay */}
+      <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.03] mix-blend-overlay pointer-events-none z-0" />
 
-          <motion.button
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3, delay: 0.15 }}
-            onClick={() => navigate("/home")}
-            className={`mt-4 flex items-center gap-2 mx-auto text-sm font-medium transition-colors ${isDark ? "text-slate-400 hover:text-white" : "text-gray-500 hover:text-gray-900"}`}
-          >
-            <span className="material-symbols-rounded text-lg">arrow_back</span>
-            Back to Home
-          </motion.button>
-        </div>
+      {/* 
+        ========================================
+        CENTERED HUB UI (Apple / Stripe Style)
+        ========================================
+      */}
+      <main className="relative z-10 flex flex-col items-center justify-center w-full max-w-[1100px] mx-auto px-6 py-20 min-h-screen">
+        
+        {/* Apple-style floating Logo and Typography */}
+        <motion.div 
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+          className="flex flex-col items-center text-center mb-16"
+        >
+          <div className="mb-8">
+            <img src={logo} alt="SmartClearance Logo" className="w-16 h-16 object-contain drop-shadow-xl rounded-full" />
+          </div>
+          <h1 className="text-4xl md:text-5xl lg:text-[56px] font-display font-medium tracking-[-0.03em] leading-tight mb-5 drop-shadow-sm">
+            Choose your portal
+          </h1>
+          <p className={`text-lg md:text-xl font-light tracking-wide max-w-lg ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+            Secure access to the Isabela State University ecosystem. Select your designated role below.
+          </p>
+        </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-          {roles.map((role, index) => (
+        {/* CSS Grid Center Cards (3 Columns) */}
+        <motion.div 
+          className="w-full grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8"
+          initial="hidden"
+          animate="show"
+          variants={{
+            hidden: { opacity: 0 },
+            show: { opacity: 1, transition: { staggerChildren: 0.1 } }
+          }}
+        >
+          {roles.map((role) => (
             <motion.div
               key={role.id}
+              variants={{
+                hidden: { opacity: 0, y: 30, scale: 0.96 },
+                show: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 350, damping: 30 } },
+                hover: { y: -8, transition: { type: "spring", stiffness: 400, damping: 25 } },
+                tap: { scale: 0.97, transition: { type: "spring", stiffness: 400, damping: 25 } }
+              }}
+              whileHover="hover"
+              whileTap="tap"
               role="button"
               tabIndex={0}
-              aria-label={`${role.title} — ${role.description}`}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.15 + index * 0.05, ease: [0.05, 0.7, 0.1, 1] }}
               onClick={(e) => handleRoleClick(role.id, e)}
               onKeyDown={(e) => handleRoleKeyDown(role.id, e)}
-              className={`cursor-pointer rounded-[24px] overflow-hidden transition-all duration-300 ease-out hover:-translate-y-1 ${
-                isDark
-                  ? "spatial-glass-dark hover:bg-slate-900/60"
-                  : "spatial-glass hover:bg-white/80"
-              }`}
+              className={`group relative flex flex-col p-8 lg:p-10 rounded-[40px] cursor-pointer outline-none border transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]
+                ${isDark 
+                  ? 'bg-[#111111]/80 backdrop-blur-2xl border-white/5 shadow-[0_8px_30px_rgb(0,0,0,0.5)]' 
+                  : 'bg-white/90 backdrop-blur-2xl border-transparent shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_40px_rgb(0,0,0,0.1)]'
+                }
+                ${role.hoverBorder}
+              `}
             >
-              <div className="p-6 text-center">
-                <div
-                  className={`inline-flex p-4 rounded-full mb-4 transition-colors ${
-                    role.color === "green"
-                      ? isDark
-                        ? "bg-primary-900/40 text-primary-400"
-                        : "bg-primary-100/60 text-primary-700"
-                      : role.color === "indigo"
-                        ? isDark
-                          ? "bg-secondary-900/40 text-secondary-400"
-                          : "bg-secondary-100/60 text-secondary-700"
-                        : isDark
-                          ? "bg-purple-900/40 text-purple-400"
-                          : "bg-purple-100/60 text-purple-700"
-                  }`}
-                >
-                  {role.icon}
-                </div>
+              {/* Dynamic Inside Glow on Hover */}
+              <div className={`absolute inset-0 rounded-[40px] bg-gradient-to-b ${role.glow} opacity-0 group-hover:opacity-100 transition-opacity duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] pointer-events-none z-0`} />
 
-                <h2
-                  className={`text-xl font-bold mb-2 transition-colors ${isDark ? "text-white" : "text-gray-900"}`}
-                >
+              {/* Icon Top Left */}
+              <div className={`relative z-10 flex items-center justify-center w-[72px] h-[72px] rounded-[24px] mb-8 transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-110 shadow-sm
+                ${isDark ? 'bg-[#1A1A1A] border border-white/10' : 'bg-slate-50 border border-slate-100'} ${role.iconColor}`}
+              >
+                <span className="material-symbols-rounded text-[32px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  {role.icon}
+                </span>
+              </div>
+
+              {/* Align Content Container */}
+              <div className="relative z-10 flex flex-col flex-1 text-left">
+                <h3 className={`text-[22px] font-bold tracking-tight mb-3 transition-colors duration-300 ${isDark ? 'text-white' : 'text-slate-900'}`}>
                   {role.title}
-                </h2>
-                <p
-                  className={`text-sm transition-colors ${isDark ? "text-slate-400" : "text-gray-600"}`}
-                >
+                </h3>
+                <p className={`text-[15px] font-light leading-relaxed mb-8 flex-1 transition-colors duration-300 ${isDark ? 'text-slate-400 group-hover:text-slate-300' : 'text-slate-500 group-hover:text-slate-700'}`}>
                   {role.description}
                 </p>
+
+                {/* Bottom Row: Shortcut + Arrow */}
+                <div className="w-full flex items-center justify-between mt-auto pt-6 border-t border-black/5 dark:border-white/5">
+                  <div className="flex items-center gap-3">
+                     <span className={`text-[12px] font-semibold uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Key</span>
+                     <kbd className={`min-w-[32px] h-8 flex items-center justify-center rounded-[10px] text-xs font-bold border transition-colors duration-300
+                       ${isDark 
+                         ? 'bg-[#1A1A1A] border-white/10 text-slate-300 group-hover:bg-white/10 group-hover:border-white/20 group-hover:text-white' 
+                         : 'bg-slate-50 border-slate-200 text-slate-500 group-hover:bg-white group-hover:border-slate-300 group-hover:text-slate-800'
+                       }`}
+                     >
+                       {role.shortcut}
+                     </kbd>
+                  </div>
+                  <div className={`flex items-center justify-center w-10 h-10 rounded-full transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]
+                    ${isDark 
+                      ? 'bg-white/5 text-slate-400 group-hover:bg-white group-hover:text-black' 
+                      : 'bg-black/5 text-slate-500 group-hover:bg-black group-hover:text-white'
+                    }`}
+                  >
+                     <span className="material-symbols-rounded text-[20px] transition-transform duration-500 group-hover:translate-x-1">arrow_forward</span>
+                  </div>
+                </div>
               </div>
             </motion.div>
           ))}
-        </div>
+        </motion.div>
+      </main>
 
-        <AnimatePresence>
-          {showAdminModal && (
+      {/* 
+        ========================================
+        MODALS (Admin / Staff Selection)
+        ========================================
+      */}
+      <AnimatePresence>
+        {showAdminModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              className="absolute inset-0 bg-black/40 backdrop-blur-3xl"
               onClick={() => setShowAdminModal(false)}
+            />
+            
+            <motion.div
+              ref={modalRef}
+              role="dialog"
+              aria-modal="true"
+              initial={{ opacity: 0, scale: 0.95, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 30 }}
+              transition={{ type: "spring", stiffness: 450, damping: 35 }}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={handleModalKeyDown}
+              className={`relative w-full max-w-[440px] rounded-[36px] overflow-hidden shadow-[0_32px_64px_-16px_rgba(0,0,0,0.4)] flex flex-col border
+                ${isDark ? "bg-[#111111] border-white/10" : "bg-white/95 backdrop-blur-2xl border-white/50"}`}
             >
-              <motion.div
-                ref={modalRef}
-                role="dialog"
-                aria-modal="true"
-                aria-label="Select Staff Type"
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                onClick={(e) => e.stopPropagation()}
-                onKeyDown={handleModalKeyDown}
-                className={`w-full max-w-2xl rounded-3xl overflow-hidden ${isDark ? "spatial-glass-dark" : "spatial-glass"}`}
-              >
-                <div
-                  className={`p-6 border-b ${isDark ? "border-slate-700" : "border-gray-200"}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h2
-                        className={`text-2xl font-bold transition-colors ${isDark ? "text-white" : "text-gray-900"}`}
-                      >
-                        Select Staff Type
-                      </h2>
-                      <p
-                        className={`text-sm mt-1 transition-colors ${isDark ? "text-slate-400" : "text-gray-600"}`}
-                      >
-                        Choose your staff role
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => { setShowAdminModal(false); triggerRef.current?.focus(); }}
-                      aria-label="Close staff type selection"
-                      className={`p-2 rounded-full transition-colors ${isDark ? "hover:bg-white/10 text-slate-400 hover:text-white" : "hover:bg-gray-100 text-gray-500 hover:text-gray-900"}`}
-                    >
-                      <span className="material-symbols-rounded">close</span>
-                    </button>
+              <div className="px-8 pt-8 pb-4 flex justify-between items-start relative z-10">
+                <div>
+                  <div className={`w-14 h-14 rounded-[22px] flex items-center justify-center mb-5 ${isDark ? 'bg-white/10' : 'bg-slate-50 border border-slate-100 shadow-sm'}`}>
+                    <span className={`material-symbols-rounded text-[28px] ${isDark ? 'text-white' : 'text-slate-800'}`}>manage_accounts</span>
                   </div>
+                  <h2 className="text-2xl font-display font-semibold tracking-tight">Select Staff Role</h2>
+                  <p className={`text-sm mt-1 font-light ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Use numbers 1-3 or click to select.</p>
                 </div>
+                <button
+                  onClick={() => { setShowAdminModal(false); triggerRef.current?.focus(); }}
+                  aria-label="Close"
+                  className={`p-3 rounded-full transition-all duration-300 mt-[-8px] -mr-4
+                    ${isDark ? "hover:bg-white/10 text-slate-400 hover:text-white" : "hover:bg-slate-100 text-slate-400 hover:text-slate-900"}`}
+                >
+                  <span className="material-symbols-rounded text-[22px]">close</span>
+                </button>
+              </div>
 
-                <div className="p-6 space-y-3">
-                  {staffTypes.map((staff, index) => (
-                    <motion.button
-                      key={staff.id}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.05 + 0.1 }}
-                      onClick={() => handleStaffSelect(staff.id)}
-                      className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all duration-200 ease-out hover:scale-[1.02] ${
-                        isDark
-                          ? "bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700 hover:border-indigo-500"
-                          : "bg-white/50 hover:bg-white border border-gray-200 hover:border-indigo-500"
+              <div className="p-4 flex flex-col gap-2 pb-6 relative z-10">
+                {staffTypes.map((staff) => (
+                  <button
+                    key={staff.id}
+                    onClick={() => handleStaffSelect(staff.id)}
+                    className={`group flex items-center justify-between p-4 rounded-[28px] transition-all duration-300 outline-none
+                      border border-transparent
+                      ${isDark 
+                        ? "hover:bg-white/5 focus-visible:bg-white/5 focus-visible:border-white/20" 
+                        : "hover:bg-slate-50 hover:border-slate-200 focus-visible:bg-slate-50 focus-visible:border-black/10"
                       }`}
-                    >
-                      <div
-                        className={`p-3 rounded-xl ${isDark ? "bg-indigo-500/20 text-indigo-400" : "bg-indigo-100 text-indigo-600"}`}
-                      >
-                        {staff.icon}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={`flex items-center justify-center w-12 h-12 rounded-[18px] transition-colors duration-300
+                        ${isDark ? 'bg-white/5 group-hover:bg-white/10 group-hover:text-white text-slate-400' : 'bg-white border border-slate-100 shadow-sm group-hover:border-slate-300 group-hover:text-slate-900 text-slate-500'}`}>
+                        <span className="material-symbols-rounded text-[22px]" style={{ fontVariationSettings: "'FILL' 0" }}>
+                          {staff.icon}
+                        </span>
                       </div>
-                      <div className="flex-1 text-left">
-                        <h3
-                          className={`font-bold transition-colors ${isDark ? "text-white" : "text-gray-900"}`}
-                        >
-                          {staff.title}
-                        </h3>
-                        <p
-                          className={`text-sm transition-colors ${isDark ? "text-slate-400" : "text-gray-600"}`}
-                        >
+                      <div className="text-left">
+                        <h3 className="font-semibold text-[16px] tracking-tight">{staff.title}</h3>
+                        <p className={`text-[13px] font-light mt-0.5 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
                           {staff.description}
                         </p>
                       </div>
-                      <span className={`material-symbols-rounded transition-colors ${isDark ? "text-slate-600" : "text-gray-400"}`}>chevron_right</span>
-                    </motion.button>
-                  ))}
-                </div>
-              </motion.div>
+                    </div>
+                    
+                    <kbd className={`hidden sm:flex min-w-[28px] h-7 items-center justify-center rounded-lg text-[12px] font-bold border transition-colors duration-300
+                      ${isDark 
+                        ? 'bg-transparent border-white/20 text-slate-500 group-hover:text-slate-300' 
+                        : 'bg-white border-slate-200 text-slate-400 group-hover:text-slate-600 shadow-sm'
+                      }`}
+                    >
+                      {staff.shortcut}
+                    </kbd>
+                  </button>
+                ))}
+              </div>
             </motion.div>
-          )}
-        </AnimatePresence>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.3, ease: "easeOut" }}
-          className={`mt-12 max-w-4xl mx-auto rounded-2xl p-6 border transition-colors ${
-            isDark
-              ? "bg-slate-900/50 border-slate-700"
-              : "bg-white/50 border-gray-200"
-          }`}
-        >
-          <div className="flex items-start gap-4">
-            <span className="material-symbols-rounded text-primary-600 text-[28px] flex-shrink-0 mt-0.5">info</span>
-            <div>
-              <h3
-                className={`font-bold mb-2 transition-colors ${isDark ? "text-white" : "text-gray-900"}`}
-              >
-                Isabela State University Campus - Graduation Clearance System
-              </h3>
-              <p
-                className={`text-sm transition-colors ${isDark ? "text-slate-400" : "text-gray-600"}`}
-              >
-                Select your role above to login. Contact your administrator if
-                you don't have an account.
-              </p>
-            </div>
           </div>
-        </motion.div>
-      </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
