@@ -68,6 +68,7 @@ function App() {
   const { handleLoginSuccess, handleSignOut, handleRoleSelect, backToRoleSelection, complete2FA, cancel2FA } = auth;
   const { isDarkMode, themePreference, toggleTheme } = useTheme();
   const location = useLocation();
+  const navigate = useNavigate();
   const [showSettings, setShowSettings] = useState(false);
   const isAuthenticated = !!user && !!profile;
 
@@ -94,7 +95,8 @@ function App() {
             <Route path="/home" element={
               isAuthenticated ? <Navigate to="/dashboard" replace /> : (
                 <motion.div key="landing" exit={{ opacity: 0, y: -100 }} className={`relative z-40 ${isDarkMode ? "bg-slate-950" : "bg-white"}`}>
-                  <LandingPage onEnter={() => {}} isDark={isDarkMode} toggleTheme={toggleTheme} />
+                  {/* BUG 7 FIX: Navigate to /select-role instead of no-op */}
+                  <LandingPage onEnter={() => navigate("/select-role")} isDark={isDarkMode} toggleTheme={toggleTheme} />
                 </motion.div>
               )
             } />
@@ -102,7 +104,8 @@ function App() {
             <Route path="/select-role" element={
               isAuthenticated ? <Navigate to="/dashboard" replace /> : (
                 <motion.div key="roleSelection" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className={`relative z-40 ${isDarkMode ? "bg-slate-950" : "bg-white"}`}>
-                  <RoleSelectionPage onRoleSelect={handleRoleSelect} onBackToHome={() => {}} isDark={isDarkMode} />
+                  {/* BUG 8 FIX: Navigate to /home instead of no-op */}
+                  <RoleSelectionPage onRoleSelect={handleRoleSelect} onBackToHome={() => navigate("/home")} isDark={isDarkMode} />
                 </motion.div>
               )
             } />
@@ -111,10 +114,11 @@ function App() {
               isAuthenticated ? <Navigate to="/dashboard" replace /> : (
                 initializing && Object.keys(localStorage).some(k => k.startsWith("sb-") && k.endsWith("-auth-token")) ? (
                   <div className="min-h-screen flex items-center justify-center">
-                    <div className="w-8 h-8 border-3 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                    {/* BUG 14 FIX: border-3 is not a standard Tailwind class, use border-[3px] */}
+                    <div className="w-8 h-8 border-[3px] border-primary-500 border-t-transparent rounded-full animate-spin" />
                   </div>
                 ) : (
-                  <motion.div key="auth" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1 }} className="relative z-10 min-h-screen">
+                  <motion.div key="auth" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 1 }} className="relative z-10 min-h-screen">
                     <AuthPage isDark={isDarkMode} selectedRole={selectedRole} onLoginSuccess={handleLoginSuccess} onBackToHome={backToRoleSelection} />
                   </motion.div>
                 )
@@ -125,11 +129,12 @@ function App() {
               !isAuthenticated ? (
                 initializing ? (
                   <div className="min-h-screen flex items-center justify-center">
-                    <div className="w-8 h-8 border-3 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                    {/* BUG 14 FIX: border-3 is not a standard Tailwind class, use border-[3px] */}
+                    <div className="w-8 h-8 border-[3px] border-primary-500 border-t-transparent rounded-full animate-spin" />
                   </div>
                 ) : <Navigate to={selectedRole ? "/auth" : "/select-role"} replace />
               ) : (
-                <motion.div key="dashboard" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1 }} className="relative z-10 min-h-screen">
+                <motion.div key="dashboard" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 1 }} className="relative z-10 min-h-screen">
                   <DashboardContent user={user} profile={profile} handleSignOut={handleSignOut} isDarkMode={isDarkMode} toggleTheme={toggleTheme} setShowSettings={setShowSettings} />
                 </motion.div>
               )

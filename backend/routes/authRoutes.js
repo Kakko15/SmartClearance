@@ -252,6 +252,34 @@ router.post(
     const { data, error } = await loginClient.auth.signInWithPassword({ email, password });
 
     if (error) {
+      // Supabase may reject the login itself when email isn't confirmed.
+      // Detect this and return the same 403 emailNotVerified response so
+      // the frontend can redirect to the verification flow.
+      const isEmailNotConfirmed =
+        error.message?.toLowerCase().includes("email not confirmed");
+
+      if (isEmailNotConfirmed) {
+        // Look up the user via admin API so we can return their id.
+        // listUsers is acceptable here because this is an infrequent
+        // error-recovery path, not a hot path.
+        const { data: userList } = await supabase.auth.admin.listUsers();
+        const unverifiedUser = userList?.users?.find(
+          (u) => u.email?.toLowerCase() === email,
+        );
+
+        if (unverifiedUser) {
+          const verifyToken = await generateEmailVerifyToken(unverifiedUser.id);
+          return res.status(403).json({
+            success: false,
+            error: "Please verify your email before signing in. Check your inbox for the verification code.",
+            emailNotVerified: true,
+            userId: unverifiedUser.id,
+            email: unverifiedUser.email,
+            verifyToken,
+          });
+        }
+      }
+
       return res.status(401).json({
         success: false,
         error: error.message,

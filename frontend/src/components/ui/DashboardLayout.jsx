@@ -29,7 +29,16 @@ export default function DashboardLayout({
   const [dropdownView, setDropdownView] = useState("main");
   const profileDropdownRef = useRef(null);
 
-  const currentThemePref = typeof window !== "undefined" ? (localStorage.getItem("theme") || "system") : "system";
+  // BUG 11 FIX: Track theme preference in React state so radio buttons update immediately.
+  const [themePrefState, setThemePrefState] = useState(() => localStorage.getItem("theme") || "system");
+  const currentThemePref = themePrefState;
+
+  // Re-sync when dropdown opens so radio buttons always reflect current state
+  useEffect(() => {
+    if (profileDropdownOpen) {
+      setThemePrefState(localStorage.getItem("theme") || "system");
+    }
+  }, [profileDropdownOpen, isDarkMode]);
 
   useEffect(() => {
     if (!profileDropdownOpen) {
@@ -80,10 +89,12 @@ export default function DashboardLayout({
       </AnimatePresence>
 
       {/* Sidebar — hidden on mobile unless toggled, always visible on md+ */}
+      {/* BUG 10 FIX: On mobile, don't use Framer Motion width animation — use fixed w-[260px] via CSS only.
+          On desktop, use Framer Motion for the collapse/expand animation. */}
       <motion.div
         layout
         initial={false}
-        animate={{ width: sidebarOpen ? 260 : 68 }}
+        animate={mobileSidebarOpen ? undefined : { width: sidebarOpen ? 260 : 68 }}
         transition={{ type: "spring", bounce: 0, duration: 0.4 }}
         className={`${sidebarBg} ${sidebarText} flex-col relative z-40 flex-shrink-0 transition-colors duration-200 ${
           mobileSidebarOpen ? "fixed inset-y-0 left-0 flex w-[260px]" : "hidden md:flex"
@@ -388,7 +399,7 @@ export default function DashboardLayout({
                                 name="theme_mode"
                                 value={opt.id}
                                 checked={currentThemePref === opt.id}
-                                onChange={() => toggleTheme(opt.id)}
+                                onChange={() => { toggleTheme(opt.id); setThemePrefState(opt.id); }}
                                 className="sr-only"
                               />
                             </label>

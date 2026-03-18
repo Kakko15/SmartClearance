@@ -100,9 +100,15 @@ export default function useIdleTimeout({
     const elapsed = Date.now() - lastActive;
 
     if (lastActive > 0 && elapsed >= timeoutMs) {
-      // Already expired — trigger idle immediately
-      onIdle();
-      return;
+      // L21 FIX: Instead of firing idle immediately after browser sleep/wake,
+      // give a 10-second grace period so the user sees the page before being signed out.
+      const GRACE_PERIOD_MS = 10_000;
+      const graceTimer = setTimeout(() => {
+        if (!enabledRef.current) return;
+        onIdle();
+      }, GRACE_PERIOD_MS);
+      // If user interacts during grace period, the activity listener will reset timers
+      return () => clearTimeout(graceTimer);
     }
 
     // Set initial timestamp if none exists

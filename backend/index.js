@@ -71,6 +71,11 @@ app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 const { cleanupExpired } = require("./services/otpStore");
 setInterval(() => cleanupExpired().catch(() => {}), 15 * 60 * 1000);
 
+// Cleanup unverified accounts every 6 hours (accounts older than 24h with no email confirmation)
+const { cleanupUnverifiedAccounts } = require("./services/unverifiedAccountCleanup");
+setTimeout(() => cleanupUnverifiedAccounts().catch(() => {}), 60 * 1000); // Run once on startup (1 min delay)
+setInterval(() => cleanupUnverifiedAccounts().catch(() => {}), 6 * 60 * 60 * 1000); // Then every 6 hours
+
 // Check deadline reminders once per day (every 24 hours)
 const { checkDeadlineReminders } = require("./services/notificationService");
 // Run once on startup (after a short delay), then every 24 hours

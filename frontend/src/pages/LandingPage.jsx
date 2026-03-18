@@ -316,9 +316,9 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
         <div
           className={`absolute top-[40%] -left-[20%] w-[60vw] h-[60vw] max-w-[700px] max-h-[700px] rounded-full opacity-30 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] ${isDark ? "from-secondary-900/40 via-secondary-900/10 to-transparent" : "from-secondary-300/40 via-secondary-300/10 to-transparent"}`}
         />
-        <div
-          className={`absolute inset-0 bg-[url('/noise.png')] opacity-[0.03]`}
-        />
+      <div
+        className={`absolute inset-0 bg-[url('/noise.png')] opacity-[0.03]`}
+      />
       </div>
 
       <header
@@ -845,6 +845,37 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
               }
             />
           </div>
+        </div>
+      </section>
+
+      {/* BUG 1 FIX: Added #about section so the SlideTabs "About ISUE" link has a target */}
+      <section
+        id="about"
+        className={`scroll-mt-32 py-24 relative z-10 ${isDark ? "bg-[#030712]" : "bg-[#FAFAFA]"}`}
+      >
+        <div className="max-w-5xl mx-auto px-6 md:px-12 lg:px-20">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.3 }}
+            transition={{ duration: 0.6 }}
+            className="flex flex-col md:flex-row items-center gap-12"
+          >
+            <div className="flex-shrink-0">
+              <img src={isuLogo} alt="Isabela State University" className="w-32 h-32 md:w-40 md:h-40 rounded-2xl shadow-xl object-cover" />
+            </div>
+            <div>
+              <h2 className={`text-3xl md:text-4xl font-black tracking-tight mb-4 ${isDark ? "text-white" : "text-slate-900"}`}>
+                Isabela State University
+              </h2>
+              <p className={`text-lg leading-relaxed mb-4 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                Echague Campus — pioneering digital transformation in academic services through the Smart Clearance System. Our mission is to deliver seamless, paperless, and secure clearance processing for every student.
+              </p>
+              <p className={`text-sm ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                San Fabian, Echague, Isabela 3309, Philippines
+              </p>
+            </div>
+          </motion.div>
         </div>
       </section>
 

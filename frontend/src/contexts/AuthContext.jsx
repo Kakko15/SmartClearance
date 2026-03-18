@@ -44,6 +44,8 @@ export function AuthProvider({ children }) {
   const roleMismatchRef = useRef(false);
   const sessionValidationPromiseRef = useRef(null);
   const navigateRef = useRef(null);
+  // L4 FIX: Flag to skip re-validation when password change triggers TOKEN_REFRESHED
+  const skipNextValidationRef = useRef(false);
 
   const [selectedRole, setSelectedRole] = useState(() => {
     return sessionStorage.getItem("selectedRole") || null;
@@ -109,6 +111,7 @@ export function AuthProvider({ children }) {
           "Your account is pending approval. Please contact your administrator.",
         );
         roleMismatchRef.current = true;
+        setInitializing(false); // L2 FIX: Prevent infinite loading spinner
         await supabase.auth.signOut();
         return;
       }
@@ -121,6 +124,7 @@ export function AuthProvider({ children }) {
         roleMismatchRef.current = true;
         sessionStorage.removeItem("selectedRole");
         setSelectedRole(null);
+        setInitializing(false); // L2 FIX: Prevent infinite loading spinner
         await supabase.auth.signOut();
         navigateRef.current?.("/select-role");
         return;
@@ -128,7 +132,9 @@ export function AuthProvider({ children }) {
 
       if (!isMounted) return;
 
-      const twoFAVerified = localStorage.getItem("2fa_verified");
+      // L1 FIX: Use sessionStorage instead of localStorage so 2FA verification
+      // doesn't persist across browser restarts
+      const twoFAVerified = sessionStorage.getItem("2fa_verified");
       if (data.totp_enabled && twoFAVerified !== sessionUser.id) {
         setPendingUser(sessionUser);
         setPendingProfile(data);
@@ -252,6 +258,11 @@ export function AuthProvider({ children }) {
           (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") &&
           session?.user
         ) {
+          // L4 FIX: Skip validation when password change triggers TOKEN_REFRESHED
+          if (skipNextValidationRef.current) {
+            skipNextValidationRef.current = false;
+            return;
+          }
           // Guard: ignore sessions for unverified emails.
           // The backend signs out unverified users, but this catches the
           // race where SIGNED_IN fires before the signOut propagates.
@@ -337,7 +348,8 @@ export function AuthProvider({ children }) {
   };
 
   const complete2FA = () => {
-    localStorage.setItem("2fa_verified", pendingUser.id);
+    // L1 FIX: Use sessionStorage so 2FA proof expires when browser closes
+    sessionStorage.setItem("2fa_verified", pendingUser.id);
     setUser(pendingUser);
     setProfile(pendingProfile);
     setTwoFactorPending(false);
@@ -362,15 +374,12 @@ export function AuthProvider({ children }) {
     setTwoFactorPending(false);
     setPendingUser(null);
     setPendingProfile(null);
-    localStorage.removeItem("2fa_verified");
+    sessionStorage.removeItem("2fa_verified");
     roleMismatchRef.current = true;
     await supabase.auth.signOut();
   };
 
-  const completePasswordReset = () => {
-    setShowPasswordReset(false);
-    window.location.hash = "";
-  };
+  // L20 FIX: Removed dead code `completePasswordReset` — it was never called anywhere.
 
   // ── Idle Timeout ────────────────────────────────────────────────────────
   // Default: 15 min timeout, 2 min warning. University shared computers need this.
@@ -464,8 +473,8 @@ export function AuthProvider({ children }) {
     backToRoleSelection,
     complete2FA,
     cancel2FA,
-    completePasswordReset,
     setNavigate,
+    skipNextValidationRef, // L4 FIX: Exposed for Settings password change
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

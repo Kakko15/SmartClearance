@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../../lib/supabase";
+import { useAuth } from "../../contexts/AuthContext";
 import PasswordInput from "../ui/PasswordInput";
 import PasswordStrengthMeter from "../ui/PasswordStrengthMeter";
 import {
@@ -16,6 +17,7 @@ import ProfileEditForm from "./ProfileEditForm";
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 export default function Settings({ user, profile, onClose, theme, setTheme, onAvatarUpdate }) {
+  const { skipNextValidationRef } = useAuth();
   const [activeTab, setActiveTab] = useState("account");
   const [loading, setLoading] = useState(false);
 
@@ -117,10 +119,8 @@ export default function Settings({ user, profile, onClose, theme, setTheme, onAv
     resetInputRefs.current[Math.min(pasted.length, 5)]?.focus();
   };
 
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", theme === "dark");
-    localStorage.setItem("theme", theme);
-  }, [theme]);
+  // L5 FIX: Removed duplicate theme useEffect that conflicted with ThemeContext.
+  // ThemeContext already handles document.documentElement.classList and localStorage.
 
   const handlePasswordChange = async (e) => {
     e.preventDefault();
@@ -143,6 +143,8 @@ export default function Settings({ user, profile, onClose, theme, setTheme, onAv
         setLoading(false);
         return;
       }
+      // L4 FIX: Skip the TOKEN_REFRESHED re-validation that updateUser triggers
+      skipNextValidationRef.current = true;
       const { error } = await supabase.auth.updateUser({
         password: newPassword,
       });

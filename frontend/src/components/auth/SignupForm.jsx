@@ -181,11 +181,11 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
       const result = await response.json();
       if (!result.success) throw new Error(result.error || "Signup failed");
 
-      toast.success("Account created! Now set up 2FA.");
+      toast.success("Account created! Now verify your email.");
       setSignupUserId(result.user.id);
       setSignupEmail(email.trim().toLowerCase());
       setSignupToken(result.signupToken);
-      setShow2FASetup(true);
+      setShowEmailVerification(true);
     } catch (error) {
       toast.error(error.message);
       recaptchaRef.current?.reset();
@@ -195,27 +195,6 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
     }
   };
 
-  if (show2FASetup && signupUserId) {
-    return (
-      <TwoFactorSetup
-        userId={signupUserId}
-        email={signupEmail}
-        signupToken={signupToken}
-        isDark={isDark}
-        onComplete={() => {
-          toast.success("2FA enabled! Now verify your email.");
-          setShow2FASetup(false);
-          setShowEmailVerification(true);
-        }}
-        onSkip={() => {
-          toast("You can enable 2FA later from Settings.", { icon: "ℹ️" });
-          setShow2FASetup(false);
-          setShowEmailVerification(true);
-        }}
-      />
-    );
-  }
-
   if (showEmailVerification && signupUserId) {
     return (
       <EmailVerification
@@ -223,7 +202,26 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
         userId={signupUserId}
         signupToken={signupToken}
         isDark={isDark}
-        onVerified={async () => {
+        onVerified={() => {
+          toast.success("Email verified! Now set up 2FA to secure your account.");
+          setShowEmailVerification(false);
+          setShow2FASetup(true);
+        }}
+        onSwitchToLogin={() => {
+          if (onSwitchMode) onSwitchMode();
+        }}
+      />
+    );
+  }
+
+  if (show2FASetup && signupUserId) {
+    return (
+      <TwoFactorSetup
+        userId={signupUserId}
+        email={signupEmail}
+        signupToken={signupToken}
+        isDark={isDark}
+        onComplete={async () => {
           toast.success("You're all set! Signing you in...");
           try {
             const { data: { session } } = await (await import("../../lib/supabase")).supabase.auth.getSession();
@@ -235,9 +233,7 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
           toast.success("Please sign in with your new account.");
           setTimeout(() => { if (onSwitchMode) onSwitchMode(); }, 1000);
         }}
-        onSwitchToLogin={() => {
-          if (onSwitchMode) onSwitchMode();
-        }}
+        // L19 FIX: Removed onSkip — 2FA setup should not be skippable during signup
       />
     );
   }

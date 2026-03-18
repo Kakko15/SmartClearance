@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node --max-http-header-size=32768 index.js",
     "dev": "node --max-http-header-size=32768 index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "npx vitest run --config vitest.config.js",
+    "test:watch": "npx vitest --config vitest.config.js"
   },
   "keywords": [],
   "author": "",
@@ -25,5 +26,9 @@
     "pdfkit": "^0.14.0",
     "qrcode": "^1.5.3",
     "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "supertest": "^7.2.2",
+    "vitest": "^4.1.0"
   }
 }

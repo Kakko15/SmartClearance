@@ -299,11 +299,11 @@ export default function SignupFormWithFaceVerification({
 
       if (result.autoApproved) {
         toast.success(
-          `✅ Account approved! Now set up 2FA. (${similarity.toFixed(1)}% match)`,
+          `✅ Account approved! Now verify your email. (${similarity.toFixed(1)}% match)`,
         );
       } else {
         toast.success(
-          `⚠️ Account pending review. Set up 2FA while you wait. (${similarity.toFixed(1)}% match)`,
+          `⚠️ Account pending review. Verify your email while you wait. (${similarity.toFixed(1)}% match)`,
         );
       }
 
@@ -312,7 +312,7 @@ export default function SignupFormWithFaceVerification({
       sessionStorage.removeItem("signupIdDescriptor");
       setSignupUserId(result.user.id);
       setSignupToken(result.signupToken);
-      setShow2FASetup(true);
+      setShowEmailVerification(true);
     } catch (error) {
       console.error("Signup error:", error);
       toast.error(error.message);
@@ -356,27 +356,6 @@ export default function SignupFormWithFaceVerification({
     </div>
   );
 
-  if (show2FASetup && signupUserId) {
-    return (
-      <TwoFactorSetup
-        userId={signupUserId}
-        email={formData.email}
-        signupToken={signupToken}
-        isDark={isDark}
-        onComplete={() => {
-          toast.success("2FA enabled! Now verify your email.");
-          setShow2FASetup(false);
-          setShowEmailVerification(true);
-        }}
-        onSkip={() => {
-          toast("You can enable 2FA later from Settings.", { icon: "ℹ️" });
-          setShow2FASetup(false);
-          setShowEmailVerification(true);
-        }}
-      />
-    );
-  }
-
   if (showEmailVerification && signupUserId) {
     return (
       <EmailVerification
@@ -384,7 +363,26 @@ export default function SignupFormWithFaceVerification({
         userId={signupUserId}
         signupToken={signupToken}
         isDark={isDark}
-        onVerified={async () => {
+        onVerified={() => {
+          toast.success("Email verified! Now set up 2FA to secure your account.");
+          setShowEmailVerification(false);
+          setShow2FASetup(true);
+        }}
+        onSwitchToLogin={() => {
+          if (onSwitchMode) onSwitchMode();
+        }}
+      />
+    );
+  }
+
+  if (show2FASetup && signupUserId) {
+    return (
+      <TwoFactorSetup
+        userId={signupUserId}
+        email={formData.email}
+        signupToken={signupToken}
+        isDark={isDark}
+        onComplete={async () => {
           toast.success("You're all set! Signing you in...");
           try {
             const { data: { session } } = await (await import("../../lib/supabase")).supabase.auth.getSession();
@@ -396,8 +394,17 @@ export default function SignupFormWithFaceVerification({
           toast.success("Please sign in with your new account.");
           setTimeout(() => { if (onSwitchMode) onSwitchMode(); }, 1000);
         }}
-        onSwitchToLogin={() => {
-          if (onSwitchMode) onSwitchMode();
+        onSkip={async () => {
+          toast("You can enable 2FA later from Settings.", { icon: "ℹ️" });
+          try {
+            const { data: { session } } = await (await import("../../lib/supabase")).supabase.auth.getSession();
+            if (session?.user && onLoginSuccess) {
+              await onLoginSuccess(session.user);
+              return;
+            }
+          } catch (_e) { /* fall through to manual login */ }
+          toast.success("Please sign in with your new account.");
+          setTimeout(() => { if (onSwitchMode) onSwitchMode(); }, 1000);
         }}
       />
     );

@@ -8,6 +8,7 @@ export default function RequestCard({
   onResubmit,
   onDelete,
   loading,
+  isDark = false,
 }) {
   const calculateProgress = (request) => {
     const totalStages = request.document_types.required_stages.length;
@@ -23,13 +24,14 @@ export default function RequestCard({
   };
 
   return (
-    <div className="spatial-glass rounded-3xl p-6 border border-gray-200/50 hover:shadow-2xl hover:shadow-green-500/10 transition-all duration-300">
+    {/* L12 FIX: Added dark mode support */}
+    <div className={`spatial-glass rounded-3xl p-6 border hover:shadow-2xl hover:shadow-green-500/10 transition-all duration-300 ${isDark ? "border-slate-700/50 bg-slate-800/50" : "border-gray-200/50"}`}>
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h4 className="text-xl font-bold text-gray-900 mb-2">
+          <h4 className={`text-xl font-bold mb-2 ${isDark ? "text-white" : "text-gray-900"}`}>
             {request.document_types.name}
           </h4>
-          <p className="text-sm text-gray-500 flex items-center gap-2">
+          <p className={`text-sm flex items-center gap-2 ${isDark ? "text-gray-400" : "text-gray-500"}`}>
             <svg
               className="w-4 h-4"
               fill="none"
@@ -66,8 +68,8 @@ export default function RequestCard({
         </span>
       </div>
 
-      <div className="mb-6 p-4 bg-green-50 rounded-2xl border border-green-100">
-        <p className="text-sm font-bold text-gray-700 mb-1">Current Stage</p>
+      <div className={`mb-6 p-4 rounded-2xl border ${isDark ? "bg-green-900/20 border-green-800/30" : "bg-green-50 border-green-100"}`}>
+        <p className={`text-sm font-bold mb-1 ${isDark ? "text-gray-300" : "text-gray-700"}`}>Current Stage</p>
         <p className="text-lg font-bold text-green-600 capitalize flex items-center gap-2">
           <svg
             className="w-5 h-5"
@@ -100,7 +102,7 @@ export default function RequestCard({
                 className={`w-12 h-12 rounded-full flex items-center justify-center mb-2 transition-all shadow-lg ${
                   index <= request.current_stage_index
                     ? "bg-gradient-to-br from-green-400 to-emerald-500 text-white shadow-green-500/50"
-                    : "bg-gray-100 text-gray-400"
+                    : (isDark ? "bg-slate-700 text-gray-400" : "bg-gray-100 text-gray-400")
                 }`}
               >
                 {index < request.current_stage_index || request.is_completed ? (
@@ -123,7 +125,7 @@ export default function RequestCard({
                 className={`text-xs font-bold capitalize ${
                   index <= request.current_stage_index
                     ? "text-green-600"
-                    : "text-gray-400"
+                    : (isDark ? "text-gray-500" : "text-gray-400")
                 }`}
               >
                 {stage}
@@ -132,13 +134,13 @@ export default function RequestCard({
           ))}
         </div>
 
-        <div className="w-full bg-gray-100 rounded-full h-3 shadow-inner">
+        <div className={`w-full rounded-full h-3 shadow-inner ${isDark ? "bg-slate-700" : "bg-gray-100"}`}>
           <div
             className="bg-gradient-to-r from-green-400 to-emerald-500 h-3 rounded-full transition-all duration-500 shadow-lg"
             style={{ width: `${calculateProgress(request)}%` }}
           ></div>
         </div>
-        <p className="text-xs text-gray-500 mt-2 text-right font-semibold">
+        <p className={`text-xs mt-2 text-right font-semibold ${isDark ? "text-gray-400" : "text-gray-500"}`}>
           {calculateProgress(request)}% Complete
         </p>
       </div>
@@ -172,7 +174,7 @@ export default function RequestCard({
 
       {(request.current_status === "pending" ||
         request.current_status === "on_hold") && (
-        <div className="pt-6 border-t border-gray-200 flex gap-3">
+        <div className={`pt-6 border-t flex gap-3 ${isDark ? "border-slate-700" : "border-gray-200"}`}>
           {request.current_status === "on_hold" && (
             <button
               onClick={() => onResubmit(request.id)}

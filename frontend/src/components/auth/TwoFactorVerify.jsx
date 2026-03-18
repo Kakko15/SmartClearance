@@ -11,7 +11,10 @@ async function getAccessToken() {
   if (data?.session?.access_token) return data.session.access_token;
   // Session may have expired — try refreshing
   const { data: refreshed } = await supabase.auth.refreshSession();
-  return refreshed?.session?.access_token || null;
+  if (refreshed?.session?.access_token) return refreshed.session.access_token;
+  // L22 FIX: Log a warning when both session and refresh fail
+  console.warn("2FA: No valid session — request will be sent without auth. User may need to re-login.");
+  return null;
 }
 
 export default function TwoFactorVerify({ userId, email, isDark, onVerified, onCancel }) {
@@ -34,6 +37,10 @@ export default function TwoFactorVerify({ userId, email, isDark, onVerified, onC
   const timerRef = useRef(null);
   const cooldownRef = useRef(null);
   const submittingRef = useRef(false);
+  // L7 FIX: Refs mirror expired/locked state so the auto-submit setTimeout
+  // closure always reads the latest value instead of a stale snapshot.
+  const expiredRef = useRef(false);
+  const lockedRef = useRef(false);
 
   const clearTimers = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -99,12 +106,17 @@ export default function TwoFactorVerify({ userId, email, isDark, onVerified, onC
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
+  // L7 FIX: Keep refs in sync with state so setTimeout closures read fresh values
+  useEffect(() => { expiredRef.current = expired; }, [expired]);
+  useEffect(() => { lockedRef.current = locked; }, [locked]);
+
   // Auto-submit when 6 digits are entered
   const submitCode = useCallback(async (codeToSubmit) => {
     const cleanCode = codeToSubmit.replace(/\D/g, "");
     if (cleanCode.length !== 6) return;
     if (submittingRef.current) return;
-    if (expired || locked) return;
+    // L7 FIX: Read from refs instead of stale closure state
+    if (expiredRef.current || lockedRef.current) return;
     submittingRef.current = true;
     setVerifying(true);
     try {
@@ -143,7 +155,7 @@ export default function TwoFactorVerify({ userId, email, isDark, onVerified, onC
       setVerifying(false);
       submittingRef.current = false;
     }
-  }, [method, userId, clearTimers, onVerified, expired, locked]);
+  }, [method, userId, clearTimers, onVerified]);
 
   const handleCodeChange = (index, value) => {
     if (!/^\d*$/.test(value)) return;
@@ -253,8 +265,9 @@ export default function TwoFactorVerify({ userId, email, isDark, onVerified, onC
     onCancel();
   };
 
+  // L8 FIX: Cap masked email at 6 asterisks (consistent with EmailVerification)
   const maskedEmail = email
-    ? email.replace(/(.{2})(.*)(@.*)/, (_, a, b, c) => a + "*".repeat(b.length) + c)
+    ? email.replace(/(.{2})(.*)(@.*)/, (_, a, b, c) => a + "*".repeat(Math.min(b.length, 6)) + c)
     : "";
 
   const isInputDisabled = expired || locked || verifying;

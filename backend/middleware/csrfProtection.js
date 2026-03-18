@@ -17,15 +17,11 @@ function csrfProtection(req, res, next) {
   const origin = req.headers.origin;
   const referer = req.headers.referer;
 
-  // Block requests with no Origin AND no Referer on state-changing methods.
-  // Legitimate browser requests always send at least one of these headers.
-  // Requests without either (curl, scripts) are blocked to prevent CSRF.
+  // L16 FIX: Allow requests with no Origin AND no Referer (server-to-server, mobile apps, Postman, cURL).
+  // These are not CSRF vectors because CSRF relies on the browser automatically attaching cookies,
+  // and non-browser clients don't have the victim's cookies.
   if (!origin && !referer) {
-    console.warn("CSRF blocked: no Origin or Referer header on state-changing request");
-    return res.status(403).json({
-      success: false,
-      error: "Request blocked by CSRF protection",
-    });
+    return next();
   }
 
   // Check Origin header first (most reliable)

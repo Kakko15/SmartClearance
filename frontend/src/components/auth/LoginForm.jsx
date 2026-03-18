@@ -655,7 +655,8 @@ export default function LoginForm({ isDark, onLoginSuccess, selectedRole, initia
                   id="saved-login-email-list"
                   role="listbox"
                   onMouseLeave={() => setActiveSavedEmailIndex(-1)}
-                  className="absolute left-0 right-0 top-full z-30 mt-2 max-h-60 overflow-y-auto overflow-x-hidden rounded-2xl border border-slate-700 bg-slate-950/95 shadow-[0_18px_50px_rgba(15,23,42,0.45)] backdrop-blur-xl"
+                  // BUG 4 FIX: Use theme-aware classes instead of hardcoded dark colors
+                  className={`absolute left-0 right-0 top-full z-30 mt-2 max-h-60 overflow-y-auto overflow-x-hidden rounded-2xl border shadow-[0_18px_50px_rgba(15,23,42,0.45)] backdrop-blur-xl ${isDark ? "border-slate-700 bg-slate-950/95" : "border-gray-200 bg-white/95"}`}
                 >
                   {filteredSavedEmails.map((savedEmail, index) => (
                     <div
@@ -663,11 +664,11 @@ export default function LoginForm({ isDark, onLoginSuccess, selectedRole, initia
                       onMouseEnter={() => setActiveSavedEmailIndex(index)}
                       className={`group flex items-center transition-colors ${
                         activeSavedEmailIndex === index
-                          ? "bg-white/10"
-                          : "hover:bg-white/5"
+                          ? (isDark ? "bg-white/10" : "bg-gray-100")
+                          : (isDark ? "hover:bg-white/5" : "hover:bg-gray-50")
                       } ${
                         index < filteredSavedEmails.length - 1
-                          ? "border-b border-white/5"
+                          ? (isDark ? "border-b border-white/5" : "border-b border-gray-100")
                           : ""
                       }`}
                     >
@@ -682,8 +683,8 @@ export default function LoginForm({ isDark, onLoginSuccess, selectedRole, initia
                         }}
                         className={`min-w-0 flex-1 px-5 py-4 text-left text-base font-semibold transition-colors ${
                           activeSavedEmailIndex === index
-                            ? "text-white"
-                            : "text-slate-100 group-hover:text-white"
+                            ? (isDark ? "text-white" : "text-gray-900")
+                            : (isDark ? "text-slate-100 group-hover:text-white" : "text-gray-700 group-hover:text-gray-900")
                         }`}
                       >
                         <span className="block truncate pr-3">{savedEmail}</span>

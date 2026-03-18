@@ -22,9 +22,9 @@ authAxios.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Session expired — sign out and redirect
+      // L11 FIX: Sign out via Supabase (which triggers onAuthStateChange in AuthContext)
+      // instead of hard window.location.href that destroys all React state and unsaved work.
       supabase.auth.signOut();
-      window.location.href = "/select-role";
     }
     return Promise.reject(error);
   }
@@ -152,11 +152,12 @@ export const getRequestHistory = async (requestId) => {
   return apiFetch(`${API_URL}/requests/${requestId}/history`, { headers });
 };
 
-export const deleteRequest = async (requestId, studentId) => {
+export const deleteRequest = async (requestId) => {
   const headers = await getAuthHeaders();
+  // L15 FIX: Don't send student_id in body — backend uses req.user.id from auth token.
+  // DELETE bodies can be stripped by proxies/CDNs.
   return apiFetch(`${API_URL}/requests/${requestId}/delete`, {
     method: "DELETE", headers,
-    body: JSON.stringify({ student_id: studentId }),
   });
 };
 

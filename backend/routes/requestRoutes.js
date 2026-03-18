@@ -186,6 +186,10 @@ router.post("/:id/approve", requireAuth, async (req, res) => {
         updated_at: now,
         // BUG 4 FIX: Update last_activity_at on every status change
         last_activity_at: now,
+        // L17 FIX: Clear escalation flags when request is approved
+        escalated: false,
+        escalated_at: null,
+        escalation_level: null,
       })
       .eq("id", id)
       .select()
@@ -363,6 +367,13 @@ router.get("/student/:student_id", requireAuth, async (req, res) => {
   try {
     const { student_id } = req.params;
 
+    // L13 FIX: Verify the authenticated user owns this student record
+    // or is a management/clearance role (staff can view for processing)
+    const callerRole = await getUserRole(req.user.id);
+    if (req.user.id !== student_id && !isClearanceRole(callerRole) && !isManagementRole(callerRole)) {
+      return res.status(403).json({ success: false, error: "You can only view your own requests" });
+    }
+
     const { data, error } = await supabase
       .from("requests")
       .select("*, document_types(*)")
@@ -380,6 +391,12 @@ router.get("/student/:student_id", requireAuth, async (req, res) => {
 router.get("/admin/:role", requireAuth, async (req, res) => {
   try {
     const { role } = req.params;
+
+    // L14 FIX: Verify the caller actually holds the requested role (or is super_admin)
+    const callerRole = await getUserRole(req.user.id);
+    if (!callerRole || (callerRole !== role && callerRole !== ROLES.SUPER_ADMIN)) {
+      return res.status(403).json({ success: false, error: "Unauthorized — role mismatch" });
+    }
 
     // Support both old format (library_admin) and new format (librarian)
     const ROLE_TO_STAGE = {

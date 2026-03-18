@@ -75,6 +75,14 @@ coverage/
 *.lcov
 .nyc_output/
 .jest/
+frontend/e2e/
+frontend/test-results/
+frontend/playwright.config.js
+frontend/playwright-report/
+frontend/eslint-report.json
+frontend/src/test/
+backend/tests/
+backend/vitest.config.js
 
 # Misc
 *.local
