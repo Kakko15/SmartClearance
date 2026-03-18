@@ -16,6 +16,53 @@ const ROLE_LABELS = {
   registrar: "Registrar",
   super_admin: "Super Admin",
 };
+const PENDING_SIGNUP_VERIFICATION_KEY = "pending_signup_email_verification";
+const PENDING_SIGNUP_TWO_FACTOR_KEY = "pending_signup_two_factor_setup";
+const PENDING_SIGNUP_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+function hasValidPendingSignupState(storageKey, expectedType, selectedRole) {
+  if (!selectedRole) return false;
+
+  try {
+    const raw = sessionStorage.getItem(storageKey);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+
+    if (
+      parsed?.createdAt &&
+      Number.isFinite(parsed.createdAt) &&
+      Date.now() - parsed.createdAt > PENDING_SIGNUP_MAX_AGE_MS
+    ) {
+      sessionStorage.removeItem(storageKey);
+      return false;
+    }
+
+    return (
+      parsed?.type === expectedType &&
+      parsed?.scopeRole === selectedRole &&
+      !!parsed?.userId &&
+      !!parsed?.email
+    );
+  } catch (_e) {
+    return false;
+  }
+}
+
+function hasPendingSignupVerificationForRole(selectedRole) {
+  return hasValidPendingSignupState(
+    PENDING_SIGNUP_VERIFICATION_KEY,
+    "email_verification_pending",
+    selectedRole,
+  );
+}
+
+function hasPendingTwoFactorSetupForRole(selectedRole) {
+  return hasValidPendingSignupState(
+    PENDING_SIGNUP_TWO_FACTOR_KEY,
+    "two_factor_setup_pending",
+    selectedRole,
+  );
+}
 
 function formatRoleLabel(role) {
   if (!role) return null;
@@ -42,6 +89,13 @@ export default function AuthPage({
   const navigate = useNavigate();
 
   const [isSignUp, setIsSignUp] = useState(() => {
+    if (
+      hasPendingSignupVerificationForRole(selectedRole) ||
+      hasPendingTwoFactorSetupForRole(selectedRole)
+    ) {
+      return true;
+    }
+
     const savedMode = sessionStorage.getItem("authMode") === "signup";
     return canSignUp && savedMode;
   });
@@ -136,25 +190,13 @@ export default function AuthPage({
           </div>
 
           <div className="pb-4">
-            <motion.div
-              key={isSignUp ? "signup-header" : "login-header"}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
+            <h1
+              className={`text-3xl font-extrabold mb-2 font-display transition-colors ${isDark ? "text-white" : "text-gray-900"}`}
             >
-              <h1
-                className={`text-3xl font-extrabold mb-2 font-display transition-colors ${isDark ? "text-white" : "text-gray-900"}`}
-              >
-                {isSignUp ? "Create your account" : "Sign in to your account"}
-              </h1>
-            </motion.div>
+              {isSignUp ? "Create your account" : "Sign in to your account"}
+            </h1>
             {!isSignUp && selectedRoleLabel && (
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.25, delay: 0.05 }}
-                className="mb-3"
-              >
+              <div className="mb-3 w-fit">
                 <span
                   className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${selectedRoleIsAdmin ? (isDark ? "bg-indigo-500/15 text-indigo-200 border border-indigo-400/20" : "bg-indigo-50 text-indigo-700 border border-indigo-200") : (isDark ? "bg-green-500/15 text-green-200 border border-green-400/20" : "bg-green-50 text-green-700 border border-green-200")}`}
                 >
@@ -166,7 +208,7 @@ export default function AuthPage({
                     <span className="font-bold">{selectedRoleLabel}</span>
                   </span>
                 </span>
-              </motion.div>
+              </div>
             )}
             <p
               className={`text-sm font-medium transition-colors ${isDark ? "text-slate-400" : "text-gray-500"}`}
@@ -196,14 +238,15 @@ export default function AuthPage({
         </div>
 
         <div className="relative px-8 md:px-10 pb-8">
-          <AnimatePresence mode="popLayout" initial={false}>
+          <AnimatePresence mode="wait" initial={false}>
             {!isSignUp ? (
               <motion.div
-                key="login"
-                initial={{ opacity: 0, x: -20 }}
+                key="login-form-view"
+                initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                transition={{ duration: 0.3, ease: "easeInOut" }}
+                exit={{ opacity: 0, x: 10 }}
+                transition={{ duration: 0.15, ease: "linear" }}
+                className="w-full"
               >
                 <LoginForm
                   key={loginInitialView}
@@ -216,11 +259,12 @@ export default function AuthPage({
               </motion.div>
             ) : (
               <motion.div
-                key="signup"
-                initial={{ opacity: 0, x: 20 }}
+                key="signup-form-view"
+                initial={{ opacity: 0, x: 10 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.3, ease: "easeInOut" }}
+                exit={{ opacity: 0, x: -10 }}
+                transition={{ duration: 0.15, ease: "linear" }}
+                className="w-full"
               >
                 {selectedRole === "student" ? (
                   <SignupFormWithFaceVerification

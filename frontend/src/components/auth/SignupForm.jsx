@@ -11,8 +11,126 @@ import EmailVerification from "./EmailVerification";
 
 const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
 const IS_LOCALHOST = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+const PENDING_SIGNUP_VERIFICATION_KEY = "pending_signup_email_verification";
+const PENDING_SIGNUP_TWO_FACTOR_KEY = "pending_signup_two_factor_setup";
+const PENDING_VERIFICATION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+function getPendingSignupVerification(expectedScopeRole) {
+  try {
+    const raw = sessionStorage.getItem(PENDING_SIGNUP_VERIFICATION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (
+      !parsed ||
+      parsed.type !== "email_verification_pending" ||
+      !parsed.userId ||
+      !parsed.email
+    ) {
+      return null;
+    }
+
+    if (
+      parsed.createdAt &&
+      Number.isFinite(parsed.createdAt) &&
+      Date.now() - parsed.createdAt > PENDING_VERIFICATION_MAX_AGE_MS
+    ) {
+      sessionStorage.removeItem(PENDING_SIGNUP_VERIFICATION_KEY);
+      return null;
+    }
+
+    if (expectedScopeRole && parsed.scopeRole !== expectedScopeRole) {
+      return null;
+    }
+
+    return {
+      userId: parsed.userId,
+      email: parsed.email,
+      signupToken: parsed.signupToken || null,
+    };
+  } catch (_e) {
+    return null;
+  }
+}
+
+function persistPendingSignupVerification(data) {
+  sessionStorage.setItem(
+    PENDING_SIGNUP_VERIFICATION_KEY,
+    JSON.stringify({
+      type: "email_verification_pending",
+      flow: "admin",
+      scopeRole: data.scopeRole,
+      userId: data.userId,
+      email: data.email,
+      signupToken: data.signupToken || null,
+      createdAt: Date.now(),
+    }),
+  );
+}
+
+function clearPendingSignupVerification() {
+  sessionStorage.removeItem(PENDING_SIGNUP_VERIFICATION_KEY);
+}
+
+function getPendingTwoFactorSetup(expectedScopeRole) {
+  try {
+    const raw = sessionStorage.getItem(PENDING_SIGNUP_TWO_FACTOR_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (
+      !parsed ||
+      parsed.type !== "two_factor_setup_pending" ||
+      !parsed.userId ||
+      !parsed.email
+    ) {
+      return null;
+    }
+
+    if (
+      parsed.createdAt &&
+      Number.isFinite(parsed.createdAt) &&
+      Date.now() - parsed.createdAt > PENDING_VERIFICATION_MAX_AGE_MS
+    ) {
+      sessionStorage.removeItem(PENDING_SIGNUP_TWO_FACTOR_KEY);
+      return null;
+    }
+
+    if (expectedScopeRole && parsed.scopeRole !== expectedScopeRole) {
+      return null;
+    }
+
+    return {
+      userId: parsed.userId,
+      email: parsed.email,
+      signupToken: parsed.signupToken || null,
+    };
+  } catch (_e) {
+    return null;
+  }
+}
+
+function persistPendingTwoFactorSetup(data) {
+  sessionStorage.setItem(
+    PENDING_SIGNUP_TWO_FACTOR_KEY,
+    JSON.stringify({
+      type: "two_factor_setup_pending",
+      flow: "admin",
+      scopeRole: data.scopeRole,
+      userId: data.userId,
+      email: data.email,
+      signupToken: data.signupToken || null,
+      createdAt: Date.now(),
+    }),
+  );
+}
+
+function clearPendingTwoFactorSetup() {
+  sessionStorage.removeItem(PENDING_SIGNUP_TWO_FACTOR_KEY);
+}
 
 export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLoginSuccess }) {
+  const roleScope = selectedRole || "staff";
+  const [restoredVerification] = useState(() => getPendingSignupVerification(roleScope));
+  const [restoredTwoFactor] = useState(() => getPendingTwoFactorSetup(roleScope));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -22,16 +140,29 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
   const [recaptchaToken, setRecaptchaToken] = useState(null);
   const [recaptchaExpired, setRecaptchaExpired] = useState(false);
   const [adminSecretCode, setAdminSecretCode] = useState("");
-  const [show2FASetup, setShow2FASetup] = useState(false);
-  const [showEmailVerification, setShowEmailVerification] = useState(false);
-  const [signupUserId, setSignupUserId] = useState(null);
-  const [signupEmail, setSignupEmail] = useState("");
-  const [signupToken, setSignupToken] = useState(null);
+  const [show2FASetup, setShow2FASetup] = useState(
+    () => !!restoredTwoFactor?.userId && !!restoredTwoFactor?.email,
+  );
+  const [showEmailVerification, setShowEmailVerification] = useState(
+    () =>
+      !restoredTwoFactor?.userId &&
+      !!restoredVerification?.userId &&
+      !!restoredVerification?.email,
+  );
+  const [signupUserId, setSignupUserId] = useState(
+    () => restoredTwoFactor?.userId || restoredVerification?.userId || null,
+  );
+  const [signupEmail, setSignupEmail] = useState(
+    () => restoredTwoFactor?.email || restoredVerification?.email || "",
+  );
+  const [signupToken, setSignupToken] = useState(
+    () => restoredTwoFactor?.signupToken || restoredVerification?.signupToken || null,
+  );
 
   const [signUpData, setSignUpData] = useState({
     firstName: "",
     lastName: "",
-    role: selectedRole === "signatory" ? "signatory" : "librarian",
+    role: selectedRole === "student" ? "student" : (selectedRole === "signatory" ? "signatory" : "signatory"),
   });
 
   const recaptchaRef = useRef(null);
@@ -182,9 +313,16 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
       if (!result.success) throw new Error(result.error || "Signup failed");
 
       toast.success("Account created! Now verify your email.");
+      const normalizedEmail = email.trim().toLowerCase();
       setSignupUserId(result.user.id);
-      setSignupEmail(email.trim().toLowerCase());
+      setSignupEmail(normalizedEmail);
       setSignupToken(result.signupToken);
+      persistPendingSignupVerification({
+        scopeRole: roleScope,
+        userId: result.user.id,
+        email: normalizedEmail,
+        signupToken: result.signupToken,
+      });
       setShowEmailVerification(true);
     } catch (error) {
       toast.error(error.message);
@@ -204,10 +342,21 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
         isDark={isDark}
         onVerified={() => {
           toast.success("Email verified! Now set up 2FA to secure your account.");
+          const normalizedEmail = (signupEmail || email || "").trim().toLowerCase();
+          clearPendingSignupVerification();
+          persistPendingTwoFactorSetup({
+            scopeRole: roleScope,
+            userId: signupUserId,
+            email: normalizedEmail,
+            signupToken,
+          });
+          setSignupEmail(normalizedEmail);
           setShowEmailVerification(false);
           setShow2FASetup(true);
         }}
         onSwitchToLogin={() => {
+          clearPendingSignupVerification();
+          clearPendingTwoFactorSetup();
           if (onSwitchMode) onSwitchMode();
         }}
       />
@@ -222,6 +371,8 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
         signupToken={signupToken}
         isDark={isDark}
         onComplete={async () => {
+          clearPendingTwoFactorSetup();
+          clearPendingSignupVerification();
           toast.success("You're all set! Signing you in...");
           try {
             const { data: { session } } = await (await import("../../lib/supabase")).supabase.auth.getSession();
@@ -357,7 +508,7 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
         </AnimatePresence>
       </div>
 
-      {selectedRole !== "signatory" && (
+      {selectedRole === "staff" && (
         <div className="relative z-20">
           <label
             className={`block text-sm font-bold mb-1.5 ml-1 ${isDark ? "text-slate-300" : "text-gray-700"}`}
@@ -371,6 +522,7 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
               onChange={(val) => setSignUpData({ ...signUpData, role: val })}
               isDark={isDark}
               options={[
+                { value: "signatory", label: "Signatory" },
                 { value: "librarian", label: "Librarian" },
                 { value: "cashier", label: "Cashier" },
                 { value: "registrar", label: "Registrar" },
@@ -380,52 +532,48 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
         </div>
       )}
 
-      <div>
-        <label
-          className={`block text-sm font-bold mb-1.5 ml-1 ${isDark ? "text-slate-300" : "text-gray-700"}`}
-        >
-          {selectedRole === "signatory" ? "Signatory" : "Staff"} Secret Code{" "}
-          <span className="text-red-500">*</span>
-        </label>
-        <SpotlightBorder
-          isDark={isDark}
-          error={getFieldError("adminSecretCode", adminSecretCode)}
-        >
-          <input
-            type="password"
-            value={adminSecretCode}
-            onChange={(e) => setAdminSecretCode(e.target.value)}
-            onBlur={() => handleBlur("adminSecretCode")}
-            required
-            placeholder={
-              selectedRole === "signatory"
-                ? "Enter signatory secret code"
-                : "Enter staff secret code"
-            }
-            className={`w-full border rounded-xl px-4 py-3 outline-none transition-all font-medium ${isDark ? "bg-slate-900 border-slate-700 text-white focus:border-green-500 placeholder:text-slate-600" : "bg-white border-gray-200 text-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500 placeholder:text-gray-400"} ${getFieldError("adminSecretCode", adminSecretCode) ? "!border-red-500 focus:!border-red-500 !ring-red-500 bg-red-50 text-red-900" : ""}`}
-          />
-        </SpotlightBorder>
-        <AnimatePresence>
-          {getFieldError("adminSecretCode", adminSecretCode) && (
-            <motion.p
-              initial={{ opacity: 0, y: -5, height: 0 }}
-              animate={{ opacity: 1, y: 0, height: "auto" }}
-              exit={{ opacity: 0, y: -5, height: 0 }}
-              transition={{ duration: 0.2 }}
-              className="text-red-500 text-xs mt-1 ml-1 font-bold"
-            >
-              {getFieldError("adminSecretCode", adminSecretCode)}
-            </motion.p>
-          )}
-        </AnimatePresence>
-        <p
-          className={`text-xs mt-1.5 ml-1 ${isDark ? "text-slate-500" : "text-gray-500"}`}
-        >
-          {selectedRole === "signatory"
-            ? "Contact your department to obtain the signatory secret code"
-            : "Contact your supervisor to obtain the staff secret code"}
-        </p>
-      </div>
+      {selectedRole === "staff" && (
+        <div>
+          <label
+            className={`block text-sm font-bold mb-1.5 ml-1 ${isDark ? "text-slate-300" : "text-gray-700"}`}
+          >
+            Staff Secret Code{" "}
+            <span className="text-red-500">*</span>
+          </label>
+          <SpotlightBorder
+            isDark={isDark}
+            error={getFieldError("adminSecretCode", adminSecretCode)}
+          >
+            <input
+              type="password"
+              value={adminSecretCode}
+              onChange={(e) => setAdminSecretCode(e.target.value)}
+              onBlur={() => handleBlur("adminSecretCode")}
+              required
+              placeholder="Enter staff secret code"
+              className={`w-full border rounded-xl px-4 py-3 outline-none transition-all font-medium ${isDark ? "bg-slate-900 border-slate-700 text-white focus:border-green-500 placeholder:text-slate-600" : "bg-white border-gray-200 text-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500 placeholder:text-gray-400"} ${getFieldError("adminSecretCode", adminSecretCode) ? "!border-red-500 focus:!border-red-500 !ring-red-500 bg-red-50 text-red-900" : ""}`}
+            />
+          </SpotlightBorder>
+          <AnimatePresence>
+            {getFieldError("adminSecretCode", adminSecretCode) && (
+              <motion.p
+                initial={{ opacity: 0, y: -5, height: 0 }}
+                animate={{ opacity: 1, y: 0, height: "auto" }}
+                exit={{ opacity: 0, y: -5, height: 0 }}
+                transition={{ duration: 0.2 }}
+                className="text-red-500 text-xs mt-1 ml-1 font-bold"
+              >
+                {getFieldError("adminSecretCode", adminSecretCode)}
+              </motion.p>
+            )}
+          </AnimatePresence>
+          <p
+            className={`text-xs mt-1.5 ml-1 ${isDark ? "text-slate-500" : "text-gray-500"}`}
+          >
+            Contact your supervisor to obtain the staff secret code
+          </p>
+        </div>
+      )}
 
       <div>
         <label

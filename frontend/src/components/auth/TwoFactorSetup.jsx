@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import toast from "react-hot-toast";
 import { motion } from "framer-motion";
+import { supabase } from "../../lib/supabase";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
@@ -17,9 +18,15 @@ export default function TwoFactorSetup({ userId, email, signupToken, isDark, onC
   useEffect(() => {
     const setup = async () => {
       try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers = { "Content-Type": "application/json" };
+        if (session?.access_token) {
+          headers["Authorization"] = `Bearer ${session.access_token}`;
+        }
+
         const res = await fetch(`${API_URL}/auth/2fa/setup`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({ userId, email, signupToken }),
         });
         const data = await res.json();
@@ -72,9 +79,15 @@ export default function TwoFactorSetup({ userId, email, signupToken, isDark, onC
     }
     setVerifying(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers = { "Content-Type": "application/json" };
+      if (session?.access_token) {
+        headers["Authorization"] = `Bearer ${session.access_token}`;
+      }
+
       const res = await fetch(`${API_URL}/auth/2fa/verify-setup`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ userId, token: verifyCode, signupToken }),
       });
       const data = await res.json();

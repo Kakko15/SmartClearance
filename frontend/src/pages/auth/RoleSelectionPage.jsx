@@ -1,5 +1,5 @@
-import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import logo from "../../assets/logo.png";
 
@@ -7,11 +7,8 @@ export default function RoleSelectionPage({
   onRoleSelect,
   isDark,
 }) {
-  const [showAdminModal, setShowAdminModal] = useState(false);
   const [time, setTime] = useState(new Date());
   const navigate = useNavigate();
-  const modalRef = useRef(null);
-  const triggerRef = useRef(null);
 
   // Live Clock
   useEffect(() => {
@@ -19,51 +16,17 @@ export default function RoleSelectionPage({
     return () => clearInterval(timer);
   }, []);
 
-  // Admin Modal Focus Trap
-  const handleModalKeyDown = useCallback((e) => {
-    if (e.key === "Escape") {
-      setShowAdminModal(false);
-      triggerRef.current?.focus();
-      return;
-    }
-    if (e.key !== "Tab" || !modalRef.current) return;
-    const focusable = modalRef.current.querySelectorAll(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    );
-    if (focusable.length === 0) return;
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (e.shiftKey) {
-      if (document.activeElement === first) { e.preventDefault(); last.focus(); }
-    } else {
-      if (document.activeElement === last) { e.preventDefault(); first.focus(); }
-    }
-  }, []);
-
-  // Keyboard Shortcuts
+  // Keyboard Shortcuts (Just 1 and 2 now)
   useEffect(() => {
     const handleGlobalKeyDown = (e) => {
+      // Ignore if typing in an input
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-      if (!showAdminModal) {
-        if (e.key === '1') handleRoleClick('student');
-        if (e.key === '2') handleRoleClick('signatory');
-        if (e.key === '3') setShowAdminModal(true);
-      } else {
-        if (e.key === '1') handleStaffSelect('librarian');
-        if (e.key === '2') handleStaffSelect('cashier');
-        if (e.key === '3') handleStaffSelect('registrar');
-      }
+      if (e.key === '1') handleRoleClick('student');
+      if (e.key === '2') handleRoleClick('staff');
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [showAdminModal]);
-
-  useEffect(() => {
-    if (showAdminModal && modalRef.current) {
-      const firstBtn = modalRef.current.querySelector("button:not([aria-label='Close'])");
-      firstBtn?.focus();
-    }
-  }, [showAdminModal]);
+  }, []);
 
   const roles = [
     {
@@ -77,40 +40,20 @@ export default function RoleSelectionPage({
       hoverBorder: isDark ? "group-hover:border-emerald-500/50" : "group-hover:border-emerald-300"
     },
     {
-      id: "signatory",
-      title: "Signatory Portal",
-      description: "Review and approve pending student clearance requests.",
-      icon: "history_edu",
+      id: "staff",
+      title: "Personnel Portal",
+      description: "Unified secure login for Deans, Program Chairs, Librarian, Cashier, and Registrar.",
+      icon: "admin_panel_settings",
       shortcut: "2",
       glow: isDark ? "from-blue-900/40 to-indigo-900/40" : "from-blue-100/60 to-indigo-50/60",
       iconColor: isDark ? "text-blue-400" : "text-blue-600",
       hoverBorder: isDark ? "group-hover:border-blue-500/50" : "group-hover:border-blue-300"
-    },
-    {
-      id: "staff",
-      title: "Staff & Admin",
-      description: "Manage system clearances, records, and global settings.",
-      icon: "admin_panel_settings",
-      shortcut: "3",
-      glow: isDark ? "from-purple-900/40 to-fuchsia-900/40" : "from-purple-100/60 to-fuchsia-50/60",
-      iconColor: isDark ? "text-purple-400" : "text-purple-600",
-      hoverBorder: isDark ? "group-hover:border-purple-500/50" : "group-hover:border-purple-300"
-    },
-  ];
-
-  const staffTypes = [
-    { id: "librarian", title: "Librarian", description: "Manage library accountables", icon: "local_library", shortcut: "1" },
-    { id: "cashier", title: "Cashier", description: "Settle financial obligations", icon: "payments", shortcut: "2" },
-    { id: "registrar", title: "Registrar", description: "Validate final graduation documents", icon: "description", shortcut: "3" },
+    }
   ];
 
   const handleRoleClick = (roleId, e) => {
-    if (roleId === "staff") {
-      if (e) triggerRef.current = e.currentTarget;
-      setShowAdminModal(true);
-    } else {
-      onRoleSelect(roleId);
-    }
+    if (e) e.preventDefault();
+    onRoleSelect(roleId);
   };
 
   const handleRoleKeyDown = (roleId, e) => {
@@ -118,11 +61,6 @@ export default function RoleSelectionPage({
       e.preventDefault();
       handleRoleClick(roleId, e);
     }
-  };
-
-  const handleStaffSelect = (staffType) => {
-    setShowAdminModal(false);
-    onRoleSelect(staffType);
   };
 
   return (
@@ -181,12 +119,12 @@ export default function RoleSelectionPage({
 
       {/* 
         ========================================
-        CENTERED HUB UI (Apple / Stripe Style)
+        CENTERED HUB UI (2-Column Layout)
         ========================================
       */}
-      <main className="relative z-10 flex flex-col items-center justify-center w-full max-w-[1100px] mx-auto px-6 py-20 min-h-screen">
+      <main className="relative z-10 flex flex-col items-center justify-center w-full max-w-[840px] mx-auto px-6 py-20 min-h-screen">
         
-        {/* Apple-style floating Logo and Typography */}
+        {/* Floating Logo and Typography */}
         <motion.div 
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
@@ -204,9 +142,9 @@ export default function RoleSelectionPage({
           </p>
         </motion.div>
 
-        {/* CSS Grid Center Cards (3 Columns) */}
+        {/* 2-Column Grid */}
         <motion.div 
-          className="w-full grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8"
+          className="w-full grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8"
           initial="hidden"
           animate="show"
           variants={{
@@ -285,97 +223,6 @@ export default function RoleSelectionPage({
           ))}
         </motion.div>
       </main>
-
-      {/* 
-        ========================================
-        MODALS (Admin / Staff Selection)
-        ========================================
-      */}
-      <AnimatePresence>
-        {showAdminModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-              className="absolute inset-0 bg-black/40 backdrop-blur-3xl"
-              onClick={() => setShowAdminModal(false)}
-            />
-            
-            <motion.div
-              ref={modalRef}
-              role="dialog"
-              aria-modal="true"
-              initial={{ opacity: 0, scale: 0.95, y: 30 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 30 }}
-              transition={{ type: "spring", stiffness: 450, damping: 35 }}
-              onClick={(e) => e.stopPropagation()}
-              onKeyDown={handleModalKeyDown}
-              className={`relative w-full max-w-[440px] rounded-[36px] overflow-hidden shadow-[0_32px_64px_-16px_rgba(0,0,0,0.4)] flex flex-col border
-                ${isDark ? "bg-[#111111] border-white/10" : "bg-white/95 backdrop-blur-2xl border-white/50"}`}
-            >
-              <div className="px-8 pt-8 pb-4 flex justify-between items-start relative z-10">
-                <div>
-                  <div className={`w-14 h-14 rounded-[22px] flex items-center justify-center mb-5 ${isDark ? 'bg-white/10' : 'bg-slate-50 border border-slate-100 shadow-sm'}`}>
-                    <span className={`material-symbols-rounded text-[28px] ${isDark ? 'text-white' : 'text-slate-800'}`}>manage_accounts</span>
-                  </div>
-                  <h2 className="text-2xl font-display font-semibold tracking-tight">Select Staff Role</h2>
-                  <p className={`text-sm mt-1 font-light ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Use numbers 1-3 or click to select.</p>
-                </div>
-                <button
-                  onClick={() => { setShowAdminModal(false); triggerRef.current?.focus(); }}
-                  aria-label="Close"
-                  className={`p-3 rounded-full transition-all duration-300 mt-[-8px] -mr-4
-                    ${isDark ? "hover:bg-white/10 text-slate-400 hover:text-white" : "hover:bg-slate-100 text-slate-400 hover:text-slate-900"}`}
-                >
-                  <span className="material-symbols-rounded text-[22px]">close</span>
-                </button>
-              </div>
-
-              <div className="p-4 flex flex-col gap-2 pb-6 relative z-10">
-                {staffTypes.map((staff) => (
-                  <button
-                    key={staff.id}
-                    onClick={() => handleStaffSelect(staff.id)}
-                    className={`group flex items-center justify-between p-4 rounded-[28px] transition-all duration-300 outline-none
-                      border border-transparent
-                      ${isDark 
-                        ? "hover:bg-white/5 focus-visible:bg-white/5 focus-visible:border-white/20" 
-                        : "hover:bg-slate-50 hover:border-slate-200 focus-visible:bg-slate-50 focus-visible:border-black/10"
-                      }`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`flex items-center justify-center w-12 h-12 rounded-[18px] transition-colors duration-300
-                        ${isDark ? 'bg-white/5 group-hover:bg-white/10 group-hover:text-white text-slate-400' : 'bg-white border border-slate-100 shadow-sm group-hover:border-slate-300 group-hover:text-slate-900 text-slate-500'}`}>
-                        <span className="material-symbols-rounded text-[22px]" style={{ fontVariationSettings: "'FILL' 0" }}>
-                          {staff.icon}
-                        </span>
-                      </div>
-                      <div className="text-left">
-                        <h3 className="font-semibold text-[16px] tracking-tight">{staff.title}</h3>
-                        <p className={`text-[13px] font-light mt-0.5 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                          {staff.description}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <kbd className={`hidden sm:flex min-w-[28px] h-7 items-center justify-center rounded-lg text-[12px] font-bold border transition-colors duration-300
-                      ${isDark 
-                        ? 'bg-transparent border-white/20 text-slate-500 group-hover:text-slate-300' 
-                        : 'bg-white border-slate-200 text-slate-400 group-hover:text-slate-600 shadow-sm'
-                      }`}
-                    >
-                      {staff.shortcut}
-                    </kbd>
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

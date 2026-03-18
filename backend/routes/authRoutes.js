@@ -94,6 +94,16 @@ const LOGIN_ACCOUNT_LIMIT_ERROR =
   `Too many failed sign-in attempts for this account. Please try again in ${LOGIN_WINDOW_MINUTES} minutes or reset your password.`;
 const LOGIN_IP_LIMIT_ERROR =
   `Too many login attempts from this network. Please try again in ${LOGIN_WINDOW_MINUTES} minutes.`;
+const STUDENT_NUMBER_PATTERN = /^\d{2}-\d{3,5}(?:-[A-Z]{1,3})?$/;
+
+function normalizeStudentNumber(value) {
+  if (typeof value !== "string") return "";
+  return value
+    .trim()
+    .toUpperCase()
+    .replace(/[–—]/g, "-")
+    .replace(/\s+/g, "");
+}
 
 function getResetInSeconds(resetTime) {
   if (!resetTime) return null;
@@ -670,6 +680,14 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
       });
     }
 
+    const normalizedStudentNumber = normalizeStudentNumber(studentNumber);
+    if (!STUDENT_NUMBER_PATTERN.test(normalizedStudentNumber)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid student number format. Use 23-2984 or 23-2984-TS.",
+      });
+    }
+
     const pwCheck = validatePassword(password);
     if (!pwCheck.valid) {
       return res.status(400).json({ success: false, error: pwCheck.error });
@@ -680,7 +698,7 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
     const { data: existingProfile } = await supabase
       .from("profiles")
       .select("id, student_number")
-      .or(`student_number.eq.${studentNumber.trim().toUpperCase()}`)
+      .or(`student_number.eq.${normalizedStudentNumber}`)
       .maybeSingle();
 
     if (existingProfile) {
@@ -724,7 +742,7 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
         id: authData.user.id,
         full_name: fullName,
         role: "student",
-        student_number: studentNumber.trim().toUpperCase(),
+        student_number: normalizedStudentNumber,
         course_year: courseYear,
         face_verified: faceVerification.verified,
         face_similarity: similarity,

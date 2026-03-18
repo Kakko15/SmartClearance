@@ -1,6 +1,8 @@
 import * as faceapi from "face-api.js";
 
 let modelsLoaded = false;
+const FACE_MATCH_THRESHOLD = 90;
+const FACE_DISTANCE_THRESHOLD = 0.5;
 
 export async function loadFaceModels() {
   if (modelsLoaded) {
@@ -49,8 +51,8 @@ export async function detectFace(input) {
     let imageElement = input;
     if (input instanceof File || input instanceof Blob) {
       const img = await faceapi.bufferToImage(input);
-      // Use a larger dimension for ID photos to get better face descriptor quality
-      const maxDim = 640;
+      // Preserve more detail from ID photos so descriptors are more stable.
+      const maxDim = 960;
       const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
       const canvas = document.createElement("canvas");
       canvas.width = Math.round(img.width * scale);
@@ -104,21 +106,26 @@ export function compareFaces(descriptor1, descriptor2) {
 
     const distance = faceapi.euclideanDistance(descriptor1, descriptor2);
 
-    // face-api.js euclidean distance: <0.6 = same person, >0.6 = different person
-    // Tuned for real-world ID card photos (glare, wear, small printed photos)
-    const similarity = Math.max(
-      0,
-      Math.min(100, (1 - (distance * distance) / 1.8) * 100),
-    );
+    // Map face-api distance to a calibrated similarity score where
+    // 90% corresponds to the strict match distance threshold (0.5).
+    let similarity;
+    if (distance <= FACE_DISTANCE_THRESHOLD) {
+      const closeness = (FACE_DISTANCE_THRESHOLD - distance) / FACE_DISTANCE_THRESHOLD;
+      similarity = 90 + closeness * 10;
+    } else {
+      const over = (distance - FACE_DISTANCE_THRESHOLD) / (1 - FACE_DISTANCE_THRESHOLD);
+      similarity = 90 - over * 90;
+    }
+    similarity = Math.max(0, Math.min(100, similarity));
 
-    const isMatch = similarity >= 90;
+    const isMatch = similarity >= FACE_MATCH_THRESHOLD;
 
     return {
       success: true,
       similarity: similarity,
       isMatch: isMatch,
       distance: distance,
-      threshold: 90,
+      threshold: FACE_MATCH_THRESHOLD,
     };
   } catch (error) {
     console.error("Face comparison error:", error);
@@ -172,7 +179,7 @@ export async function verifyFace(idPhoto, videoElement) {
       autoApprove: comparisonResult.isMatch,
       message: comparisonResult.isMatch
         ? `Face verified! ${comparisonResult.similarity.toFixed(1)}% match`
-        : `Face verification failed. ${comparisonResult.similarity.toFixed(1)}% match (need 90%)`,
+        : `Face verification failed. ${comparisonResult.similarity.toFixed(1)}% match (need ${comparisonResult.threshold}%)`,
     };
   } catch (error) {
     console.error("Face verification error:", error);
@@ -191,8 +198,8 @@ export async function requestCameraAccess() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: {
-        width: { ideal: 640 },
-        height: { ideal: 480 },
+        width: { min: 640, ideal: 1280 },
+        height: { min: 480, ideal: 720 },
         facingMode: "user",
       },
     });

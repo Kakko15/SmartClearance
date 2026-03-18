@@ -7,7 +7,7 @@ const QRCode = require("qrcode");
 const nodemailer = require("nodemailer");
 const supabase = require("../supabaseClient");
 
-const { requireAuth } = require("../middleware/authMiddleware");
+const { requireAuth, optionalAuth } = require("../middleware/authMiddleware");
 
 const { TOKEN_TYPES, setToken, getToken, incrementAttempts, deleteToken, markSetupUsed } = require("../services/otpStore");
 
@@ -123,7 +123,7 @@ try {
   });
 } catch (_) { /* ignore */ }
 
-router.post("/setup", async (req, res) => {
+router.post("/setup", optionalAuth, async (req, res) => {
   try {
     const { userId, email, signupToken } = req.body;
 
@@ -131,21 +131,30 @@ router.post("/setup", async (req, res) => {
       return res.status(400).json({ success: false, error: "User ID and email are required" });
     }
 
-    if (!signupToken) {
-      return res.status(401).json({ success: false, error: "Signup token is required" });
+    // Check if the request is authorized via a valid session token OR a signup token
+    let isAuthorized = false;
+
+    if (req.user && req.user.id === userId) {
+      // User is fully authenticated (bypassed 2FA UI previously)
+      isAuthorized = true;
+    } else if (signupToken) {
+      // Validate the short-lived signup token
+      const tokenCheck = await validateSignupToken(userId, signupToken);
+      if (!tokenCheck.valid) {
+        return res.status(401).json({ success: false, error: tokenCheck.reason });
+      }
+
+      // Mark setup as used — only one /setup call per signup token
+      if (tokenCheck.setupUsed) {
+        return res.status(401).json({ success: false, error: "2FA setup already initiated. Please verify your code." });
+      }
+      await markSetupUsed(userId);
+      isAuthorized = true;
     }
 
-    // Validate the short-lived signup token
-    const tokenCheck = await validateSignupToken(userId, signupToken);
-    if (!tokenCheck.valid) {
-      return res.status(401).json({ success: false, error: tokenCheck.reason });
+    if (!isAuthorized) {
+      return res.status(401).json({ success: false, error: "Unauthorized to setup 2FA" });
     }
-
-    // Mark setup as used — only one /setup call per signup token
-    if (tokenCheck.setupUsed) {
-      return res.status(401).json({ success: false, error: "2FA setup already initiated. Please verify your code." });
-    }
-    await markSetupUsed(userId);
 
     const secret = generateSecret();
     const otpauthUrl = generateURI({
@@ -178,7 +187,7 @@ router.post("/setup", async (req, res) => {
   }
 });
 
-router.post("/verify-setup", async (req, res) => {
+router.post("/verify-setup", optionalAuth, async (req, res) => {
   try {
     const { userId, token, signupToken } = req.body;
 
@@ -186,14 +195,22 @@ router.post("/verify-setup", async (req, res) => {
       return res.status(400).json({ success: false, error: "User ID and token are required" });
     }
 
-    if (!signupToken) {
-      return res.status(401).json({ success: false, error: "Signup token is required" });
+    let isAuthorized = false;
+
+    if (req.user && req.user.id === userId) {
+      // User is fully authenticated (bypassed 2FA UI previously)
+      isAuthorized = true;
+    } else if (signupToken) {
+      // Validate the signup token (must be same one used for /setup)
+      const tokenCheck = await validateSignupToken(userId, signupToken);
+      if (!tokenCheck.valid) {
+        return res.status(401).json({ success: false, error: tokenCheck.reason });
+      }
+      isAuthorized = true;
     }
 
-    // Validate the signup token (must be same one used for /setup)
-    const tokenCheck = await validateSignupToken(userId, signupToken);
-    if (!tokenCheck.valid) {
-      return res.status(401).json({ success: false, error: tokenCheck.reason });
+    if (!isAuthorized) {
+      return res.status(401).json({ success: false, error: "Unauthorized to verify 2FA setup" });
     }
 
     const { data: profile, error: profileError } = await supabase

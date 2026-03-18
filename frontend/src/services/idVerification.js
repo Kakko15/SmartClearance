@@ -2,13 +2,79 @@ import Tesseract from "tesseract.js";
 
 let cachedWorker = null;
 let currentProgressCb = null;
+let currentProgressPhase = "single";
+let currentProgressValue = 0;
+
+function emitProgress(progress) {
+  if (!currentProgressCb) return;
+  const clamped = Math.max(0, Math.min(100, Math.round(progress)));
+  currentProgressValue = Math.max(currentProgressValue, clamped);
+  currentProgressCb(currentProgressValue);
+}
+
+async function createEnhancedImageVariant(imageFile) {
+  return new Promise((resolve) => {
+    try {
+      const img = new Image();
+      const url = URL.createObjectURL(imageFile);
+
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0);
+
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        const contrast = 1.35;
+
+        for (let i = 0; i < data.length; i += 4) {
+          const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+          const enhanced = (gray - 128) * contrast + 128;
+          const v = Math.max(0, Math.min(255, enhanced));
+          data[i] = v;
+          data[i + 1] = v;
+          data[i + 2] = v;
+        }
+
+        ctx.putImageData(imageData, 0, 0);
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            resolve(imageFile);
+            return;
+          }
+          resolve(new File([blob], "enhanced-id.png", { type: "image/png" }));
+        }, "image/png");
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(imageFile);
+      };
+
+      img.src = url;
+    } catch (_e) {
+      resolve(imageFile);
+    }
+  });
+}
 
 async function getWorker() {
   if (cachedWorker) return cachedWorker;
   const worker = await Tesseract.createWorker("eng", undefined, {
     logger: (m) => {
       if (m.status === "recognizing text" && currentProgressCb) {
-        currentProgressCb(Math.round(m.progress * 100));
+        const raw = Math.round((m.progress ?? 0) * 100);
+        if (currentProgressPhase === "primary") {
+          emitProgress(raw * 0.7);
+        } else if (currentProgressPhase === "enhanced") {
+          emitProgress(70 + raw * 0.3);
+        } else {
+          emitProgress(raw);
+        }
       }
     },
   });
@@ -19,22 +85,40 @@ async function getWorker() {
 export async function extractTextFromID(imageFile, onProgress = null) {
   try {
     currentProgressCb = onProgress;
+    currentProgressValue = 0;
+    currentProgressPhase = "primary";
+    emitProgress(1);
     const worker = await getWorker();
 
     const {
       data: { text },
     } = await worker.recognize(imageFile);
+    emitProgress(70);
+
+    // Second OCR pass on a high-contrast variant to recover faint/blurred digits.
+    currentProgressPhase = "enhanced";
+    const enhancedImage = await createEnhancedImageVariant(imageFile);
+    const {
+      data: { text: enhancedText },
+    } = await worker.recognize(enhancedImage);
+    emitProgress(100);
+
+    const mergedText = `${text || ""}\n${enhancedText || ""}`.trim();
 
     currentProgressCb = null;
+    currentProgressPhase = "single";
+    currentProgressValue = 0;
 
     return {
       success: true,
-      text: text.toLowerCase(),
-      rawText: text,
+      text: mergedText.toLowerCase(),
+      rawText: mergedText,
     };
   } catch (error) {
     console.error("OCR error:", error);
     currentProgressCb = null;
+    currentProgressPhase = "single";
+    currentProgressValue = 0;
     cachedWorker = null;
     return {
       success: false,
@@ -156,6 +240,7 @@ export function verifyISUStudentID(extractedText) {
       hasCollegeKeyword,
     },
     extractedText: text,
+    extractedTextRaw: rawText,
     message: isValid
       ? `Valid ISU student ID (${confidence}% confidence)`
       : `Invalid ID format (${confidence}% confidence, need 35%)`,
@@ -174,7 +259,7 @@ export async function verifyStudentID(imageFile, onProgress = null) {
       };
     }
 
-    const verification = verifyISUStudentID(ocrResult.text);
+    const verification = verifyISUStudentID(ocrResult.rawText || ocrResult.text);
 
     if (!verification.isValid) {
       return {

@@ -17,6 +17,7 @@ import RoleSelectionPage from "./pages/auth/RoleSelectionPage";
 import PasswordResetPage from "./pages/auth/PasswordResetPage";
 import SuperAdminLoginPage from "./pages/auth/SuperAdminLoginPage";
 import TwoFactorVerify from "./components/auth/TwoFactorVerify";
+import TwoFactorSetup from "./components/auth/TwoFactorSetup";
 import CertificateVerifyPage from "./pages/CertificateVerifyPage";
 
 // Per-tab unique key so each tab shows the loader independently
@@ -76,7 +77,11 @@ function App() {
     return (
       <div className={`min-h-screen flex items-center justify-center p-4 ${isDarkMode ? "bg-slate-950" : "bg-gray-50"}`}>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className={`w-full max-w-md p-8 rounded-3xl shadow-xl border overflow-hidden ${isDarkMode ? "bg-slate-900 border-slate-700" : "bg-white border-gray-200"}`}>
-          <TwoFactorVerify userId={pendingUser.id} email={pendingUser.email} isDark={isDarkMode} onVerified={complete2FA} onCancel={cancel2FA} />
+          {twoFactorPending === "setup" ? (
+             <TwoFactorSetup userId={pendingUser.id} email={pendingUser.email} isDark={isDarkMode} onComplete={complete2FA} onSkip={cancel2FA} />
+          ) : (
+             <TwoFactorVerify userId={pendingUser.id} email={pendingUser.email} isDark={isDarkMode} onVerified={complete2FA} onCancel={cancel2FA} />
+          )}
         </motion.div>
       </div>
     );

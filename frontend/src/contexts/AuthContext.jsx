@@ -63,7 +63,7 @@ export function AuthProvider({ children }) {
     const ROLE_MAP = {
       student: ["student"],
       signatory: ["signatory"],
-      staff: ["librarian", "cashier", "registrar"],
+      staff: ["librarian", "cashier", "registrar", "signatory"],
       librarian: ["librarian"],
       cashier: ["cashier"],
       registrar: ["registrar"],
@@ -138,7 +138,16 @@ export function AuthProvider({ children }) {
       if (data.totp_enabled && twoFAVerified !== sessionUser.id) {
         setPendingUser(sessionUser);
         setPendingProfile(data);
-        setTwoFactorPending(true);
+        setTwoFactorPending("verify");
+        setInitializing(false);
+        return;
+      }
+
+      const requires2FA = ["librarian", "cashier", "registrar", "signatory", "super_admin"].includes(data.role);
+      if (requires2FA && !data.totp_enabled) {
+        setPendingUser(sessionUser);
+        setPendingProfile(data);
+        setTwoFactorPending("setup");
         setInitializing(false);
         return;
       }

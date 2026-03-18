@@ -3,6 +3,244 @@ import { motion } from 'framer-motion';
 import { verifyStudentID, validateImageQuality } from '../../services/idVerification';
 import { detectFace } from '../../services/faceVerification';
 
+const STUDENT_NUMBER_INPUT_PATTERN = /^\d{2}-\d{3,5}(?:-[A-Z]{1,3})?$/;
+const SHOW_OCR_DEBUG =
+  typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+const OCR_DIGIT_SUBSTITUTIONS = {
+  O: '0',
+  Q: '0',
+  D: '0',
+  I: '1',
+  L: '1',
+  Z: '2',
+  S: '5',
+  B: '8',
+  G: '6',
+};
+
+function normalizeStudentNumber(value) {
+  return String(value || '')
+    .toUpperCase()
+    .replace(/[–—]/g, '-')
+    .replace(/\s+/g, '')
+    .replace(/[^A-Z0-9-]/g, '');
+}
+
+function parseStudentNumber(value) {
+  const normalized = normalizeStudentNumber(value);
+  const match = normalized.match(/^(\d{2})-?(\d{3,5})(?:-?([A-Z]{1,3}))?$/);
+  if (!match) return null;
+
+  return {
+    year: match[1],
+    serial: match[2],
+    suffix: match[3] || '',
+  };
+}
+
+function normalizeOcrDigits(value, expectedLength) {
+  const upper = String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const mapped = upper
+    .split('')
+    .map((ch) => (OCR_DIGIT_SUBSTITUTIONS[ch] ?? ch))
+    .join('');
+  const digits = mapped.replace(/[^0-9]/g, '');
+  if (expectedLength && digits.length !== expectedLength) return '';
+  return digits;
+}
+
+function normalizeSuffix(value) {
+  return String(value || '')
+    .toUpperCase()
+    .replace(/5/g, 'S')
+    .replace(/[^A-Z]/g, '');
+}
+
+function countDigitDifferences(a, b) {
+  if (!a || !b || a.length !== b.length) return Number.POSITIVE_INFINITY;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) diff += 1;
+  }
+  return diff;
+}
+
+function levenshteinDistance(a, b) {
+  const s = String(a || '');
+  const t = String(b || '');
+  if (s === t) return 0;
+  if (!s.length) return t.length;
+  if (!t.length) return s.length;
+
+  const rows = s.length + 1;
+  const cols = t.length + 1;
+  const dist = Array.from({ length: rows }, () => Array(cols).fill(0));
+
+  for (let i = 0; i < rows; i++) dist[i][0] = i;
+  for (let j = 0; j < cols; j++) dist[0][j] = j;
+
+  for (let i = 1; i < rows; i++) {
+    for (let j = 1; j < cols; j++) {
+      const cost = s[i - 1] === t[j - 1] ? 0 : 1;
+      dist[i][j] = Math.min(
+        dist[i - 1][j] + 1,
+        dist[i][j - 1] + 1,
+        dist[i - 1][j - 1] + cost,
+      );
+    }
+  }
+
+  return dist[s.length][t.length];
+}
+
+function isLikelySameStudentNumber(expected, candidate) {
+  if (!expected || !candidate) return false;
+  if (candidate.year !== expected.year) return false;
+  if ((candidate.serial || '').length !== (expected.serial || '').length) return false;
+
+  const serialDiff = countDigitDifferences(expected.serial, candidate.serial);
+  return serialDiff <= 1;
+}
+
+function hasApproximateDigitsWindow(expectedDigits, ocrText, maxDiff = 1) {
+  const digitsText = normalizeOcrDigits(ocrText);
+  if (!expectedDigits || expectedDigits.length < 4 || !digitsText) return false;
+
+  const len = expectedDigits.length;
+  const minLen = Math.max(1, len - maxDiff);
+  const maxLen = len + maxDiff;
+
+  for (let windowLen = minLen; windowLen <= maxLen; windowLen++) {
+    if (digitsText.length < windowLen) continue;
+
+    for (let i = 0; i <= digitsText.length - windowLen; i++) {
+      const window = digitsText.slice(i, i + windowLen);
+      if (levenshteinDistance(window, expectedDigits) <= maxDiff) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function toCanonicalStudentNumber({ year, serial, suffix }) {
+  return `${year}-${serial}${suffix ? `-${suffix}` : ''}`;
+}
+
+function extractStudentNumberCandidates(ocrText) {
+  const text = String(ocrText || '').toUpperCase().replace(/[–—]/g, '-');
+  const labelAfterPattern = /\b([0-9OILSBZGQ]{2})\s*[-./\s]?\s*([0-9OILSBZGQ]{3,5})(?:\s*[-]\s*([A-Z5]{1,3}))?\s*(?=STUDENT\s*(?:NUMBER|NO|N)\b)/g;
+  const labelBeforePattern = /STUDENT\s*(?:NUMBER|NO|N)\b\s*[:#-]?\s*([0-9OILSBZGQ]{2})\s*[-./\s]?\s*([0-9OILSBZGQ]{3,5})(?:\s*[-]\s*([A-Z5]{1,3}))?/g;
+  const withSuffixPattern = /\b([0-9OILSBZGQ]{2})\s*[-./\s]?\s*([0-9OILSBZGQ]{3,5})\s*[-]\s*([A-Z5]{1,3})\b/g;
+  const basePattern = /\b([0-9OILSBZGQ]{2})\s*[-./\s]?\s*([0-9OILSBZGQ]{3,5})\b/g;
+  const candidates = new Map();
+
+  const addCandidate = (rawYear, rawSerial, rawSuffix = '') => {
+    const year = normalizeOcrDigits(rawYear, 2);
+    const serialLength = String(rawSerial || '').replace(/[^A-Z0-9]/gi, '').length;
+    const serial = normalizeOcrDigits(rawSerial, serialLength);
+    const suffix = normalizeSuffix(rawSuffix);
+
+    if (!year || !serial || serial.length < 3 || serial.length > 5) return;
+
+    const canonical = toCanonicalStudentNumber({ year, serial, suffix });
+    candidates.set(canonical, { year, serial, suffix });
+  };
+
+  let match;
+  while ((match = labelAfterPattern.exec(text)) !== null) {
+    addCandidate(match[1], match[2], match[3]);
+  }
+
+  while ((match = labelBeforePattern.exec(text)) !== null) {
+    addCandidate(match[1], match[2], match[3]);
+  }
+
+  while ((match = withSuffixPattern.exec(text)) !== null) {
+    addCandidate(match[1], match[2], match[3]);
+  }
+
+  while ((match = basePattern.exec(text)) !== null) {
+    addCandidate(match[1], match[2]);
+  }
+
+  return Array.from(candidates.values());
+}
+
+function studentNumberMatchesOCR(expectedStudentNumber, ocrText) {
+  const parsedExpected = parseStudentNumber(expectedStudentNumber);
+  if (!parsedExpected) return false;
+
+  const expectedSuffix = normalizeSuffix(parsedExpected.suffix);
+  const candidates = extractStudentNumberCandidates(ocrText);
+
+  const hasLikelyTsCandidate = candidates.some((candidate) => {
+    const candidateSuffix = normalizeSuffix(candidate.suffix);
+    return candidateSuffix === 'TS' && isLikelySameStudentNumber(parsedExpected, candidate);
+  });
+
+  if (!expectedSuffix && hasLikelyTsCandidate) {
+    return false;
+  }
+
+  const matchedByCandidates = candidates.some((candidate) => {
+    if (!isLikelySameStudentNumber(parsedExpected, candidate)) {
+      return false;
+    }
+
+    const candidateSuffix = normalizeSuffix(candidate.suffix);
+
+    // TS (transferee) is treated as strict semantic suffix.
+    if (expectedSuffix === 'TS') {
+      return candidateSuffix === 'TS';
+    }
+
+    // If user did not enter TS, reject only when ID clearly shows TS.
+    if (!expectedSuffix) {
+      return candidateSuffix !== 'TS';
+    }
+
+    // Fallback for any other explicit suffixes.
+    return candidateSuffix === expectedSuffix;
+  });
+
+  if (matchedByCandidates) return true;
+
+  // Final fallback for non-TS IDs: if OCR clearly found student-number context
+  // and the expected digits appear after OCR-safe normalization, accept.
+  if (!expectedSuffix) {
+    const upperText = String(ocrText || '').toUpperCase().replace(/[–—]/g, '-');
+    const hasStudentLabel = /(STUDENT\s*(NUMBER|NO|N|NUM)|STUD\.?\s*NO)/.test(upperText);
+    const expectedDigits = `${parsedExpected.year}${parsedExpected.serial}`;
+    if (hasStudentLabel && hasApproximateDigitsWindow(expectedDigits, upperText, 2)) {
+      return true;
+    }
+
+    // Last-chance fallback for non-TS IDs: allow approximate digits anywhere in OCR text.
+    if (hasApproximateDigitsWindow(expectedDigits, upperText, 1)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function buildOcrDebugSummary(expectedStudentNumber, ocrText) {
+  const parsedExpected = parseStudentNumber(expectedStudentNumber);
+  const expectedDigits = parsedExpected
+    ? `${parsedExpected.year}${parsedExpected.serial}${normalizeSuffix(parsedExpected.suffix) ? `-${normalizeSuffix(parsedExpected.suffix)}` : ''}`
+    : expectedStudentNumber;
+  const candidates = extractStudentNumberCandidates(ocrText)
+    .slice(0, 8)
+    .map((candidate) => toCanonicalStudentNumber(candidate));
+  const normalizedDigits = normalizeOcrDigits(ocrText);
+  const digitPreview = normalizedDigits.slice(0, 36);
+
+  return `OCR debug | expected: ${expectedDigits} | candidates: ${candidates.join(', ') || 'none'} | digits: ${digitPreview || 'none'}`;
+}
+
 
 
 function resizeImage(file, maxDim = 1280) {
@@ -97,7 +335,7 @@ export default function IDVerification({ onVerified, isDark, firstName, lastName
       }
 
       const idVerification = await verifyStudentID(processFile, (progress) => {
-        setOcrProgress(progress);
+        setOcrProgress((prev) => Math.max(prev, progress || 0));
       });
 
       if (!idVerification.success) {
@@ -130,71 +368,30 @@ export default function IDVerification({ onVerified, isDark, firstName, lastName
       }
 
       if (studentNumber) {
-        const ocrRaw = idVerification.details?.extractedText || '';
+        const expectedStudentNumber = normalizeStudentNumber(studentNumber);
+        const ocrRaw =
+          idVerification.details?.extractedTextRaw ||
+          idVerification.details?.extractedText ||
+          '';
 
-        // Strip everything except digits and letters, then lowercase
-        const normalize = (s) => s.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-        // Extract only digits
-        const digitsOnly = (s) => s.replace(/[^0-9]/g, '');
-        const formNum = normalize(studentNumber);
-        const formDigits = digitsOnly(studentNumber);
-
-        const idNumberPatterns = [
-          /\d{2}[-–—.\s]*\d{3,5}([-–—.\s]*[A-Za-z]{1,3})?/g,
-          /\d{2}[-–—.\s]+\d{3,5}/g,
-        ];
-
-        let matchFound = false;
-
-        // First: try regex extraction and compare normalized forms
-        for (const pattern of idNumberPatterns) {
-          const matches = ocrRaw.match(pattern);
-          if (matches) {
-            for (const m of matches) {
-              const extracted = normalize(m);
-              const extractedDigits = digitsOnly(m);
-              // Exact match
-              if (extracted === formNum || extractedDigits === formDigits) {
-                matchFound = true;
-                break;
-              }
-              // Fuzzy match: allow up to 1 digit difference (OCR misread)
-              if (extractedDigits.length === formDigits.length) {
-                let diff = 0;
-                for (let i = 0; i < formDigits.length; i++) {
-                  if (formDigits[i] !== extractedDigits[i]) diff++;
-                }
-                if (diff <= 1) {
-                  matchFound = true;
-                  break;
-                }
-              }
-            }
-          }
-          if (matchFound) break;
-        }
-
-        // Fallback: check if the normalized OCR text contains the student number
-        if (!matchFound) {
-          const ocrNormalized = normalize(ocrRaw);
-          const ocrDigits = digitsOnly(ocrRaw);
-          matchFound = ocrNormalized.includes(formNum) || ocrDigits.includes(formDigits);
-        }
-
-        // Last resort: check if the first 2 digits (year) match and "student number" label is nearby
-        if (!matchFound) {
-          const hasStudentLabel = ocrRaw.includes('student') && (ocrRaw.includes('number') || ocrRaw.includes('no'));
-          const yearPrefix = formDigits.substring(0, 2);
-          const ocrDigits = digitsOnly(ocrRaw);
-          if (hasStudentLabel && ocrDigits.includes(yearPrefix)) {
-            matchFound = true;
-          }
-        }
-
-        if (!matchFound) {
+        if (!STUDENT_NUMBER_INPUT_PATTERN.test(expectedStudentNumber)) {
           setVerificationResult({
             success: false,
-            message: `Student number mismatch! "${studentNumber}" does not match the student number on your ID. Enter your exact student number (e.g., 23-2984-TS if you are a transferee).`
+            message: 'Invalid student number format. Use 23-2984 or 23-2984-TS.',
+          });
+          setUploading(false);
+          return;
+        }
+
+        const matchFound = studentNumberMatchesOCR(expectedStudentNumber, ocrRaw);
+
+        if (!matchFound) {
+          const debugText = SHOW_OCR_DEBUG
+            ? `\n\n${buildOcrDebugSummary(expectedStudentNumber, ocrRaw)}`
+            : '';
+          setVerificationResult({
+            success: false,
+            message: `Student number mismatch! "${studentNumber}" does not match the student number on your ID. Enter your exact student number (e.g., 23-2984-TS if you are a transferee).${debugText}`
           });
           setUploading(false);
           return;

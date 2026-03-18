@@ -14,22 +14,135 @@ import { COURSE_OPTIONS, YEAR_LEVEL_OPTIONS } from "../../constants/formOptions"
 
 const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
 const IS_LOCALHOST = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+const STUDENT_NUMBER_PATTERN = /^\d{2}-\d{3,5}(?:-[A-Z]{1,3})?$/;
+const PENDING_SIGNUP_VERIFICATION_KEY = "pending_signup_email_verification";
+const PENDING_SIGNUP_TWO_FACTOR_KEY = "pending_signup_two_factor_setup";
+const PENDING_VERIFICATION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+function getPendingSignupVerification(expectedScopeRole) {
+  try {
+    const raw = sessionStorage.getItem(PENDING_SIGNUP_VERIFICATION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (
+      !parsed ||
+      parsed.type !== "email_verification_pending" ||
+      !parsed.userId ||
+      !parsed.email
+    ) {
+      return null;
+    }
+
+    if (
+      parsed.createdAt &&
+      Number.isFinite(parsed.createdAt) &&
+      Date.now() - parsed.createdAt > PENDING_VERIFICATION_MAX_AGE_MS
+    ) {
+      sessionStorage.removeItem(PENDING_SIGNUP_VERIFICATION_KEY);
+      return null;
+    }
+
+    if (expectedScopeRole && parsed.scopeRole !== expectedScopeRole) {
+      return null;
+    }
+
+    return {
+      userId: parsed.userId,
+      email: parsed.email,
+      signupToken: parsed.signupToken || null,
+    };
+  } catch (_e) {
+    return null;
+  }
+}
+
+function persistPendingSignupVerification(data) {
+  sessionStorage.setItem(
+    PENDING_SIGNUP_VERIFICATION_KEY,
+    JSON.stringify({
+      type: "email_verification_pending",
+      flow: "student",
+      scopeRole: "student",
+      userId: data.userId,
+      email: data.email,
+      signupToken: data.signupToken || null,
+      createdAt: Date.now(),
+    }),
+  );
+}
+
+function clearPendingSignupVerification() {
+  sessionStorage.removeItem(PENDING_SIGNUP_VERIFICATION_KEY);
+}
+
+function getPendingTwoFactorSetup(expectedScopeRole) {
+  try {
+    const raw = sessionStorage.getItem(PENDING_SIGNUP_TWO_FACTOR_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (
+      !parsed ||
+      parsed.type !== "two_factor_setup_pending" ||
+      !parsed.userId ||
+      !parsed.email
+    ) {
+      return null;
+    }
+
+    if (
+      parsed.createdAt &&
+      Number.isFinite(parsed.createdAt) &&
+      Date.now() - parsed.createdAt > PENDING_VERIFICATION_MAX_AGE_MS
+    ) {
+      sessionStorage.removeItem(PENDING_SIGNUP_TWO_FACTOR_KEY);
+      return null;
+    }
+
+    if (expectedScopeRole && parsed.scopeRole !== expectedScopeRole) {
+      return null;
+    }
+
+    return {
+      userId: parsed.userId,
+      email: parsed.email,
+      signupToken: parsed.signupToken || null,
+    };
+  } catch (_e) {
+    return null;
+  }
+}
+
+function persistPendingTwoFactorSetup(data) {
+  sessionStorage.setItem(
+    PENDING_SIGNUP_TWO_FACTOR_KEY,
+    JSON.stringify({
+      type: "two_factor_setup_pending",
+      flow: "student",
+      scopeRole: "student",
+      userId: data.userId,
+      email: data.email,
+      signupToken: data.signupToken || null,
+      createdAt: Date.now(),
+    }),
+  );
+}
+
+function clearPendingTwoFactorSetup() {
+  sessionStorage.removeItem(PENDING_SIGNUP_TWO_FACTOR_KEY);
+}
 
 export default function SignupFormWithFaceVerification({
   onSwitchMode,
   isDark,
   onLoginSuccess,
 }) {
+  const [restoredVerification] = useState(() => getPendingSignupVerification("student"));
+  const [restoredTwoFactor] = useState(() => getPendingTwoFactorSetup("student"));
   const [currentStep, setCurrentStep] = useState(() => {
     const saved = sessionStorage.getItem("signupStep");
     if (saved) {
       const step = parseInt(saved, 10);
-      if (step >= 2) {
-        // Don't allow skipping step 1 on page refresh — password is never persisted
-        // so the signup would fail. Force back to step 1.
-        return 1;
-      }
-      return step;
+      return step >= 1 && step <= 3 ? step : 1;
     }
     return 1;
   });
@@ -40,8 +153,7 @@ export default function SignupFormWithFaceVerification({
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Never restore passwords from storage — always start fresh
-        return { ...parsed, password: "", confirmPassword: "" };
+        return parsed;
       } catch (_e) {
         sessionStorage.removeItem("signupFormData");
       }
@@ -77,16 +189,29 @@ export default function SignupFormWithFaceVerification({
   const [recaptchaExpired, setRecaptchaExpired] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [show2FASetup, setShow2FASetup] = useState(false);
-  const [showEmailVerification, setShowEmailVerification] = useState(false);
-  const [signupUserId, setSignupUserId] = useState(null);
-  const [signupToken, setSignupToken] = useState(null);
+  const [show2FASetup, setShow2FASetup] = useState(
+    () => !!restoredTwoFactor?.userId && !!restoredTwoFactor?.email,
+  );
+  const [showEmailVerification, setShowEmailVerification] = useState(
+    () =>
+      !restoredTwoFactor?.userId &&
+      !!restoredVerification?.userId &&
+      !!restoredVerification?.email,
+  );
+  const [signupUserId, setSignupUserId] = useState(
+    () => restoredTwoFactor?.userId || restoredVerification?.userId || null,
+  );
+  const [signupToken, setSignupToken] = useState(
+    () => restoredTwoFactor?.signupToken || restoredVerification?.signupToken || null,
+  );
+  const [signupEmail, setSignupEmail] = useState(
+    () => restoredTwoFactor?.email || restoredVerification?.email || "",
+  );
   const [emailError, setEmailError] = useState("");
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [touched, setTouched] = useState({});
   const recaptchaRef = useRef(null);
-  // Keep password in a ref as backup — sessionStorage intentionally excludes it,
-  // so if the component remounts mid-flow the password would be lost from state.
+  // Keep password in a ref as backup 
   const passwordRef = useRef(formData.password);
 
   const handleBlur = (field) => {
@@ -115,6 +240,9 @@ export default function SignupFormWithFaceVerification({
         break;
       case "studentNumber":
         if (!val || !val.trim()) return "Student number is required.";
+        if (!STUDENT_NUMBER_PATTERN.test(val.trim().toUpperCase().replace(/[–—]/g, "-"))) {
+          return "Use format 23-2984 or 23-2984-TS.";
+        }
         break;
       case "course":
         if (!val) return "Please select your course.";
@@ -133,10 +261,9 @@ export default function SignupFormWithFaceVerification({
   }, [currentStep]);
 
   useEffect(() => {
-    // Persist form data but NEVER store passwords in sessionStorage.
-    // On shared university computers, sessionStorage persists until the tab closes.
-    const { password: _pw, confirmPassword: _cpw, ...safeData } = formData;
-    sessionStorage.setItem("signupFormData", JSON.stringify(safeData));
+    // Persist complete form data in sessionStorage so progress isn't lost on refresh.
+    // sessionStorage is automatically cleared when the tab is closed.
+    sessionStorage.setItem("signupFormData", JSON.stringify(formData));
     // Keep password ref in sync so it survives component remounts
     if (formData.password) passwordRef.current = formData.password;
   }, [formData]);
@@ -207,7 +334,10 @@ export default function SignupFormWithFaceVerification({
           case "email": return !val || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
           case "password": return !val || val.length < 8 || !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])/.test(val);
           case "confirmPassword": return !val || val !== formData.password;
-          case "studentNumber": return !val || !val.trim();
+          case "studentNumber": {
+            if (!val || !val.trim()) return true;
+            return !STUDENT_NUMBER_PATTERN.test(val.trim().toUpperCase().replace(/[–—]/g, "-"));
+          }
           case "course": return !val;
           case "yearLevel": return !val;
           default: return false;
@@ -273,7 +403,10 @@ export default function SignupFormWithFaceVerification({
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
         role: "student",
-        studentNumber: formData.studentNumber.trim(),
+        studentNumber: formData.studentNumber
+          .trim()
+          .toUpperCase()
+          .replace(/[–—]/g, "-"),
         courseYear: `${formData.course} - ${formData.yearLevel}`,
         recaptchaToken: recaptchaToken,
         faceVerification: {
@@ -310,8 +443,15 @@ export default function SignupFormWithFaceVerification({
       sessionStorage.removeItem("signupStep");
       sessionStorage.removeItem("signupFormData");
       sessionStorage.removeItem("signupIdDescriptor");
+      const normalizedEmail = formData.email.trim().toLowerCase();
       setSignupUserId(result.user.id);
       setSignupToken(result.signupToken);
+      setSignupEmail(normalizedEmail);
+      persistPendingSignupVerification({
+        userId: result.user.id,
+        email: normalizedEmail,
+        signupToken: result.signupToken,
+      });
       setShowEmailVerification(true);
     } catch (error) {
       console.error("Signup error:", error);
@@ -326,28 +466,38 @@ export default function SignupFormWithFaceVerification({
       {[1, 2, 3].map((step) => (
         <div key={step} className="flex items-center">
           <div
-            className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all ${
-              currentStep >= step
+            className={`w-[34px] h-[34px] rounded-full flex items-center justify-center text-sm font-medium transition-colors duration-300 ${
+              currentStep === step
                 ? isDark
-                  ? "bg-green-500 text-white"
-                  : "bg-green-600 text-white"
-                : isDark
-                  ? "bg-slate-700 text-slate-400"
-                  : "bg-gray-200 text-gray-500"
+                  ? "bg-[#8ab4f8] text-slate-900 shadow-[0_0_0_4px_rgba(138,180,248,0.15)]"
+                  : "bg-[#1a73e8] text-white shadow-[0_0_0_4px_rgba(26,115,232,0.15)]"
+                : currentStep > step
+                  ? isDark
+                    ? "bg-[#8ab4f8] text-slate-900"
+                    : "bg-[#1a73e8] text-white"
+                  : isDark
+                    ? "bg-[#3c4043] text-[#9aa0a6] border border-[#5f6368]"
+                    : "bg-white text-[#5f6368] border border-[#dadce0]"
             }`}
           >
-            {step}
+            {currentStep > step ? (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              step
+            )}
           </div>
           {step < 3 && (
             <div
-              className={`w-16 h-1 mx-2 ${
+              className={`w-16 h-[2px] mx-2 transition-colors duration-300 ${
                 currentStep > step
                   ? isDark
-                    ? "bg-green-500"
-                    : "bg-green-600"
+                    ? "bg-[#8ab4f8]"
+                    : "bg-[#1a73e8]"
                   : isDark
-                    ? "bg-slate-700"
-                    : "bg-gray-200"
+                    ? "bg-[#3c4043]"
+                    : "bg-[#dadce0]"
               }`}
             />
           )}
@@ -359,16 +509,26 @@ export default function SignupFormWithFaceVerification({
   if (showEmailVerification && signupUserId) {
     return (
       <EmailVerification
-        email={formData.email}
+        email={signupEmail || formData.email}
         userId={signupUserId}
         signupToken={signupToken}
         isDark={isDark}
         onVerified={() => {
           toast.success("Email verified! Now set up 2FA to secure your account.");
+          const normalizedEmail = (signupEmail || formData.email || "").trim().toLowerCase();
+          clearPendingSignupVerification();
+          persistPendingTwoFactorSetup({
+            userId: signupUserId,
+            email: normalizedEmail,
+            signupToken,
+          });
+          setSignupEmail(normalizedEmail);
           setShowEmailVerification(false);
           setShow2FASetup(true);
         }}
         onSwitchToLogin={() => {
+          clearPendingSignupVerification();
+          clearPendingTwoFactorSetup();
           if (onSwitchMode) onSwitchMode();
         }}
       />
@@ -379,10 +539,12 @@ export default function SignupFormWithFaceVerification({
     return (
       <TwoFactorSetup
         userId={signupUserId}
-        email={formData.email}
+        email={signupEmail || formData.email}
         signupToken={signupToken}
         isDark={isDark}
         onComplete={async () => {
+          clearPendingTwoFactorSetup();
+          clearPendingSignupVerification();
           toast.success("You're all set! Signing you in...");
           try {
             const { data: { session } } = await (await import("../../lib/supabase")).supabase.auth.getSession();
@@ -395,6 +557,8 @@ export default function SignupFormWithFaceVerification({
           setTimeout(() => { if (onSwitchMode) onSwitchMode(); }, 1000);
         }}
         onSkip={async () => {
+          clearPendingTwoFactorSetup();
+          clearPendingSignupVerification();
           toast("You can enable 2FA later from Settings.", { icon: "ℹ️" });
           try {
             const { data: { session } } = await (await import("../../lib/supabase")).supabase.auth.getSession();
@@ -880,7 +1044,10 @@ export default function SignupFormWithFaceVerification({
                 type="text"
                 value={formData.studentNumber}
                 onChange={(e) =>
-                  setFormData({ ...formData, studentNumber: e.target.value.toUpperCase() })
+                  setFormData({
+                    ...formData,
+                    studentNumber: e.target.value.toUpperCase().replace(/[–—]/g, "-"),
+                  })
                 }
                 onBlur={() => handleBlur("studentNumber")}
                 placeholder="e.g., 21-3243 or 23-3174-TS"
