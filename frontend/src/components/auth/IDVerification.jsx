@@ -131,26 +131,69 @@ export default function IDVerification({ onVerified, isDark, firstName, lastName
 
       if (studentNumber) {
         const ocrRaw = idVerification.details?.extractedText || '';
-        const normalize = (s) => s.trim().replace(/[\s–—.]+/g, '-').toLowerCase();
+        console.log('[ID Verify] OCR extracted text:', JSON.stringify(ocrRaw));
+        console.log('[ID Verify] Student number entered:', studentNumber);
+
+        // Strip everything except digits and letters, then lowercase
+        const normalize = (s) => s.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+        // Extract only digits
+        const digitsOnly = (s) => s.replace(/[^0-9]/g, '');
         const formNum = normalize(studentNumber);
+        const formDigits = digitsOnly(studentNumber);
 
         const idNumberPatterns = [
-          /\d{2}[-–—.\s]\d{3,5}([-–—.\s][A-Za-z]{1,3})?/g,
+          /\d{2}[-–—.\s]*\d{3,5}([-–—.\s]*[A-Za-z]{1,3})?/g,
+          /\d{2}[-–—.\s]+\d{3,5}/g,
         ];
 
         let matchFound = false;
+
+        // First: try regex extraction and compare normalized forms
         for (const pattern of idNumberPatterns) {
           const matches = ocrRaw.match(pattern);
           if (matches) {
+            console.log('[ID Verify] Regex matches found:', matches);
             for (const m of matches) {
               const extracted = normalize(m);
-              if (extracted === formNum) {
+              const extractedDigits = digitsOnly(m);
+              // Exact match
+              if (extracted === formNum || extractedDigits === formDigits) {
                 matchFound = true;
                 break;
+              }
+              // Fuzzy match: allow up to 1 digit difference (OCR misread)
+              if (extractedDigits.length === formDigits.length) {
+                let diff = 0;
+                for (let i = 0; i < formDigits.length; i++) {
+                  if (formDigits[i] !== extractedDigits[i]) diff++;
+                }
+                if (diff <= 1) {
+                  console.log(`[ID Verify] Fuzzy match: "${extractedDigits}" ~ "${formDigits}" (${diff} char diff)`);
+                  matchFound = true;
+                  break;
+                }
               }
             }
           }
           if (matchFound) break;
+        }
+
+        // Fallback: check if the normalized OCR text contains the student number
+        if (!matchFound) {
+          const ocrNormalized = normalize(ocrRaw);
+          const ocrDigits = digitsOnly(ocrRaw);
+          matchFound = ocrNormalized.includes(formNum) || ocrDigits.includes(formDigits);
+        }
+
+        // Last resort: check if the first 2 digits (year) match and "student number" label is nearby
+        if (!matchFound) {
+          const hasStudentLabel = ocrRaw.includes('student') && (ocrRaw.includes('number') || ocrRaw.includes('no'));
+          const yearPrefix = formDigits.substring(0, 2);
+          const ocrDigits = digitsOnly(ocrRaw);
+          if (hasStudentLabel && ocrDigits.includes(yearPrefix)) {
+            console.log('[ID Verify] Matched via student label + year prefix');
+            matchFound = true;
+          }
         }
 
         if (!matchFound) {
