@@ -654,7 +654,11 @@ export default function StudentDashboardGraduation({
   const [clearanceStatus, setClearanceStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
-  const [activeView, setActiveView] = useState("status");
+  const [activeView, setActiveView] = useState(() => sessionStorage.getItem("tab_student") || "status");
+
+  useEffect(() => {
+    sessionStorage.setItem("tab_student", activeView);
+  }, [activeView]);
   const [expandedStages, setExpandedStages] = useState({ professors: true });
   const [cancelling, setCancelling] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);

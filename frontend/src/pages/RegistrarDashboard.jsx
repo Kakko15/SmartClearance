@@ -35,7 +35,11 @@ export default function RegistrarAdminDashboard({
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [comments, setComments] = useState("");
-  const [activeView, setActiveView] = useState("pending");
+  const [activeView, setActiveView] = useState(() => sessionStorage.getItem("tab_registrar") || "pending");
+
+  useEffect(() => {
+    sessionStorage.setItem("tab_registrar", activeView);
+  }, [activeView]);
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");

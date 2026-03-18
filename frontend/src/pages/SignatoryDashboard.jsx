@@ -35,7 +35,11 @@ export default function ProfessorDashboard({
 }) {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeView, setActiveView] = useState("pending");
+  const [activeView, setActiveView] = useState(() => sessionStorage.getItem("tab_signatory") || "pending");
+
+  useEffect(() => {
+    sessionStorage.setItem("tab_signatory", activeView);
+  }, [activeView]);
   const [expandedStudent, setExpandedStudent] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [selectedRejectId, setSelectedRejectId] = useState(null);

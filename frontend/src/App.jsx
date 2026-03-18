@@ -94,7 +94,7 @@ function App() {
 
             <Route path="/home" element={
               isAuthenticated ? <Navigate to="/dashboard" replace /> : (
-                <motion.div key="landing" exit={{ opacity: 0, y: -100 }} className={`relative z-40 ${isDarkMode ? "bg-slate-950" : "bg-white"}`}>
+                <motion.div key="landing" exit={{ opacity: 0, y: -100 }} transition={{ duration: 0.3, ease: "easeInOut" }} className={`relative z-40 ${isDarkMode ? "bg-slate-950" : "bg-white"}`}>
                   {/* BUG 7 FIX: Navigate to /select-role instead of no-op */}
                   <LandingPage onEnter={() => navigate("/select-role")} isDark={isDarkMode} toggleTheme={toggleTheme} />
                 </motion.div>
@@ -103,7 +103,7 @@ function App() {
 
             <Route path="/select-role" element={
               isAuthenticated ? <Navigate to="/dashboard" replace /> : (
-                <motion.div key="roleSelection" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className={`relative z-40 ${isDarkMode ? "bg-slate-950" : "bg-white"}`}>
+                <motion.div key="roleSelection" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: "easeInOut" }} className={`relative z-40 ${isDarkMode ? "bg-slate-950" : "bg-white"}`}>
                   {/* BUG 8 FIX: Navigate to /home instead of no-op */}
                   <RoleSelectionPage onRoleSelect={handleRoleSelect} onBackToHome={() => navigate("/home")} isDark={isDarkMode} />
                 </motion.div>
@@ -118,7 +118,7 @@ function App() {
                     <div className="w-8 h-8 border-[3px] border-primary-500 border-t-transparent rounded-full animate-spin" />
                   </div>
                 ) : (
-                  <motion.div key="auth" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 1 }} className="relative z-10 min-h-screen">
+                  <motion.div key="auth" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: "easeInOut" }} className="relative z-10 min-h-screen">
                     <AuthPage isDark={isDarkMode} selectedRole={selectedRole} onLoginSuccess={handleLoginSuccess} onBackToHome={backToRoleSelection} />
                   </motion.div>
                 )
@@ -134,7 +134,7 @@ function App() {
                   </div>
                 ) : <Navigate to={selectedRole ? "/auth" : "/select-role"} replace />
               ) : (
-                <motion.div key="dashboard" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 1 }} className="relative z-10 min-h-screen">
+                <motion.div key="dashboard" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: "easeInOut" }} className="relative z-10 min-h-screen">
                   <DashboardContent user={user} profile={profile} handleSignOut={handleSignOut} isDarkMode={isDarkMode} toggleTheme={toggleTheme} setShowSettings={setShowSettings} />
                 </motion.div>
               )

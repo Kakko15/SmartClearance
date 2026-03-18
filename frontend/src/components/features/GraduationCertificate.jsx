@@ -270,8 +270,79 @@ export default function GraduationCertificate({ requestId, studentId, studentInf
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-8" role="status" aria-label="Loading certificate">
-        <div className="animate-spin w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full"></div>
+      <div className="space-y-4 animate-pulse">
+        {/* Skeleton Toolbar */}
+        <div className="flex justify-end gap-3">
+          <div className={`w-40 h-10 rounded-lg ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
+        </div>
+
+        {/* Skeleton Certificate document */}
+        <div className={`p-8 sm:p-12 border-8 border-double rounded-lg shadow-xl ${isDarkMode ? "bg-slate-900 border-slate-700 ring-1 ring-white/5" : "bg-white border-gray-100"}`}>
+          <div className="text-center mb-8 flex flex-col items-center">
+            {/* Logo placeholder */}
+            <div className={`h-24 w-24 rounded-full mb-4 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
+            {/* Title placeholders */}
+            <div className={`w-3/4 max-w-md h-8 rounded mb-4 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
+            <div className="w-32 h-1 bg-green-600/20 mx-auto mb-4"></div>
+            <div className={`w-1/2 max-w-sm h-6 rounded mb-4 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
+            <div className={`w-1/4 h-4 rounded mt-2 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
+          </div>
+
+          <div className="space-y-6 text-center flex flex-col items-center">
+            <div className={`w-48 h-5 rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
+            
+            <div className="py-4">
+              <div className={`w-64 h-10 rounded mb-2 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
+              <div className={`w-64 h-0.5 mx-auto ${isDarkMode ? "bg-slate-700" : "bg-gray-300"}`}></div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 max-w-md w-full mx-auto text-left">
+              <div>
+                <div className={`w-24 h-4 rounded mb-2 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
+                <div className={`w-32 h-5 rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-300"}`}></div>
+              </div>
+              <div>
+                <div className={`w-20 h-4 rounded mb-2 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
+                <div className={`w-40 h-5 rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-300"}`}></div>
+              </div>
+            </div>
+
+            <div className={`w-full max-w-2xl py-6 px-8 rounded-lg mt-8 ${isDarkMode ? "bg-slate-800/50" : "bg-gray-100"}`}>
+              <div className={`w-full h-4 rounded mb-2 ${isDarkMode ? "bg-slate-700" : "bg-gray-200"}`}></div>
+              <div className={`w-5/6 h-4 rounded mx-auto ${isDarkMode ? "bg-slate-700" : "bg-gray-200"}`}></div>
+            </div>
+
+            <div className="pt-8">
+              <div className={`w-24 h-4 rounded mx-auto mb-2 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
+              <div className={`w-32 h-6 rounded mx-auto ${isDarkMode ? "bg-slate-800" : "bg-gray-300"}`}></div>
+            </div>
+
+            <div className="pt-12 grid grid-cols-2 gap-8 max-w-2xl w-full mx-auto">
+              <div className="text-center flex flex-col items-center">
+                <div className={`w-48 h-0.5 mb-4 ${isDarkMode ? "bg-slate-700" : "bg-gray-400"}`}></div>
+                <div className={`w-32 h-5 rounded mb-2 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
+                <div className={`w-24 h-4 rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
+              </div>
+              <div className="text-center flex flex-col items-center">
+                <div className={`w-48 h-0.5 mb-4 ${isDarkMode ? "bg-slate-700" : "bg-gray-400"}`}></div>
+                <div className={`w-40 h-5 rounded mb-2 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
+                <div className={`w-24 h-4 rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
+              </div>
+            </div>
+          </div>
+
+          <div className={`mt-12 pt-6 border-t flex items-end justify-between gap-4 ${isDarkMode ? "border-slate-800" : "border-gray-200"}`}>
+            <div className="space-y-2 w-full max-w-sm">
+              <div className={`w-full h-3 rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
+              <div className={`w-3/4 h-3 rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
+              <div className={`w-1/2 h-3 rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
+            </div>
+            <div className="flex-shrink-0 flex flex-col items-center">
+              <div className={`w-[80px] h-[80px] rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
+              <div className={`w-16 h-2 rounded mt-2 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

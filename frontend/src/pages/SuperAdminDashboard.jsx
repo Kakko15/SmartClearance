@@ -48,7 +48,11 @@ const MetricPill = ({ label, value, icon, color = "indigo", isDarkMode }) => {
 };
 
 export default function SuperAdminDashboard({ adminId, adminRole, onSignOut, isDarkMode, toggleTheme, onOpenSettings, onManageAccount }) {
-  const [activeView, setActiveView] = useState("dashboard");
+  const [activeView, setActiveView] = useState(() => sessionStorage.getItem("tab_superadmin") || "dashboard");
+
+  useEffect(() => {
+    sessionStorage.setItem("tab_superadmin", activeView);
+  }, [activeView]);
   const [stats, setStats] = useState({ pending: 0, totalStudents: 0, totalStaff: 0, totalRequests: 0 });
   const [analytics, setAnalytics] = useState(null);
   const [recentActivity, setRecentActivity] = useState([]);

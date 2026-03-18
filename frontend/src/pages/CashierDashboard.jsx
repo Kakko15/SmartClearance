@@ -34,7 +34,11 @@ export default function CashierAdminDashboard({
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [comments, setComments] = useState("");
-  const [activeView, setActiveView] = useState("pending");
+  const [activeView, setActiveView] = useState(() => sessionStorage.getItem("tab_cashier") || "pending");
+
+  useEffect(() => {
+    sessionStorage.setItem("tab_cashier", activeView);
+  }, [activeView]);
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");

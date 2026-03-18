@@ -232,7 +232,7 @@ export default function RoleSelectionPage({
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
             className="flex items-center justify-center gap-4 mb-6"
           >
             <img
@@ -250,7 +250,7 @@ export default function RoleSelectionPage({
           <motion.p
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
+            transition={{ duration: 0.4, delay: 0.1, ease: "easeOut" }}
             className={`text-xl font-medium transition-colors ${isDark ? "text-slate-300" : "text-gray-600"}`}
           >
             Select your role to continue
@@ -259,7 +259,7 @@ export default function RoleSelectionPage({
           <motion.button
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
+            transition={{ duration: 0.3, delay: 0.15 }}
             onClick={() => navigate("/home")}
             className={`mt-4 flex items-center gap-2 mx-auto text-sm font-medium transition-colors ${isDark ? "text-slate-400 hover:text-white" : "text-gray-500 hover:text-gray-900"}`}
           >
@@ -289,14 +289,13 @@ export default function RoleSelectionPage({
               aria-label={`${role.title} — ${role.description}`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 + index * 0.1 }}
-              whileHover={{ scale: 1.05, y: -5 }}
+              transition={{ duration: 0.4, delay: 0.15 + index * 0.05, ease: "easeOut" }}
               onClick={(e) => handleRoleClick(role.id, e)}
               onKeyDown={(e) => handleRoleKeyDown(role.id, e)}
-              className={`cursor-pointer rounded-2xl overflow-hidden transition-all duration-300 ${
+              className={`cursor-pointer rounded-2xl overflow-hidden transition-all duration-200 ease-out hover:-translate-y-1 hover:scale-[1.03] ${
                 isDark
-                  ? "spatial-glass-dark hover:shadow-2xl hover:shadow-green-500/20"
-                  : "spatial-glass hover:shadow-2xl hover:shadow-green-500/30"
+                  ? "spatial-glass-dark hover:shadow-2xl hover:shadow-green-500/20 hover:bg-slate-900/60"
+                  : "spatial-glass hover:shadow-2xl hover:shadow-green-500/30 hover:bg-white/80"
               }`}
             >
               <div className="p-6 text-center">
@@ -347,10 +346,10 @@ export default function RoleSelectionPage({
                 role="dialog"
                 aria-modal="true"
                 aria-label="Select Staff Type"
-                initial={{ scale: 0.9, opacity: 0 }}
+                initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                transition={{ type: "spring", duration: 0.5 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 300, damping: 25 }}
                 onClick={(e) => e.stopPropagation()}
                 onKeyDown={handleModalKeyDown}
                 className={`w-full max-w-2xl rounded-3xl overflow-hidden ${isDark ? "spatial-glass-dark" : "spatial-glass"}`}
@@ -397,15 +396,15 @@ export default function RoleSelectionPage({
                   {staffTypes.map((staff, index) => (
                     <motion.button
                       key={staff.id}
-                      initial={{ opacity: 0, x: -20 }}
+                      initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.1 }}
+                      transition={{ delay: index * 0.05 + 0.1 }}
                       onClick={() => handleStaffSelect(staff.id)}
-                      className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all ${
+                      className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all duration-200 ease-out hover:scale-[1.02] ${
                         isDark
                           ? "bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700 hover:border-indigo-500"
                           : "bg-white/50 hover:bg-white border border-gray-200 hover:border-indigo-500"
-                      } hover:scale-[1.02]`}
+                      }`}
                     >
                       <div
                         className={`p-3 rounded-xl ${isDark ? "bg-indigo-500/20 text-indigo-400" : "bg-indigo-100 text-indigo-600"}`}
@@ -448,7 +447,7 @@ export default function RoleSelectionPage({
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.8 }}
+          transition={{ duration: 0.4, delay: 0.3, ease: "easeOut" }}
           className={`mt-12 max-w-4xl mx-auto rounded-2xl p-6 border transition-colors ${
             isDark
               ? "bg-slate-900/50 border-slate-700"

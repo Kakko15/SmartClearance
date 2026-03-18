@@ -14,8 +14,10 @@ export default function CustomSelect({
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [menuPlacement, setMenuPlacement] = useState("bottom");
+  const [focusedIndex, setFocusedIndex] = useState(-1);
   const containerRef = useRef(null);
   const searchInputRef = useRef(null);
+  const listboxRef = useRef(null);
 
   const findLabel = (opts, val) => {
     for (const opt of opts) {
@@ -50,6 +52,23 @@ export default function CustomSelect({
   };
 
   const filteredOptions = searchable ? filterOptions(options, search) : options;
+  const selectableOptions = filteredOptions.reduce((acc, opt) => {
+    if (opt.options) return [...acc, ...opt.options];
+    return [...acc, opt];
+  }, []);
+
+  useEffect(() => {
+    setFocusedIndex(-1);
+  }, [search, isOpen]);
+
+  useEffect(() => {
+    if (isOpen && focusedIndex >= 0 && listboxRef.current) {
+      const activeEl = listboxRef.current.querySelector(`[data-index="${focusedIndex}"]`);
+      if (activeEl) {
+        activeEl.scrollIntoView({ block: "nearest" });
+      }
+    }
+  }, [focusedIndex, isOpen]);
 
   // Focus the search input when dropdown opens
   useEffect(() => {
@@ -99,6 +118,44 @@ export default function CustomSelect({
     0,
   );
 
+  const handleKeyDown = (e) => {
+    if (!isOpen) {
+      if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
+        e.preventDefault();
+        setIsOpen(true);
+      }
+      return;
+    }
+
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setFocusedIndex((prev) => (prev < selectableOptions.length - 1 ? prev + 1 : prev));
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setFocusedIndex((prev) => (prev > 0 ? prev - 1 : 0));
+        break;
+      case "Enter":
+        e.preventDefault();
+        if (focusedIndex >= 0 && focusedIndex < selectableOptions.length) {
+          onChange(selectableOptions[focusedIndex].value);
+          setIsOpen(false);
+          setSearch("");
+        } else if (!searchable || !search) {
+          setIsOpen(false);
+        }
+        break;
+      case "Escape":
+        e.preventDefault();
+        setIsOpen(false);
+        setSearch("");
+        break;
+      default:
+        break;
+    }
+  };
+
   return (
     <div className="relative" ref={containerRef}>
       <div
@@ -115,14 +172,7 @@ export default function CustomSelect({
           ${error ? "!border-red-500" : ""}
         `}
         onClick={() => setIsOpen(!isOpen)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            setIsOpen(!isOpen);
-          } else if (e.key === "Escape" && isOpen) {
-            setIsOpen(false);
-          }
-        }}
+        onKeyDown={handleKeyDown}
       >
         <div className="flex items-center justify-between px-4 py-3 h-full">
           <span
@@ -186,9 +236,9 @@ export default function CustomSelect({
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === "Escape") {
-                        setIsOpen(false);
-                        setSearch("");
+                      // Let the shared handler process navigation keys
+                      if (["ArrowDown", "ArrowUp", "Enter", "Escape"].includes(e.key)) {
+                        handleKeyDown(e);
                       }
                       e.stopPropagation();
                     }}
@@ -208,7 +258,7 @@ export default function CustomSelect({
               </div>
             )}
 
-            <div className="py-1 my-1 max-h-[250px] overflow-y-auto custom-scrollbar pr-1 mr-1">
+            <div ref={listboxRef} className="py-1 my-1 max-h-[250px] overflow-y-auto custom-scrollbar pr-1 mr-1">
               {searchable && search && filteredOptions.length === 0 && (
                 <div
                   className={`px-5 py-8 text-center text-sm ${isDark ? "text-slate-500" : "text-gray-400"}`}
@@ -224,19 +274,23 @@ export default function CustomSelect({
                     >
                       {option.label}
                     </div>
-                    {option.options.map((subOption) => (
+                    {option.options.map((subOption) => {
+                      const flatIndex = selectableOptions.findIndex((o) => o.value === subOption.value);
+                      return (
                       <div
                         key={subOption.value}
+                        data-index={flatIndex}
                         onClick={() => {
                           onChange(subOption.value);
                           setIsOpen(false);
                           setSearch("");
                         }}
+                        onMouseEnter={() => setFocusedIndex(flatIndex)}
                         className={`
                           px-4 py-2.5 mx-1.5 my-0.5 text-sm font-bold cursor-pointer transition-all duration-200 pl-8 rounded-xl
                           flex items-center justify-between
                           ${
-                            subOption.value === value
+                            focusedIndex === flatIndex || subOption.value === value
                               ? isDark
                                 ? "bg-green-500/20 text-green-400"
                                 : "bg-green-50 text-green-700"
@@ -265,21 +319,26 @@ export default function CustomSelect({
                           </motion.svg>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
-                ) : (
+                ) : (() => {
+                  const flatIndex = selectableOptions.findIndex((o) => o.value === option.value);
+                  return (
                   <div
                     key={option.value}
+                    data-index={flatIndex}
                     onClick={() => {
                       onChange(option.value);
                       setIsOpen(false);
                       setSearch("");
                     }}
+                    onMouseEnter={() => setFocusedIndex(flatIndex)}
                     className={`
                       px-4 py-2.5 mx-1.5 my-0.5 text-sm font-bold cursor-pointer transition-all duration-200 rounded-xl
                       flex items-center justify-between
                       ${
-                        option.value === value
+                        focusedIndex === flatIndex || option.value === value
                           ? isDark
                             ? "bg-green-500/20 text-green-400"
                             : "bg-green-50 text-green-700"
@@ -308,7 +367,8 @@ export default function CustomSelect({
                       </motion.svg>
                     )}
                   </div>
-                ),
+                  );
+                })()
               )}
             </div>
           </motion.div>
