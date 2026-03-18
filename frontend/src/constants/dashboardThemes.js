@@ -74,3 +74,12 @@ export function getStudentTheme(isDarkMode) {
     dashboardTitle: "Student Dashboard",
   };
 }
+
+export function getSuperAdminTheme(isDarkMode) {
+  return {
+    ...baseTheme(isDarkMode),
+    name: "Smart Clearance",
+    abbrev: "SA",
+    dashboardTitle: "Super Admin Dashboard",
+  };
+}

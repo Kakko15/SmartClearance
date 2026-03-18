@@ -222,15 +222,15 @@ export default function LibraryAdminDashboard({
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold text-gray-900">
+            <h2 className={`text-3xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
               Library Clearance
             </h2>
-            <p className="text-gray-500 mt-1">
+            <p className={`mt-1 ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
               Review student library obligations and book returns
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="px-4 py-2 rounded-xl border text-amber-600 bg-amber-50 border-amber-200 text-center">
+            <div className={`px-4 py-2 rounded-xl border text-center ${isDarkMode ? "text-amber-400 bg-amber-500/10 border-amber-500/20" : "text-amber-600 bg-amber-50 border-amber-200"}`}>
               <div className="text-xl font-bold">{requests.length}</div>
               <div className="text-xs font-medium">Pending</div>
             </div>
@@ -314,25 +314,25 @@ export default function LibraryAdminDashboard({
             </div>
           </div>
         ) : requests.length === 0 ? (
-          <GlassCard className="p-12 text-center">
+          <GlassCard className="p-12 text-center" isDark={isDarkMode}>
             <motion.div
               initial={{ scale: 0.8 }}
               animate={{ scale: 1 }}
-              className="w-20 h-20 rounded-2xl bg-violet-50 flex items-center justify-center mx-auto mb-5"
+              className={`w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-5 ${isDarkMode ? "bg-violet-500/10" : "bg-violet-50"}`}
             >
-              <InboxStackIcon className="w-10 h-10 text-violet-400" />
+              <InboxStackIcon className={`w-10 h-10 ${isDarkMode ? "text-violet-400" : "text-violet-400"}`} />
             </motion.div>
-            <h3 className="text-xl font-bold mb-2 text-gray-900">
+            <h3 className={`text-xl font-bold mb-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
               No Pending Clearances
             </h3>
-            <p className="text-gray-500">
+            <p className={isDarkMode ? "text-gray-400" : "text-gray-500"}>
               All library clearance requests have been processed.
             </p>
           </GlassCard>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
+              <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
                 Student Requests
               </h3>
               <AnimatePresence mode="popLayout">
@@ -367,10 +367,10 @@ export default function LibraryAdminDashboard({
                           {req.student?.full_name?.charAt(0) || "?"}
                         </div>
                         <div className="flex-1">
-                          <h4 className="font-bold text-sm text-gray-900">
+                          <h4 className={`font-bold text-sm ${isDarkMode ? "text-white" : "text-gray-900"}`}>
                             {req.student?.full_name || "Unknown Student"}
                           </h4>
-                          <p className="text-xs text-gray-500">
+                          <p className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
                             {req.student?.student_number || ""}
                           </p>
                         </div>
@@ -383,20 +383,20 @@ export default function LibraryAdminDashboard({
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+              <h3 className={`text-sm font-semibold uppercase tracking-wider mb-3 ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
                 Review Panel
               </h3>
               {selectedRequest ? (
-                <GlassCard className="p-5">
+                <GlassCard className="p-5" isDark={isDarkMode}>
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-12 h-12 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg">
                       {selectedRequest.student?.full_name?.charAt(0) || "?"}
                     </div>
                     <div>
-                      <h3 className="font-bold text-gray-900">
+                      <h3 className={`font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
                         {selectedRequest.student?.full_name}
                       </h3>
-                      <p className="text-sm text-gray-500">
+                      <p className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
                         {selectedRequest.student?.student_number}
                       </p>
                     </div>
@@ -408,13 +408,14 @@ export default function LibraryAdminDashboard({
                         requestId={selectedRequest.id}
                         userRole="librarian"
                         userId={adminId}
+                        isDarkMode={isDarkMode}
                       />
                     </div>
                   )}
 
                   <div className="mb-4">
-                    <label className="text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
-                      <ChatBubbleIcon className="w-4 h-4 text-gray-400" />
+                    <label className={`text-sm font-medium mb-1.5 flex items-center gap-2 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                      <ChatBubbleIcon className={`w-4 h-4 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`} />
                       Add Comment
                     </label>
                     <textarea
@@ -422,7 +423,7 @@ export default function LibraryAdminDashboard({
                       value={comments}
                       onChange={(e) => setComments(e.target.value)}
                       rows={3}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white/60 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all resize-none"
+                      className={`w-full px-4 py-3 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all resize-none ${isDarkMode ? "bg-slate-800 border-slate-600 text-white placeholder-gray-500" : "bg-white/60 border-gray-200 text-gray-900"}`}
                     />
                   </div>
 
@@ -450,11 +451,11 @@ export default function LibraryAdminDashboard({
                   </div>
                 </GlassCard>
               ) : (
-                <GlassCard className="p-8 text-center">
-                  <div className="w-16 h-16 rounded-2xl bg-violet-50 flex items-center justify-center mx-auto mb-4">
-                    <UserIcon className="w-8 h-8 text-violet-400" />
+                <GlassCard className="p-8 text-center" isDark={isDarkMode}>
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 ${isDarkMode ? "bg-violet-500/10" : "bg-violet-50"}`}>
+                    <UserIcon className={`w-8 h-8 ${isDarkMode ? "text-violet-400" : "text-violet-400"}`} />
                   </div>
-                  <p className="text-gray-500 text-sm">
+                  <p className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
                     Select a student to review their request
                   </p>
                 </GlassCard>

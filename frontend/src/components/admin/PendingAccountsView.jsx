@@ -158,15 +158,33 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
     return isDark ? "bg-red-500/10 border-red-500/30" : "bg-red-50 border-red-200";
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <svg className="animate-spin h-8 w-8 text-blue-500" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-        </svg>
+  const renderSkeleton = () => (
+    <div className="space-y-6 animate-pulse">
+      <div className="flex items-center justify-between">
+        <div className={`h-8 w-64 rounded-lg ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`}></div>
+        <div className={`h-10 w-32 rounded-full ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`}></div>
       </div>
-    );
+      <div className="grid gap-6">
+        {[1, 2, 3].map(i => (
+          <div key={i} className={`p-6 rounded-2xl border ${isDark ? "bg-[#282a2d] border-[#3c4043]" : "bg-white border-gray-200"}`}>
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex gap-4">
+                <div className={`w-16 h-16 rounded-full ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`}></div>
+                <div className="space-y-2 py-1">
+                  <div className={`h-5 w-40 rounded ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`}></div>
+                  <div className={`h-3 w-32 rounded bg-opacity-50 ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`}></div>
+                </div>
+              </div>
+              <div className={`h-8 w-24 rounded-full ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`}></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  if (loading) {
+    return renderSkeleton();
   }
 
   if (pendingAccounts.length === 0) {

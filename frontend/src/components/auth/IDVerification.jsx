@@ -131,8 +131,6 @@ export default function IDVerification({ onVerified, isDark, firstName, lastName
 
       if (studentNumber) {
         const ocrRaw = idVerification.details?.extractedText || '';
-        console.log('[ID Verify] OCR extracted text:', JSON.stringify(ocrRaw));
-        console.log('[ID Verify] Student number entered:', studentNumber);
 
         // Strip everything except digits and letters, then lowercase
         const normalize = (s) => s.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
@@ -152,7 +150,6 @@ export default function IDVerification({ onVerified, isDark, firstName, lastName
         for (const pattern of idNumberPatterns) {
           const matches = ocrRaw.match(pattern);
           if (matches) {
-            console.log('[ID Verify] Regex matches found:', matches);
             for (const m of matches) {
               const extracted = normalize(m);
               const extractedDigits = digitsOnly(m);
@@ -168,7 +165,6 @@ export default function IDVerification({ onVerified, isDark, firstName, lastName
                   if (formDigits[i] !== extractedDigits[i]) diff++;
                 }
                 if (diff <= 1) {
-                  console.log(`[ID Verify] Fuzzy match: "${extractedDigits}" ~ "${formDigits}" (${diff} char diff)`);
                   matchFound = true;
                   break;
                 }
@@ -191,7 +187,6 @@ export default function IDVerification({ onVerified, isDark, firstName, lastName
           const yearPrefix = formDigits.substring(0, 2);
           const ocrDigits = digitsOnly(ocrRaw);
           if (hasStudentLabel && ocrDigits.includes(yearPrefix)) {
-            console.log('[ID Verify] Matched via student label + year prefix');
             matchFound = true;
           }
         }

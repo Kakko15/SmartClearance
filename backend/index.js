@@ -40,7 +40,8 @@ const adminAccountRoutes = require("./routes/adminAccountRoutes");
 const twoFactorRoutes = require("./routes/twoFactorRoutes");
 const secretCodeRoutes = require("./routes/secretCodeRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
-
+const analyticsRoutes = require("./routes/analyticsRoutes");
+const profileRoutes = require("./routes/profileRoutes");
 app.use("/api/requests", requestRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/auth/2fa", twoFactorRoutes);
@@ -54,7 +55,8 @@ app.use("/api/graduation", graduationRoutes);
 app.use("/api/admin", adminAccountRoutes);
 app.use("/api/admin/secret-codes", secretCodeRoutes);
 app.use("/api/notifications", notificationRoutes);
-
+app.use("/api/analytics", analyticsRoutes);
+app.use("/api/profile", profileRoutes);
 // Centralized error handler — must be after all routes
 const errorHandler = require("./middleware/errorHandler");
 app.use(errorHandler);

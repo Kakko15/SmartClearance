@@ -281,15 +281,6 @@ export default function SignupFormWithFaceVerification({
           similarity: similarity,
         },
       };
-      console.log("[Signup] Payload check:", {
-        email: payload.email || '✗ EMPTY',
-        password: payload.password ? '✓ has value' : '✗ EMPTY',
-        firstName: payload.firstName || '✗ EMPTY',
-        lastName: payload.lastName || '✗ EMPTY',
-        studentNumber: payload.studentNumber || '✗ EMPTY',
-        courseYear: payload.courseYear || '✗ EMPTY',
-        recaptchaToken: payload.recaptchaToken ? '✓ has value' : '✗ EMPTY/NULL',
-      });
 
       const response = await fetch(
         `${import.meta.env.VITE_API_URL}/auth/signup-student`,

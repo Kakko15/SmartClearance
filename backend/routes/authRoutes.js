@@ -584,7 +584,6 @@ router.post("/verify-recaptcha", async (req, res) => {
 
 router.post("/signup-student", signupLimiter, async (req, res) => {
   try {
-    console.log("signup-student req.body keys:", Object.keys(req.body || {}));
     const {
       email,
       password,
@@ -604,7 +603,6 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
       !studentNumber ||
       !courseYear
     ) {
-      console.log("Missing fields check:", { email: !!email, password: !!password, firstName: !!firstName, lastName: !!lastName, studentNumber: !!studentNumber, courseYear: !!courseYear });
       return res.status(400).json({
         success: false,
         error: "Missing required fields",
@@ -647,6 +645,21 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
     const pwCheck = validatePassword(password);
     if (!pwCheck.valid) {
       return res.status(400).json({ success: false, error: pwCheck.error });
+    }
+
+    // Pre-check: ensure student number and email aren't already taken BEFORE
+    // creating the auth user. This avoids creating orphan auth users.
+    const { data: existingProfile } = await supabase
+      .from("profiles")
+      .select("id, student_number")
+      .or(`student_number.eq.${studentNumber.trim().toUpperCase()}`)
+      .maybeSingle();
+
+    if (existingProfile) {
+      return res.status(409).json({
+        success: false,
+        error: "This student number is already registered. If this is your account, please sign in instead. Otherwise, contact the registrar.",
+      });
     }
 
     const similarity = faceVerification.similarity;

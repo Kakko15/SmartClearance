@@ -29,6 +29,27 @@ router.get("/pending-accounts", requireAuth, async (req, res) => {
   }
 });
 
+router.get("/all-users", requireAuth, async (req, res) => {
+  try {
+    const { data: admin } = await supabase.from("profiles").select("role").eq("id", req.user.id).single();
+    if (!admin || admin.role !== "super_admin") {
+      return res.status(403).json({ success: false, error: "Unauthorized" });
+    }
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+
+    res.json({ success: true, users: data });
+  } catch (error) {
+    console.error("Error fetching all users:", error);
+    res.status(500).json({ success: false, error: "Failed to fetch users" });
+  }
+});
+
 router.post("/approve-account", requireAuth, async (req, res) => {
   try {
     const { userId } = req.body;

@@ -51,7 +51,7 @@ function DashboardContent(props) {
   if (profile.role === "registrar") return <RegistrarDashboard adminId={user.id} user={user} {...dp} {...sp} />;
   if (profile.role === "signatory") return <SignatoryDashboard professorId={user.id} professorInfo={profile} user={user} {...dp} {...sp} />;
   if (profile.role === "student") return <StudentDashboardGraduation studentId={user.id} studentInfo={profile} user={user} {...dp} {...sp} />;
-  if (profile.role === "super_admin") return <SuperAdminDashboard adminId={user.id} adminRole={profile.role} onSignOut={handleSignOut} />;
+  if (profile.role === "super_admin") return <SuperAdminDashboard adminId={user.id} adminRole={profile.role} isDarkMode={isDarkMode} toggleTheme={toggleTheme} {...dp} {...sp} />;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">

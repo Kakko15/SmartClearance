@@ -111,8 +111,6 @@ export function compareFaces(descriptor1, descriptor2) {
       Math.min(100, (1 - (distance * distance) / 1.8) * 100),
     );
 
-    console.log(`[Face Compare] distance=${distance.toFixed(4)}, similarity=${similarity.toFixed(1)}%`);
-
     const isMatch = similarity >= 90;
 
     return {
