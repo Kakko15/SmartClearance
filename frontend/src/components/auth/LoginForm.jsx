@@ -689,7 +689,7 @@ export default function LoginForm({ isDark, onLoginSuccess, selectedRole, initia
                       >
                         <span className="block truncate pr-3">{savedEmail}</span>
                       </button>
-                      <div className="group/delete relative mr-3 flex-shrink-0">
+                      <div className="mr-3 flex-shrink-0">
                         <button
                           type="button"
                           aria-label={`Delete saved email ${savedEmail}`}
@@ -698,29 +698,31 @@ export default function LoginForm({ isDark, onLoginSuccess, selectedRole, initia
                             event.stopPropagation();
                             handleDeleteSavedEmail(savedEmail);
                           }}
-                          className={`inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
-                            activeSavedEmailIndex === index
-                              ? "text-slate-200 hover:bg-white/10 hover:text-white"
-                              : "text-slate-400 group-hover:text-slate-200 hover:bg-white/10 hover:text-white"
+                          className={`group/btn flex h-8 items-center justify-center overflow-hidden rounded-full transition-all duration-300 ease-out ${
+                            isDark
+                              ? "bg-transparent hover:bg-red-500/20 text-slate-400 hover:text-red-400"
+                              : "bg-transparent hover:bg-red-100 text-gray-400 hover:text-red-600"
                           }`}
                         >
-                          <svg
-                            className="h-5 w-5"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M6 6l12 12M18 6L6 18"
-                            />
-                          </svg>
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center">
+                            <svg
+                              className="h-4 w-4"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M6 6l12 12M18 6L6 18"
+                              />
+                            </svg>
+                          </div>
+                          <span className="max-w-0 overflow-hidden whitespace-nowrap text-[11px] font-bold uppercase tracking-wider opacity-0 transition-all duration-300 ease-out group-hover/btn:max-w-[80px] group-hover/btn:opacity-100 group-hover/btn:pr-3">
+                            Delete
+                          </span>
                         </button>
-                        <span className="pointer-events-none absolute left-full top-1/2 z-40 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-900 opacity-0 shadow-lg transition-opacity duration-150 group-hover/delete:opacity-100 group-focus-within/delete:opacity-100">
-                          Delete entry
-                        </span>
                       </div>
                     </div>
                   ))}
