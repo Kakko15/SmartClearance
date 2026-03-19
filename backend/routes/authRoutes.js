@@ -684,7 +684,7 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
     if (!STUDENT_NUMBER_PATTERN.test(normalizedStudentNumber)) {
       return res.status(400).json({
         success: false,
-        error: "Invalid student number format. Use 23-2984 or 23-2984-TS.",
+        error: "Invalid student number format. Use format: [Year]-[Digits] (e.g., 23-1234 or 23-1234-TS)",
       });
     }
 

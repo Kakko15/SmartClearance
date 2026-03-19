@@ -487,7 +487,7 @@ router.post("/verify-reset", requireAuth, requireMatchingUserId, verifyTotpLimit
     // Verification passed — now commit the new secret to the profile
     const { error } = await supabase
       .from("profiles")
-      .update({ totp_secret: pending.tokenValue })
+      .update({ totp_secret: pending.tokenValue, totp_enabled: true })
       .eq("id", userId);
 
     if (error) {

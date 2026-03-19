@@ -80,8 +80,8 @@ export default function StudentRequestHistory({ studentId, isDarkMode = false })
             className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
               filter === f.id
                 ? isDarkMode
-                  ? "bg-[#8ab4f8] text-[#202124]"
-                  : "bg-[#1a73e8] text-white"
+                  ? "bg-primary-400 text-[#202124]"
+                  : "bg-primary-600 text-white"
                 : isDarkMode
                   ? "bg-[#3c4043] text-[#e8eaed] hover:bg-[#4c4f53]"
                   : "bg-[#f1f3f4] text-[#5f6368] hover:bg-[#e8eaed]"
@@ -94,8 +94,8 @@ export default function StudentRequestHistory({ studentId, isDarkMode = false })
 
       {filtered.length === 0 ? (
         <GlassCard isDark={isDarkMode} className="p-12 text-center rounded-2xl">
-          <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${isDarkMode ? "bg-[#3c4043]" : "bg-[#f1f3f4]"}`}>
-            <InboxStackIcon className={`w-8 h-8 ${isDarkMode ? "text-[#8ab4f8]" : "text-[#1a73e8]"}`} />
+          <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${isDarkMode ? "bg-primary-900/20" : "bg-primary-50"}`}>
+            <InboxStackIcon className={`w-8 h-8 ${isDarkMode ? "text-primary-400" : "text-primary-600"}`} />
           </div>
           <h3 className={`text-lg font-medium mb-1 ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}
               style={{ fontFamily: "Google Sans, sans-serif" }}>
@@ -122,14 +122,14 @@ export default function StudentRequestHistory({ studentId, isDarkMode = false })
                         ? isDarkMode ? "bg-emerald-500/10" : "bg-emerald-50"
                         : r.current_status === "on_hold"
                           ? isDarkMode ? "bg-red-500/10" : "bg-red-50"
-                          : isDarkMode ? "bg-blue-500/10" : "bg-blue-50"
+                          : isDarkMode ? "bg-yellow-500/10" : "bg-yellow-50"
                     }`}>
                       {r.is_completed ? (
                         <CheckCircleIcon className={`w-5 h-5 ${isDarkMode ? "text-emerald-400" : "text-emerald-600"}`} />
                       ) : r.current_status === "on_hold" ? (
                         <XCircleIcon className={`w-5 h-5 ${isDarkMode ? "text-red-400" : "text-red-600"}`} />
                       ) : (
-                        <ClockIcon className={`w-5 h-5 ${isDarkMode ? "text-blue-400" : "text-blue-600"}`} />
+                        <ClockIcon className={`w-5 h-5 ${isDarkMode ? "text-yellow-400" : "text-yellow-600"}`} />
                       )}
                     </div>
                     <div className="min-w-0">
@@ -180,3 +180,4 @@ export default function StudentRequestHistory({ studentId, isDarkMode = false })
     </div>
   );
 }
+

@@ -4,9 +4,7 @@ import { verifyStudentID, validateImageQuality } from '../../services/idVerifica
 import { detectFace } from '../../services/faceVerification';
 
 const STUDENT_NUMBER_INPUT_PATTERN = /^\d{2}-\d{3,5}(?:-[A-Z]{1,3})?$/;
-const SHOW_OCR_DEBUG =
-  typeof window !== 'undefined' &&
-  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+const SHOW_OCR_DEBUG = false;
 const OCR_DIGIT_SUBSTITUTIONS = {
   O: '0',
   Q: '0',
@@ -377,7 +375,7 @@ export default function IDVerification({ onVerified, isDark, firstName, lastName
         if (!STUDENT_NUMBER_INPUT_PATTERN.test(expectedStudentNumber)) {
           setVerificationResult({
             success: false,
-            message: 'Invalid student number format. Use 23-2984 or 23-2984-TS.',
+            message: 'Invalid student number format. Use format: [Year]-[Digits] (e.g., 23-1234 or 23-1234-TS)',
           });
           setUploading(false);
           return;
@@ -391,7 +389,7 @@ export default function IDVerification({ onVerified, isDark, firstName, lastName
             : '';
           setVerificationResult({
             success: false,
-            message: `Student number mismatch! "${studentNumber}" does not match the student number on your ID. Enter your exact student number (e.g., 23-2984-TS if you are a transferee).${debugText}`
+            message: `Student number mismatch! "${studentNumber}" does not match the student number on your ID. Enter your exact student number (e.g., 23-1234-TS if you are a transferee).${debugText}`
           });
           setUploading(false);
           return;

@@ -597,15 +597,15 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
             />
           </SpotlightBorder>
           <div className="absolute right-12 top-1/2 -translate-y-1/2 pointer-events-none flex items-center justify-center">
-            <AnimatePresence mode="wait">
+            <AnimatePresence>
               {password && confirmPassword && password === confirmPassword ? (
                 <motion.div
                   key="pw-match"
                   initial={{ scale: 0, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0, opacity: 0 }}
-                  transition={{ type: "spring", stiffness: 400, damping: 17 }}
-                  className="text-green-500"
+                  transition={{ type: "spring", stiffness: 600, damping: 20 }}
+                  className="text-green-500 absolute"
                 >
                   <svg
                     className="w-6 h-6"
@@ -629,8 +629,8 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
                   initial={{ scale: 0, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0, opacity: 0 }}
-                  transition={{ type: "spring", stiffness: 400, damping: 17 }}
-                  className="text-red-500"
+                  transition={{ type: "spring", stiffness: 600, damping: 20 }}
+                  className="text-red-500 absolute"
                 >
                   <svg
                     className="w-6 h-6"
@@ -740,15 +740,15 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
             />
           </SpotlightBorder>
           <div className="absolute right-12 top-1/2 -translate-y-1/2 pointer-events-none flex items-center justify-center">
-            <AnimatePresence mode="wait">
+            <AnimatePresence>
               {password && confirmPassword && password === confirmPassword ? (
                 <motion.div
                   key="cp-match"
                   initial={{ scale: 0, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0, opacity: 0 }}
-                  transition={{ type: "spring", stiffness: 400, damping: 17 }}
-                  className="text-green-500"
+                  transition={{ type: "spring", stiffness: 600, damping: 20 }}
+                  className="text-green-500 absolute"
                 >
                   <svg
                     className="w-6 h-6"
@@ -772,8 +772,8 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
                   initial={{ scale: 0, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0, opacity: 0 }}
-                  transition={{ type: "spring", stiffness: 400, damping: 17 }}
-                  className="text-red-500"
+                  transition={{ type: "spring", stiffness: 600, damping: 20 }}
+                  className="text-red-500 absolute"
                 >
                   <svg
                     className="w-6 h-6"

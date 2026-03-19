@@ -214,6 +214,26 @@ export default function SignupFormWithFaceVerification({
   // Keep password in a ref as backup 
   const passwordRef = useRef(formData.password);
 
+  const handleClearFields = () => {
+    setFormData({
+      firstName: "",
+      lastName: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+      studentNumber: "",
+      course: "",
+      yearLevel: "",
+    });
+    setTouched({});
+    setEmailError("");
+    if (recaptchaRef.current) {
+      recaptchaRef.current.reset();
+    }
+    setRecaptchaToken(null);
+    setRecaptchaExpired(false);
+  };
+
   const handleBlur = (field) => {
     setTouched((prev) => ({ ...prev, [field]: true }));
   };
@@ -241,7 +261,7 @@ export default function SignupFormWithFaceVerification({
       case "studentNumber":
         if (!val || !val.trim()) return "Student number is required.";
         if (!STUDENT_NUMBER_PATTERN.test(val.trim().toUpperCase().replace(/[–—]/g, "-"))) {
-          return "Use format 23-2984 or 23-2984-TS.";
+          return "Use format: [Year]-[Digits] (e.g., 23-1234 or 23-1234-TS)";
         }
         break;
       case "course":
@@ -1050,7 +1070,7 @@ export default function SignupFormWithFaceVerification({
                   })
                 }
                 onBlur={() => handleBlur("studentNumber")}
-                placeholder="e.g., 21-3243 or 23-3174-TS"
+                placeholder="e.g., 23-1234 or 23-1234-TS"
                 required
                 className={`w-full border rounded-xl px-4 py-3 outline-none ${
                   isDark
@@ -1156,6 +1176,20 @@ export default function SignupFormWithFaceVerification({
               reCAPTCHA expired. Please re-verify above.
             </p>
           )}
+
+          <div className="flex justify-end mb-4">
+            <button
+              type="button"
+              onClick={handleClearFields}
+              className={`text-sm font-semibold rounded px-4 py-2 transition-colors ${
+                isDark 
+                  ? "text-blue-400 hover:bg-slate-800" 
+                  : "text-blue-600 hover:bg-blue-50"
+              }`}
+            >
+              Clear form
+            </button>
+          </div>
 
           <button
             type="submit"

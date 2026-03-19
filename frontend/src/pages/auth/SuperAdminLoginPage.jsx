@@ -143,7 +143,7 @@ export default function SuperAdminLoginPage() {
                   required
                   autoComplete="current-password"
                   className="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 pr-10 text-sm text-white placeholder-slate-500 outline-none transition-colors focus:border-green-500 caret-green-500"
-                  placeholder="••••••••"
+                  placeholder=" "
                 />
                 <button
                   type="button"
