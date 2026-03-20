@@ -7,7 +7,6 @@ const supabase = createClient(
 );
 
 const accounts = [
-  // Super Admin (management role — seeded only, no signup)
   {
     name: "Super Admin",
     email: "superadmin@isu.edu.ph",
@@ -15,7 +14,6 @@ const accounts = [
     role: "super_admin",
   },
 
-  // Signatories (formerly "professor") — each with a designation
   {
     name: "Department Chairman",
     email: "chairman@isu.edu.ph",
@@ -59,7 +57,6 @@ const accounts = [
     designation: "Dean of Graduate School",
   },
 
-  // Staff roles (renamed from *_admin)
   {
     name: "Campus Librarian",
     email: "librarian@isu.edu.ph",
@@ -175,7 +172,9 @@ async function createAccounts() {
       };
       if (acct.designation) profileData.designation = acct.designation;
 
-      const { error: profileError } = await supabase.from("profiles").insert(profileData);
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .insert(profileData);
 
       if (profileError) {
         console.log(
@@ -212,19 +211,21 @@ async function createAccounts() {
     };
     if (acct.designation) profileData.designation = acct.designation;
 
-    const { error: profileError } = await supabase.from("profiles").insert(profileData);
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .insert(profileData);
 
     if (profileError) {
-      console.log(
-        `  Profile failed for ${acct.name}: ${profileError.message}`,
-      );
+      console.log(`  Profile failed for ${acct.name}: ${profileError.message}`);
 
       await supabase.auth.admin.deleteUser(authData.user.id);
       failed++;
       continue;
     }
 
-    console.log(`  Created: ${acct.name} (${acct.email}) - ${acct.role}${acct.designation ? ` [${acct.designation}]` : ""}`);
+    console.log(
+      `  Created: ${acct.name} (${acct.email}) - ${acct.role}${acct.designation ? ` [${acct.designation}]` : ""}`,
+    );
     created++;
   }
 

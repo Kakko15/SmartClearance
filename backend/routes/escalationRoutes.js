@@ -129,7 +129,8 @@ router.get("/history/:request_id", requireAuth, async (req, res) => {
       .single();
 
     const isOwner = request.student_id === user_id;
-    const isAdmin = isStaffRole(userProfile?.role) || isManagementRole(userProfile?.role);
+    const isAdmin =
+      isStaffRole(userProfile?.role) || isManagementRole(userProfile?.role);
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({

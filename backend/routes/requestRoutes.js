@@ -11,7 +11,11 @@ const {
 const { generateCertificate } = require("../services/certificateService");
 const { classifyAndRouteRequest } = require("../services/aiRequestRouter");
 const { requireAuth } = require("../middleware/authMiddleware");
-const { ROLES, isClearanceRole, isManagementRole } = require("../constants/roles");
+const {
+  ROLES,
+  isClearanceRole,
+  isManagementRole,
+} = require("../constants/roles");
 
 async function getUserRole(userId) {
   const { data, error } = await supabase
@@ -24,7 +28,6 @@ async function getUserRole(userId) {
   return data.role;
 }
 
-/** Map role key to display name for history logs */
 const ROLE_DISPLAY = {
   [ROLES.LIBRARIAN]: "Librarian",
   [ROLES.CASHIER]: "Cashier",
@@ -35,10 +38,12 @@ const ROLE_DISPLAY = {
 
 function formatRoleDisplay(role) {
   if (!role) return "Staff";
-  return ROLE_DISPLAY[role] || role.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return (
+    ROLE_DISPLAY[role] ||
+    role.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+  );
 }
 
-/** Map a clearance stage name to the role that handles it */
 const STAGE_TO_ROLE = {
   library: ROLES.LIBRARIAN,
   cashier: ROLES.CASHIER,
@@ -66,15 +71,15 @@ async function logHistory(
 router.post("/create", requireAuth, async (req, res) => {
   try {
     const student_id = req.user.id;
-    const { 
-      doc_type_id, 
+    const {
+      doc_type_id,
       request_details,
       clearance_intent,
       clearance_intent_others,
       thesis_title,
       semesters_enrolled,
       summers_enrolled,
-      student_agreement_accepted
+      student_agreement_accepted,
     } = req.body;
 
     console.log("Initiating AI request classification...");
@@ -106,15 +111,14 @@ router.post("/create", requireAuth, async (req, res) => {
         current_status: "pending",
         current_stage_index: 0,
         is_completed: false,
-        // New Academic / Form 07 Fields
+
         clearance_intent: clearance_intent || [],
         clearance_intent_others: clearance_intent_others || null,
         thesis_title: thesis_title || null,
         semesters_enrolled: semesters_enrolled || null,
         summers_enrolled: summers_enrolled || null,
         student_agreement_accepted: student_agreement_accepted || false,
-        
-        // BUG 4 FIX: Set last_activity_at on creation
+
         last_activity_at: now,
 
         ai_classified: aiResult.success,
@@ -136,7 +140,6 @@ router.post("/create", requireAuth, async (req, res) => {
 
     if (error) throw error;
 
-    // BUG 3 FIX: Call with correct 2-param signature (was passing unused 3rd arg)
     await notifyRequestSubmitted(data.id, student_id);
 
     res.json({
@@ -201,9 +204,9 @@ router.post("/:id/approve", requireAuth, async (req, res) => {
         current_status: isLastStage ? "completed" : "approved",
         is_completed: isLastStage,
         updated_at: now,
-        // BUG 4 FIX: Update last_activity_at on every status change
+
         last_activity_at: now,
-        // L17 FIX: Clear escalation flags when request is approved
+
         escalated: false,
         escalated_at: null,
         escalation_level: null,
@@ -233,7 +236,6 @@ router.post("/:id/approve", requireAuth, async (req, res) => {
     if (isLastStage) {
       await generateCertificate(id);
     } else {
-      // Notify the staff at the next stage that a request is waiting
       const nextStage = request.document_types.required_stages[nextStageIndex];
       notifyNextStageStaff(id, nextStage);
     }
@@ -290,7 +292,7 @@ router.post("/:id/reject", requireAuth, async (req, res) => {
       .update({
         current_status: "on_hold",
         updated_at: now,
-        // BUG 4 FIX: Update last_activity_at on reject
+
         last_activity_at: now,
       })
       .eq("id", id)
@@ -348,7 +350,7 @@ router.post("/:id/resubmit", requireAuth, async (req, res) => {
       .update({
         current_status: "pending",
         updated_at: now,
-        // BUG 4 FIX: Update last_activity_at on resubmit
+
         last_activity_at: now,
       })
       .eq("id", id)
@@ -366,8 +368,8 @@ router.post("/:id/resubmit", requireAuth, async (req, res) => {
       "Student resubmitted request",
     );
 
-    // Notify student + staff at current stage
-    const currentStage = request.document_types.required_stages[request.current_stage_index];
+    const currentStage =
+      request.document_types.required_stages[request.current_stage_index];
     notifyRequestResubmitted(id, student_id, currentStage);
 
     res.json({
@@ -384,11 +386,15 @@ router.get("/student/:student_id", requireAuth, async (req, res) => {
   try {
     const { student_id } = req.params;
 
-    // L13 FIX: Verify the authenticated user owns this student record
-    // or is a management/clearance role (staff can view for processing)
     const callerRole = await getUserRole(req.user.id);
-    if (req.user.id !== student_id && !isClearanceRole(callerRole) && !isManagementRole(callerRole)) {
-      return res.status(403).json({ success: false, error: "You can only view your own requests" });
+    if (
+      req.user.id !== student_id &&
+      !isClearanceRole(callerRole) &&
+      !isManagementRole(callerRole)
+    ) {
+      return res
+        .status(403)
+        .json({ success: false, error: "You can only view your own requests" });
     }
 
     const { data, error } = await supabase
@@ -409,18 +415,21 @@ router.get("/admin/:role", requireAuth, async (req, res) => {
   try {
     const { role } = req.params;
 
-    // L14 FIX: Verify the caller actually holds the requested role (or is super_admin)
     const callerRole = await getUserRole(req.user.id);
-    if (!callerRole || (callerRole !== role && callerRole !== ROLES.SUPER_ADMIN)) {
-      return res.status(403).json({ success: false, error: "Unauthorized — role mismatch" });
+    if (
+      !callerRole ||
+      (callerRole !== role && callerRole !== ROLES.SUPER_ADMIN)
+    ) {
+      return res
+        .status(403)
+        .json({ success: false, error: "Unauthorized — role mismatch" });
     }
 
-    // Support both old format (library_admin) and new format (librarian)
     const ROLE_TO_STAGE = {
       [ROLES.LIBRARIAN]: "library",
       [ROLES.CASHIER]: "cashier",
       [ROLES.REGISTRAR]: "registrar",
-      // Legacy support
+
       library_admin: "library",
       cashier_admin: "cashier",
       registrar_admin: "registrar",

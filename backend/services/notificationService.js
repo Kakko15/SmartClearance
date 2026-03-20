@@ -12,11 +12,6 @@ const emailTransporter = nodemailer.createTransport({
   },
 });
 
-/**
- * BUG 8 FIX: Resolve a user's email address reliably.
- * The profiles table may not have an email column, so we look up
- * the auth user record which always has the email.
- */
 async function resolveUserEmail(userId) {
   try {
     const {
@@ -30,11 +25,13 @@ async function resolveUserEmail(userId) {
   }
 }
 
-/**
- * F2: Create an in-app notification for a user.
- * This is the primary notification channel; email is the fallback.
- */
-async function createInAppNotification(userId, type, title, message, relatedRequestId = null) {
+async function createInAppNotification(
+  userId,
+  type,
+  title,
+  message,
+  relatedRequestId = null,
+) {
   try {
     await supabase.from("notifications").insert({
       user_id: userId,
@@ -67,13 +64,13 @@ async function sendEmail(userId, requestId, recipient, subject, message) {
 
     logData = data;
 
-    const { buildGoogleEmail, getLogoAttachment } = require("../utils/emailTemplate");
-    const formulatedHtml = buildGoogleEmail(
-      subject, 
-      null, 
-      message,
-      { footerNote: "Please sign in to SmartClearance to view more details." }
-    );
+    const {
+      buildGoogleEmail,
+      getLogoAttachment,
+    } = require("../utils/emailTemplate");
+    const formulatedHtml = buildGoogleEmail(subject, null, message, {
+      footerNote: "Please sign in to SmartClearance to view more details.",
+    });
 
     const info = await emailTransporter.sendMail({
       from: process.env.EMAIL_FROM,
@@ -123,10 +120,11 @@ async function notifyRequestSubmitted(requestId, studentId) {
     const student = request.profiles;
     const docType = request.document_types;
 
-    // BUG 8 FIX: Resolve email from auth record, not profiles table
     const studentEmail = await resolveUserEmail(studentId);
     if (!studentEmail) {
-      console.warn(`Could not resolve email for user ${studentId}, skipping notification`);
+      console.warn(
+        `Could not resolve email for user ${studentId}, skipping notification`,
+      );
       return;
     }
 
@@ -151,7 +149,6 @@ async function notifyRequestSubmitted(requestId, studentId) {
       emailMessage,
     );
 
-    // F2: In-app notification
     await createInAppNotification(
       studentId,
       "info",
@@ -182,10 +179,11 @@ async function notifyRequestApproved(
     const student = request.profiles;
     const docType = request.document_types;
 
-    // BUG 8 FIX: Resolve email from auth record
     const studentEmail = await resolveUserEmail(studentId);
     if (!studentEmail) {
-      console.warn(`Could not resolve email for user ${studentId}, skipping notification`);
+      console.warn(
+        `Could not resolve email for user ${studentId}, skipping notification`,
+      );
       return;
     }
 
@@ -224,7 +222,6 @@ async function notifyRequestApproved(
       emailMessage,
     );
 
-    // F2: In-app notification
     await createInAppNotification(
       studentId,
       isCompleted ? "success" : "info",
@@ -252,10 +249,11 @@ async function notifyRequestRejected(requestId, studentId, stageName, reason) {
     const student = request.profiles;
     const docType = request.document_types;
 
-    // BUG 8 FIX: Resolve email from auth record
     const studentEmail = await resolveUserEmail(studentId);
     if (!studentEmail) {
-      console.warn(`Could not resolve email for user ${studentId}, skipping notification`);
+      console.warn(
+        `Could not resolve email for user ${studentId}, skipping notification`,
+      );
       return;
     }
 
@@ -280,7 +278,6 @@ async function notifyRequestRejected(requestId, studentId, stageName, reason) {
       emailMessage,
     );
 
-    // F2: In-app notification
     await createInAppNotification(
       studentId,
       "warning",
@@ -330,10 +327,11 @@ async function notifyRequestEscalated(requestId, escalationLevel, daysPending) {
       emailMessage,
     );
 
-    // BUG 8 FIX: Resolve student email from auth record
     const studentEmail = await resolveUserEmail(student.id);
     if (!studentEmail) {
-      console.warn(`Could not resolve email for student ${student.id}, skipping student notification`);
+      console.warn(
+        `Could not resolve email for student ${student.id}, skipping student notification`,
+      );
       return;
     }
 
@@ -356,7 +354,6 @@ async function notifyRequestEscalated(requestId, escalationLevel, daysPending) {
       studentEmailMessage,
     );
 
-    // In-app notification for escalation
     await createInAppNotification(
       student.id,
       "info",
@@ -389,7 +386,6 @@ async function notifyNewComment(requestId, commenterId, commentText) {
     const docType = request.document_types;
 
     if (commenterId !== student.id) {
-      // In-app notification for new comment
       await createInAppNotification(
         student.id,
         "info",
@@ -398,10 +394,11 @@ async function notifyNewComment(requestId, commenterId, commentText) {
         requestId,
       );
 
-      // BUG 8 FIX: Resolve student email from auth record
       const studentEmail = await resolveUserEmail(student.id);
       if (!studentEmail) {
-        console.warn(`Could not resolve email for student ${student.id}, skipping comment notification`);
+        console.warn(
+          `Could not resolve email for student ${student.id}, skipping comment notification`,
+        );
         return;
       }
 
@@ -433,15 +430,13 @@ async function notifyNewComment(requestId, commenterId, commentText) {
   }
 }
 
-/**
- * Notify the staff member(s) responsible for the next stage that a request
- * is now waiting for their action.
- */
 async function notifyNextStageStaff(requestId, nextStageName) {
   try {
     const { data: request } = await supabase
       .from("requests")
-      .select("*, document_types(*), profiles!requests_student_id_fkey(full_name, student_number)")
+      .select(
+        "*, document_types(*), profiles!requests_student_id_fkey(full_name, student_number)",
+      )
       .eq("id", requestId)
       .single();
 
@@ -450,7 +445,6 @@ async function notifyNextStageStaff(requestId, nextStageName) {
     const student = request.profiles;
     const docType = request.document_types;
 
-    // Map stage name to the role that handles it
     const STAGE_TO_ROLE = {
       library: "librarian",
       cashier: "cashier",
@@ -458,7 +452,7 @@ async function notifyNextStageStaff(requestId, nextStageName) {
     };
 
     const targetRole = STAGE_TO_ROLE[nextStageName];
-    if (!targetRole) return; // signatory stages are handled differently
+    if (!targetRole) return;
 
     const { data: staffMembers } = await supabase
       .from("profiles")
@@ -482,10 +476,6 @@ async function notifyNextStageStaff(requestId, nextStageName) {
   }
 }
 
-/**
- * Notify the student that their resubmission was received, and notify
- * the staff at the current stage that a request needs re-review.
- */
 async function notifyRequestResubmitted(requestId, studentId, stageName) {
   try {
     const { data: request } = await supabase
@@ -497,7 +487,6 @@ async function notifyRequestResubmitted(requestId, studentId, stageName) {
     if (!request) return;
     const docType = request.document_types;
 
-    // Notify the student
     await createInAppNotification(
       studentId,
       "info",
@@ -506,22 +495,16 @@ async function notifyRequestResubmitted(requestId, studentId, stageName) {
       requestId,
     );
 
-    // Notify staff at the current stage
     await notifyNextStageStaff(requestId, stageName);
   } catch (error) {
     console.error("Error in notifyRequestResubmitted:", error);
   }
 }
 
-/**
- * Send a single digest notification for bulk approve/reject operations
- * instead of one notification per request.
- */
 async function notifyBulkAction(requestIds, action, stageName) {
   try {
     if (!requestIds || requestIds.length === 0) return;
 
-    // Get all affected students in one query
     const { data: requests } = await supabase
       .from("requests")
       .select("id, student_id")
@@ -529,7 +512,6 @@ async function notifyBulkAction(requestIds, action, stageName) {
 
     if (!requests || requests.length === 0) return;
 
-    // Group by student so each student gets one digest notification
     const studentMap = {};
     for (const req of requests) {
       if (!studentMap[req.student_id]) {
@@ -546,13 +528,14 @@ async function notifyBulkAction(requestIds, action, stageName) {
       const title = isApproval
         ? `${stageName} Stage Approved`
         : `Clearance On Hold — ${stageName}`;
-      const message = count === 1
-        ? (isApproval
+      const message =
+        count === 1
+          ? isApproval
             ? `Your graduation clearance has been approved at the ${stageName} stage.`
-            : `Your graduation clearance was placed on hold at the ${stageName} stage.`)
-        : (isApproval
+            : `Your graduation clearance was placed on hold at the ${stageName} stage.`
+          : isApproval
             ? `${count} of your clearance requests were approved at the ${stageName} stage.`
-            : `${count} of your clearance requests were placed on hold at the ${stageName} stage.`);
+            : `${count} of your clearance requests were placed on hold at the ${stageName} stage.`;
 
       await createInAppNotification(studentId, type, title, message, ids[0]);
     }
@@ -561,16 +544,10 @@ async function notifyBulkAction(requestIds, action, stageName) {
   }
 }
 
-/**
- * Check for requests approaching their deadline and send reminder
- * notifications at 5 days and 1 day before expiry.
- * Designed to be called on a scheduled interval (e.g., once per day).
- */
 async function checkDeadlineReminders() {
   try {
     const now = new Date();
 
-    // 5-day reminder window: deadline between 4.5 and 5.5 days from now
     const fiveDayStart = new Date(now);
     fiveDayStart.setDate(fiveDayStart.getDate() + 4);
     fiveDayStart.setHours(12, 0, 0, 0);
@@ -578,14 +555,12 @@ async function checkDeadlineReminders() {
     fiveDayEnd.setDate(fiveDayEnd.getDate() + 5);
     fiveDayEnd.setHours(12, 0, 0, 0);
 
-    // 1-day reminder window: deadline between 0.5 and 1.5 days from now
     const oneDayStart = new Date(now);
     oneDayStart.setHours(oneDayStart.getHours() + 12);
     const oneDayEnd = new Date(now);
     oneDayEnd.setDate(oneDayEnd.getDate() + 1);
     oneDayEnd.setHours(12, 0, 0, 0);
 
-    // Fetch requests with deadlines in the 5-day window
     const { data: fiveDayRequests } = await supabase
       .from("requests")
       .select("id, student_id, deadline, document_types(name)")
@@ -594,7 +569,6 @@ async function checkDeadlineReminders() {
       .gte("deadline", fiveDayStart.toISOString())
       .lte("deadline", fiveDayEnd.toISOString());
 
-    // Fetch requests with deadlines in the 1-day window
     const { data: oneDayRequests } = await supabase
       .from("requests")
       .select("id, student_id, deadline, document_types(name)")

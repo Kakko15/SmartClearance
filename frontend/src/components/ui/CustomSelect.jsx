@@ -57,23 +57,31 @@ export default function CustomSelect({
     return [...acc, opt];
   }, []);
 
-  useEffect(() => {
+  const [prevSearch, setPrevSearch] = useState(search);
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+
+  if (search !== prevSearch || isOpen !== prevIsOpen) {
+    setPrevSearch(search);
+    setPrevIsOpen(isOpen);
     setFocusedIndex(-1);
-  }, [search, isOpen]);
+    if (isOpen !== prevIsOpen && !isOpen) {
+      setSearch("");
+    }
+  }
 
   useEffect(() => {
     if (isOpen && focusedIndex >= 0 && listboxRef.current) {
-      const activeEl = listboxRef.current.querySelector(`[data-index="${focusedIndex}"]`);
+      const activeEl = listboxRef.current.querySelector(
+        `[data-index="${focusedIndex}"]`,
+      );
       if (activeEl) {
         activeEl.scrollIntoView({ block: "nearest" });
       }
     }
   }, [focusedIndex, isOpen]);
 
-  // Focus the search input when dropdown opens
   useEffect(() => {
     if (isOpen && searchable) {
-      // Small delay to let the dropdown animate in
       const t = setTimeout(() => searchInputRef.current?.focus(), 50);
       return () => clearTimeout(t);
     }
@@ -92,10 +100,6 @@ export default function CustomSelect({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  useEffect(() => {
-    if (!isOpen) setSearch("");
-  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen && containerRef.current) {
@@ -130,7 +134,9 @@ export default function CustomSelect({
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault();
-        setFocusedIndex((prev) => (prev < selectableOptions.length - 1 ? prev + 1 : prev));
+        setFocusedIndex((prev) =>
+          prev < selectableOptions.length - 1 ? prev + 1 : prev,
+        );
         break;
       case "ArrowUp":
         e.preventDefault();
@@ -215,7 +221,9 @@ export default function CustomSelect({
             `}
           >
             {searchable && (
-              <div className={`border-b ${isDark ? "border-slate-700" : "border-gray-100"}`}>
+              <div
+                className={`border-b ${isDark ? "border-slate-700" : "border-gray-100"}`}
+              >
                 <div className="flex items-center gap-2 px-4 py-2.5">
                   <svg
                     className={`w-4 h-4 shrink-0 ${isDark ? "text-slate-500" : "text-gray-400"}`}
@@ -236,8 +244,11 @@ export default function CustomSelect({
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     onKeyDown={(e) => {
-                      // Let the shared handler process navigation keys
-                      if (["ArrowDown", "ArrowUp", "Enter", "Escape"].includes(e.key)) {
+                      if (
+                        ["ArrowDown", "ArrowUp", "Enter", "Escape"].includes(
+                          e.key,
+                        )
+                      ) {
                         handleKeyDown(e);
                       }
                       e.stopPropagation();
@@ -250,7 +261,9 @@ export default function CustomSelect({
                     }`}
                   />
                   {search && (
-                    <span className={`text-xs shrink-0 ${isDark ? "text-slate-500" : "text-gray-400"}`}>
+                    <span
+                      className={`text-xs shrink-0 ${isDark ? "text-slate-500" : "text-gray-400"}`}
+                    >
                       {resultCount} result{resultCount !== 1 ? "s" : ""}
                     </span>
                   )}
@@ -258,7 +271,10 @@ export default function CustomSelect({
               </div>
             )}
 
-            <div ref={listboxRef} className="py-1 my-1 max-h-[250px] overflow-y-auto custom-scrollbar pr-1 mr-1">
+            <div
+              ref={listboxRef}
+              className="py-1 my-1 max-h-[250px] overflow-y-auto custom-scrollbar pr-1 mr-1"
+            >
               {searchable && search && filteredOptions.length === 0 && (
                 <div
                   className={`px-5 py-8 text-center text-sm ${isDark ? "text-slate-500" : "text-gray-400"}`}
@@ -275,22 +291,25 @@ export default function CustomSelect({
                       {option.label}
                     </div>
                     {option.options.map((subOption) => {
-                      const flatIndex = selectableOptions.findIndex((o) => o.value === subOption.value);
+                      const flatIndex = selectableOptions.findIndex(
+                        (o) => o.value === subOption.value,
+                      );
                       return (
-                      <div
-                        key={subOption.value}
-                        data-index={flatIndex}
-                        onClick={() => {
-                          onChange(subOption.value);
-                          setIsOpen(false);
-                          setSearch("");
-                        }}
-                        onMouseEnter={() => setFocusedIndex(flatIndex)}
-                        className={`
+                        <div
+                          key={subOption.value}
+                          data-index={flatIndex}
+                          onClick={() => {
+                            onChange(subOption.value);
+                            setIsOpen(false);
+                            setSearch("");
+                          }}
+                          onMouseEnter={() => setFocusedIndex(flatIndex)}
+                          className={`
                           px-4 py-2.5 mx-1.5 my-0.5 text-sm font-bold cursor-pointer transition-all duration-200 pl-8 rounded-xl
                           flex items-center justify-between
                           ${
-                            focusedIndex === flatIndex || subOption.value === value
+                            focusedIndex === flatIndex ||
+                            subOption.value === value
                               ? isDark
                                 ? "bg-green-500/20 text-green-400"
                                 : "bg-green-50 text-green-700"
@@ -299,9 +318,60 @@ export default function CustomSelect({
                                 : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                           }
                         `}
+                        >
+                          {subOption.label}
+                          {subOption.value === value && (
+                            <motion.svg
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              className="w-4 h-4 text-green-500 shrink-0 ml-2"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M5 13l4 4L19 7"
+                              />
+                            </motion.svg>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  (() => {
+                    const flatIndex = selectableOptions.findIndex(
+                      (o) => o.value === option.value,
+                    );
+                    return (
+                      <div
+                        key={option.value}
+                        data-index={flatIndex}
+                        onClick={() => {
+                          onChange(option.value);
+                          setIsOpen(false);
+                          setSearch("");
+                        }}
+                        onMouseEnter={() => setFocusedIndex(flatIndex)}
+                        className={`
+                      px-4 py-2.5 mx-1.5 my-0.5 text-sm font-bold cursor-pointer transition-all duration-200 rounded-xl
+                      flex items-center justify-between
+                      ${
+                        focusedIndex === flatIndex || option.value === value
+                          ? isDark
+                            ? "bg-green-500/20 text-green-400"
+                            : "bg-green-50 text-green-700"
+                          : isDark
+                            ? "text-slate-300 hover:bg-slate-800 hover:text-white"
+                            : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                      }
+                    `}
                       >
-                        {subOption.label}
-                        {subOption.value === value && (
+                        {option.label}
+                        {option.value === value && (
                           <motion.svg
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}
@@ -319,56 +389,9 @@ export default function CustomSelect({
                           </motion.svg>
                         )}
                       </div>
-                      );
-                    })}
-                  </div>
-                ) : (() => {
-                  const flatIndex = selectableOptions.findIndex((o) => o.value === option.value);
-                  return (
-                  <div
-                    key={option.value}
-                    data-index={flatIndex}
-                    onClick={() => {
-                      onChange(option.value);
-                      setIsOpen(false);
-                      setSearch("");
-                    }}
-                    onMouseEnter={() => setFocusedIndex(flatIndex)}
-                    className={`
-                      px-4 py-2.5 mx-1.5 my-0.5 text-sm font-bold cursor-pointer transition-all duration-200 rounded-xl
-                      flex items-center justify-between
-                      ${
-                        focusedIndex === flatIndex || option.value === value
-                          ? isDark
-                            ? "bg-green-500/20 text-green-400"
-                            : "bg-green-50 text-green-700"
-                          : isDark
-                            ? "text-slate-300 hover:bg-slate-800 hover:text-white"
-                            : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                      }
-                    `}
-                  >
-                    {option.label}
-                    {option.value === value && (
-                      <motion.svg
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        className="w-4 h-4 text-green-500 shrink-0 ml-2"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M5 13l4 4L19 7"
-                        />
-                      </motion.svg>
-                    )}
-                  </div>
-                  );
-                })()
+                    );
+                  })()
+                ),
               )}
             </div>
           </motion.div>

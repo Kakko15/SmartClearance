@@ -1,8 +1,6 @@
 const supabase = require("../supabaseClient");
 const { notifyRequestEscalated } = require("./notificationService");
 
-// Guard against DB triggers that may reset professor_approvals to "pending"
-// when the requests table is updated.
 async function snapshotApprovals(requestId) {
   const { data } = await supabase
     .from("professor_approvals")
@@ -22,7 +20,12 @@ async function restoreApprovals(requestId, snapshot) {
     if (now && prev.status !== "pending" && now.status === "pending") {
       await supabase
         .from("professor_approvals")
-        .update({ status: prev.status, comments: prev.comments, approved_at: prev.approved_at, updated_at: new Date().toISOString() })
+        .update({
+          status: prev.status,
+          comments: prev.comments,
+          approved_at: prev.approved_at,
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", prev.id);
     }
   }
@@ -67,7 +70,6 @@ async function checkAndEscalateRequests() {
         let escalationLevel = request.escalation_level || 0;
         escalationLevel += 1;
 
-        // Snapshot professor approvals before updating requests table
         const preSnapshot = await snapshotApprovals(request.id);
 
         const { error: updateError } = await supabase
@@ -81,7 +83,6 @@ async function checkAndEscalateRequests() {
 
         if (updateError) throw updateError;
 
-        // Restore any professor approvals that a DB trigger may have reset
         await restoreApprovals(request.id, preSnapshot);
 
         const { error: historyError } = await supabase
@@ -181,7 +182,6 @@ async function manuallyEscalateRequest(requestId, adminId, reason) {
     let escalationLevel = request.escalation_level || 0;
     escalationLevel += 1;
 
-    // Snapshot professor approvals before updating requests table
     const preSnapshot = await snapshotApprovals(requestId);
 
     const { error: updateError } = await supabase
@@ -195,7 +195,6 @@ async function manuallyEscalateRequest(requestId, adminId, reason) {
 
     if (updateError) throw updateError;
 
-    // Restore any professor approvals that a DB trigger may have reset
     await restoreApprovals(requestId, preSnapshot);
 
     const { error: historyError } = await supabase

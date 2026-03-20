@@ -7,7 +7,6 @@ const { logAction, ACTIONS } = require("../services/auditService");
 
 const { ROLES } = require("../constants/roles");
 
-// Only super_admin can manage secret codes
 async function requireSuperAdmin(req, res, next) {
   const { data: profile } = await supabase
     .from("profiles")
@@ -16,13 +15,14 @@ async function requireSuperAdmin(req, res, next) {
     .single();
 
   if (!profile || profile.role !== ROLES.SUPER_ADMIN) {
-    return res.status(403).json({ success: false, error: "Insufficient permissions" });
+    return res
+      .status(403)
+      .json({ success: false, error: "Insufficient permissions" });
   }
   req.adminRole = profile.role;
   next();
 }
 
-// List all secret codes
 router.get("/", requireAuth, requireSuperAdmin, async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -38,7 +38,6 @@ router.get("/", requireAuth, requireSuperAdmin, async (req, res) => {
   }
 });
 
-// Generate a new secret code
 router.post("/", requireAuth, requireSuperAdmin, async (req, res) => {
   try {
     const { role, description, max_uses = 50, expires_at } = req.body;
@@ -48,9 +47,17 @@ router.post("/", requireAuth, requireSuperAdmin, async (req, res) => {
       return res.status(400).json({ success: false, error: "Invalid role" });
     }
 
-    // Generate a high-entropy code: PREFIX-XXXXXXXX-XXXXXXXX (16 random bytes = 128 bits)
-    const prefix = { signatory: "SIGN", librarian: "LIB", cashier: "CASH", registrar: "REG" }[role];
-    const random = crypto.randomBytes(16).toString("base64url").toUpperCase().slice(0, 16);
+    const prefix = {
+      signatory: "SIGN",
+      librarian: "LIB",
+      cashier: "CASH",
+      registrar: "REG",
+    }[role];
+    const random = crypto
+      .randomBytes(16)
+      .toString("base64url")
+      .toUpperCase()
+      .slice(0, 16);
     const code = `${prefix}-${random.slice(0, 8)}-${random.slice(8)}`;
 
     const { data, error } = await supabase
@@ -69,7 +76,9 @@ router.post("/", requireAuth, requireSuperAdmin, async (req, res) => {
 
     if (error) throw error;
     logAction(req.user.id, ACTIONS.SECRET_CODE_CREATED, {
-      targetId: data.id, targetType: "secret_code", metadata: { role, code },
+      targetId: data.id,
+      targetType: "secret_code",
+      metadata: { role, code },
     });
     res.json({ success: true, code: data });
   } catch (error) {
@@ -78,40 +87,47 @@ router.post("/", requireAuth, requireSuperAdmin, async (req, res) => {
   }
 });
 
-// Toggle active/revoked status
-router.patch("/:id/toggle", requireAuth, requireSuperAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
+router.patch(
+  "/:id/toggle",
+  requireAuth,
+  requireSuperAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
 
-    const { data: existing, error: fetchError } = await supabase
-      .from("admin_secret_codes")
-      .select("is_active")
-      .eq("id", id)
-      .single();
+      const { data: existing, error: fetchError } = await supabase
+        .from("admin_secret_codes")
+        .select("is_active")
+        .eq("id", id)
+        .single();
 
-    if (fetchError || !existing) {
-      return res.status(404).json({ success: false, error: "Code not found" });
+      if (fetchError || !existing) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Code not found" });
+      }
+
+      const { data, error } = await supabase
+        .from("admin_secret_codes")
+        .update({ is_active: !existing.is_active })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      logAction(req.user.id, ACTIONS.SECRET_CODE_TOGGLED, {
+        targetId: id,
+        targetType: "secret_code",
+        metadata: { newState: !existing.is_active },
+      });
+      res.json({ success: true, code: data });
+    } catch (error) {
+      console.error("Error toggling secret code:", error);
+      res.status(500).json({ success: false, error: "Failed to update code" });
     }
+  },
+);
 
-    const { data, error } = await supabase
-      .from("admin_secret_codes")
-      .update({ is_active: !existing.is_active })
-      .eq("id", id)
-      .select()
-      .single();
-
-    if (error) throw error;
-    logAction(req.user.id, ACTIONS.SECRET_CODE_TOGGLED, {
-      targetId: id, targetType: "secret_code", metadata: { newState: !existing.is_active },
-    });
-    res.json({ success: true, code: data });
-  } catch (error) {
-    console.error("Error toggling secret code:", error);
-    res.status(500).json({ success: false, error: "Failed to update code" });
-  }
-});
-
-// Delete a secret code
 router.delete("/:id", requireAuth, requireSuperAdmin, async (req, res) => {
   try {
     const { id } = req.params;
@@ -123,7 +139,8 @@ router.delete("/:id", requireAuth, requireSuperAdmin, async (req, res) => {
 
     if (error) throw error;
     logAction(req.user.id, ACTIONS.SECRET_CODE_DELETED, {
-      targetId: id, targetType: "secret_code",
+      targetId: id,
+      targetType: "secret_code",
     });
     res.json({ success: true, message: "Code deleted" });
   } catch (error) {

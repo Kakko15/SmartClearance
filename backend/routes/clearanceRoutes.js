@@ -127,7 +127,6 @@ router.get("/:clearanceId/comments", requireAuth, async (req, res) => {
 
     if (error) throw error;
 
-    // BUG 10 FIX: Apply visibility filtering (was missing before)
     const filteredComments = filterByVisibility(
       comments || [],
       userProfile.role,

@@ -23,7 +23,6 @@ export default function ProfileEditForm({ profile, isDarkMode = false }) {
       const { data } = await authAxios.get("profile/edit-requests");
       if (data.success) setEditRequests(data.requests);
     } catch {
-      // silent
     } finally {
       setLoading(false);
     }
@@ -72,17 +71,30 @@ export default function ProfileEditForm({ profile, isDarkMode = false }) {
 
   return (
     <div className="space-y-6">
-      {/* Current Profile Info */}
-      <div className={`rounded-2xl p-5 ${isDarkMode ? "bg-[#282a2d]" : "bg-white border border-[#dadce0]"}`}>
-        <h3 className={`text-lg font-medium mb-4 ${isDarkMode ? "text-white" : "text-[#202124]"}`}
-            style={{ fontFamily: "Google Sans, sans-serif" }}>
+      {}
+      <div
+        className={`rounded-2xl p-5 ${isDarkMode ? "bg-[#282a2d]" : "bg-white border border-[#dadce0]"}`}
+      >
+        <h3
+          className={`text-lg font-medium mb-4 ${isDarkMode ? "text-white" : "text-[#202124]"}`}
+          style={{ fontFamily: "Google Sans, sans-serif" }}
+        >
           Current Profile
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {EDITABLE_FIELDS.map((f) => (
-            <div key={f.key} className={`p-3 rounded-xl ${isDarkMode ? "bg-[#3c4043]/40" : "bg-[#f8f9fa]"}`}>
-              <p className={`text-xs font-medium ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>{f.label}</p>
-              <p className={`text-sm font-medium mt-1 ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}>
+            <div
+              key={f.key}
+              className={`p-3 rounded-xl ${isDarkMode ? "bg-[#3c4043]/40" : "bg-[#f8f9fa]"}`}
+            >
+              <p
+                className={`text-xs font-medium ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}
+              >
+                {f.label}
+              </p>
+              <p
+                className={`text-sm font-medium mt-1 ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}
+              >
                 {profile?.[f.key] || "—"}
               </p>
             </div>
@@ -90,13 +102,20 @@ export default function ProfileEditForm({ profile, isDarkMode = false }) {
         </div>
       </div>
 
-      {/* Request Edit Form */}
-      <div className={`rounded-2xl p-5 ${isDarkMode ? "bg-[#282a2d]" : "bg-white border border-[#dadce0]"}`}>
-        <h3 className={`text-lg font-medium mb-4 ${isDarkMode ? "text-white" : "text-[#202124]"}`}
-            style={{ fontFamily: "Google Sans, sans-serif" }}>
+      {}
+      <div
+        className={`rounded-2xl p-5 ${isDarkMode ? "bg-[#282a2d]" : "bg-white border border-[#dadce0]"}`}
+      >
+        <h3
+          className={`text-lg font-medium mb-4 ${isDarkMode ? "text-white" : "text-[#202124]"}`}
+          style={{ fontFamily: "Google Sans, sans-serif" }}
+        >
           Request Profile Change
         </h3>
-        <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
+        <form
+          onSubmit={handleSubmit}
+          className="flex flex-col sm:flex-row gap-3"
+        >
           <select
             value={selectedField}
             onChange={(e) => setSelectedField(e.target.value)}
@@ -108,7 +127,9 @@ export default function ProfileEditForm({ profile, isDarkMode = false }) {
           >
             <option value="">Select field...</option>
             {EDITABLE_FIELDS.map((f) => (
-              <option key={f.key} value={f.key}>{f.label}</option>
+              <option key={f.key} value={f.key}>
+                {f.label}
+              </option>
             ))}
           </select>
           <input
@@ -137,34 +158,54 @@ export default function ProfileEditForm({ profile, isDarkMode = false }) {
         </form>
       </div>
 
-      {/* Edit Request History */}
+      {}
       {editRequests.length > 0 && (
-        <div className={`rounded-2xl p-5 ${isDarkMode ? "bg-[#282a2d]" : "bg-white border border-[#dadce0]"}`}>
-          <h3 className={`text-lg font-medium mb-4 ${isDarkMode ? "text-white" : "text-[#202124]"}`}
-              style={{ fontFamily: "Google Sans, sans-serif" }}>
+        <div
+          className={`rounded-2xl p-5 ${isDarkMode ? "bg-[#282a2d]" : "bg-white border border-[#dadce0]"}`}
+        >
+          <h3
+            className={`text-lg font-medium mb-4 ${isDarkMode ? "text-white" : "text-[#202124]"}`}
+            style={{ fontFamily: "Google Sans, sans-serif" }}
+          >
             Edit Request History
           </h3>
           <div className="space-y-2">
             {editRequests.map((r) => (
-              <div key={r.id} className={`flex items-center gap-3 p-3 rounded-xl ${isDarkMode ? "bg-[#3c4043]/30" : "bg-[#f8f9fa]"}`}>
+              <div
+                key={r.id}
+                className={`flex items-center gap-3 p-3 rounded-xl ${isDarkMode ? "bg-[#3c4043]/30" : "bg-[#f8f9fa]"}`}
+              >
                 {statusIcon[r.status]}
                 <div className="flex-1 min-w-0">
-                  <p className={`text-sm ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}>
-                    <span className="font-medium">{r.field_name.replace(/_/g, " ")}</span>
+                  <p
+                    className={`text-sm ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}
+                  >
+                    <span className="font-medium">
+                      {r.field_name.replace(/_/g, " ")}
+                    </span>
                     {" → "}
                     <span className="font-medium">{r.new_value}</span>
                   </p>
                   {r.admin_comment && (
-                    <p className={`text-xs mt-0.5 ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>
+                    <p
+                      className={`text-xs mt-0.5 ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}
+                    >
                       Admin: {r.admin_comment}
                     </p>
                   )}
                 </div>
-                <span className={`text-xs font-medium capitalize ${statusColor[r.status]}`}>
+                <span
+                  className={`text-xs font-medium capitalize ${statusColor[r.status]}`}
+                >
                   {r.status}
                 </span>
-                <span className={`text-[11px] ${isDarkMode ? "text-[#5f6368]" : "text-[#9aa0a6]"}`}>
-                  {new Date(r.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                <span
+                  className={`text-[11px] ${isDarkMode ? "text-[#5f6368]" : "text-[#9aa0a6]"}`}
+                >
+                  {new Date(r.created_at).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  })}
                 </span>
               </div>
             ))}

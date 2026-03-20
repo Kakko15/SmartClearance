@@ -3,15 +3,15 @@ const router = express.Router();
 const supabase = require("../supabaseClient");
 const { requireAuth, requireRole } = require("../middleware/authMiddleware");
 
-// Sensitive fields that require admin approval
 const SENSITIVE_FIELDS = ["full_name", "student_number", "course_year"];
 
-// GET /api/profile/me — get current user's profile
 router.get("/me", requireAuth, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, full_name, role, student_number, course_year, account_enabled, nstp_serial_no, major")
+      .select(
+        "id, full_name, role, student_number, course_year, account_enabled, nstp_serial_no, major",
+      )
       .eq("id", req.user.id)
       .single();
 
@@ -22,20 +22,23 @@ router.get("/me", requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/profile/request-edit — student requests a profile field change
 router.post("/request-edit", requireAuth, async (req, res) => {
   try {
     const { field_name, new_value } = req.body;
 
     if (!field_name || !new_value?.trim()) {
-      return res.status(400).json({ success: false, error: "Field name and new value are required" });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          error: "Field name and new value are required",
+        });
     }
 
     if (!SENSITIVE_FIELDS.includes(field_name)) {
       return res.status(400).json({ success: false, error: "Invalid field" });
     }
 
-    // Get current value
     const { data: profile } = await supabase
       .from("profiles")
       .select(field_name)
@@ -44,7 +47,6 @@ router.post("/request-edit", requireAuth, async (req, res) => {
 
     const oldValue = profile?.[field_name] || "";
 
-    // Check for duplicate pending request
     const { data: existing } = await supabase
       .from("profile_edit_requests")
       .select("id")
@@ -54,7 +56,12 @@ router.post("/request-edit", requireAuth, async (req, res) => {
       .limit(1);
 
     if (existing?.length > 0) {
-      return res.status(409).json({ success: false, error: "You already have a pending request for this field" });
+      return res
+        .status(409)
+        .json({
+          success: false,
+          error: "You already have a pending request for this field",
+        });
     }
 
     const { data, error } = await supabase
@@ -75,7 +82,6 @@ router.post("/request-edit", requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/profile/edit-requests — student views their own edit requests
 router.get("/edit-requests", requireAuth, async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -91,77 +97,94 @@ router.get("/edit-requests", requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/profile/pending-edits — admin views all pending edit requests
-router.get("/pending-edits", requireAuth, requireRole("super_admin"), async (req, res) => {
-  try {
-    const { data, error } = await supabase
-      .from("profile_edit_requests")
-      .select("*, profiles!profile_edit_requests_user_id_fkey(full_name, student_number, role)")
-      .eq("status", "pending")
-      .order("created_at", { ascending: true });
+router.get(
+  "/pending-edits",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from("profile_edit_requests")
+        .select(
+          "*, profiles!profile_edit_requests_user_id_fkey(full_name, student_number, role)",
+        )
+        .eq("status", "pending")
+        .order("created_at", { ascending: true });
 
-    if (error) throw error;
-    res.json({ success: true, requests: data || [] });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// POST /api/profile/review-edit/:id — admin approves or rejects
-router.post("/review-edit/:id", requireAuth, requireRole("super_admin"), async (req, res) => {
-  try {
-    const { action, comment } = req.body;
-
-    if (!["approved", "rejected"].includes(action)) {
-      return res.status(400).json({ success: false, error: "Action must be 'approved' or 'rejected'" });
+      if (error) throw error;
+      res.json({ success: true, requests: data || [] });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
     }
+  },
+);
 
-    const { data: editReq, error: fetchErr } = await supabase
-      .from("profile_edit_requests")
-      .select("*")
-      .eq("id", req.params.id)
-      .eq("status", "pending")
-      .single();
+router.post(
+  "/review-edit/:id",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req, res) => {
+    try {
+      const { action, comment } = req.body;
 
-    if (fetchErr || !editReq) {
-      return res.status(404).json({ success: false, error: "Edit request not found or already reviewed" });
+      if (!["approved", "rejected"].includes(action)) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: "Action must be 'approved' or 'rejected'",
+          });
+      }
+
+      const { data: editReq, error: fetchErr } = await supabase
+        .from("profile_edit_requests")
+        .select("*")
+        .eq("id", req.params.id)
+        .eq("status", "pending")
+        .single();
+
+      if (fetchErr || !editReq) {
+        return res
+          .status(404)
+          .json({
+            success: false,
+            error: "Edit request not found or already reviewed",
+          });
+      }
+
+      const { error: updateErr } = await supabase
+        .from("profile_edit_requests")
+        .update({
+          status: action,
+          reviewed_by: req.user.id,
+          reviewed_at: new Date().toISOString(),
+          admin_comment: comment || null,
+        })
+        .eq("id", req.params.id);
+
+      if (updateErr) throw updateErr;
+
+      if (action === "approved") {
+        const { error: profileErr } = await supabase
+          .from("profiles")
+          .update({ [editReq.field_name]: editReq.new_value })
+          .eq("id", editReq.user_id);
+
+        if (profileErr) throw profileErr;
+      }
+
+      await supabase.from("notifications").insert({
+        user_id: editReq.user_id,
+        type: action === "approved" ? "success" : "warning",
+        title: `Profile Edit ${action === "approved" ? "Approved" : "Rejected"}`,
+        message: `Your request to change ${editReq.field_name.replace(/_/g, " ")} has been ${action}.${comment ? ` Comment: ${comment}` : ""}`,
+      });
+
+      res.json({ success: true, message: `Edit request ${action}` });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
     }
-
-    // Update the edit request status
-    const { error: updateErr } = await supabase
-      .from("profile_edit_requests")
-      .update({
-        status: action,
-        reviewed_by: req.user.id,
-        reviewed_at: new Date().toISOString(),
-        admin_comment: comment || null,
-      })
-      .eq("id", req.params.id);
-
-    if (updateErr) throw updateErr;
-
-    // If approved, apply the change to the profile
-    if (action === "approved") {
-      const { error: profileErr } = await supabase
-        .from("profiles")
-        .update({ [editReq.field_name]: editReq.new_value })
-        .eq("id", editReq.user_id);
-
-      if (profileErr) throw profileErr;
-    }
-
-    // Create in-app notification for the student
-    await supabase.from("notifications").insert({
-      user_id: editReq.user_id,
-      type: action === "approved" ? "success" : "warning",
-      title: `Profile Edit ${action === "approved" ? "Approved" : "Rejected"}`,
-      message: `Your request to change ${editReq.field_name.replace(/_/g, " ")} has been ${action}.${comment ? ` Comment: ${comment}` : ""}`,
-    });
-
-    res.json({ success: true, message: `Edit request ${action}` });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+  },
+);
 
 module.exports = router;

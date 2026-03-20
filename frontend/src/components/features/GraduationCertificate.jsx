@@ -2,7 +2,11 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useTheme } from "../../contexts/ThemeContext";
 import { authAxios } from "../../services/api";
 
-export default function GraduationCertificate({ requestId, studentId, studentInfo }) {
+export default function GraduationCertificate({
+  requestId,
+  studentId,
+  studentInfo,
+}) {
   const [certificateData, setCertificateData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState("");
@@ -15,7 +19,8 @@ export default function GraduationCertificate({ requestId, studentId, studentInf
       if (response.data.success && response.data.request) {
         const req = response.data.request;
         req.student_name = req.student_name || studentInfo?.full_name || "N/A";
-        req.student_number = req.student_number || studentInfo?.student_number || "N/A";
+        req.student_number =
+          req.student_number || studentInfo?.student_number || "N/A";
         req.course_year = req.course_year || studentInfo?.course_year || "N/A";
         req.professorApprovals = response.data.professorApprovals || [];
         setCertificateData(req);
@@ -37,7 +42,10 @@ export default function GraduationCertificate({ requestId, studentId, studentInf
         const verifyUrl = `${window.location.origin}/verify/${certificateData.certificate_number}`;
         try {
           const QRCode = (await import("qrcode")).default;
-          const url = await QRCode.toDataURL(verifyUrl, { width: 100, margin: 1 });
+          const url = await QRCode.toDataURL(verifyUrl, {
+            width: 100,
+            margin: 1,
+          });
           setQrCodeDataUrl(url);
         } catch (e) {
           console.error("Failed to generate QR code", e);
@@ -50,14 +58,18 @@ export default function GraduationCertificate({ requestId, studentId, studentInf
   const formatDate = (dateStr) => {
     if (!dateStr) return "";
     return new Date(dateStr).toLocaleDateString("en-US", {
-      year: "numeric", month: "long", day: "numeric",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
     });
   };
 
   const formatDateShort = (dateStr) => {
     if (!dateStr) return "—";
     return new Date(dateStr).toLocaleDateString("en-US", {
-      year: "numeric", month: "short", day: "numeric",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
     });
   };
 
@@ -69,15 +81,17 @@ export default function GraduationCertificate({ requestId, studentId, studentInf
     ? formatDate(certificateData.created_at)
     : "";
 
-  const portionLabel = certificateData?.portion === "graduate"
-    ? "Graduate Portion" : "Undergraduate Portion";
+  const portionLabel =
+    certificateData?.portion === "graduate"
+      ? "Graduate Portion"
+      : "Undergraduate Portion";
 
-  // Build clearance stages summary
   const getClearedStages = () => {
     if (!certificateData) return [];
     const stages = [];
     const approvals = certificateData.professorApprovals || [];
-    const findProf = (name) => approvals.find((a) => a.professor?.full_name === name);
+    const findProf = (name) =>
+      approvals.find((a) => a.professor?.full_name === name);
 
     const isUndergrad = certificateData.portion !== "graduate";
     const stageList = isUndergrad
@@ -85,15 +99,35 @@ export default function GraduationCertificate({ requestId, studentId, studentInf
           { name: "Department Chairman", type: "prof" },
           { name: "College Dean", type: "prof" },
           { name: "Director Student Affairs", type: "prof" },
-          { name: "Campus Librarian", type: "admin", dateField: "library_approved_at" },
-          { name: "Chief Accountant", type: "admin", dateField: "cashier_approved_at" },
+          {
+            name: "Campus Librarian",
+            type: "admin",
+            dateField: "library_approved_at",
+          },
+          {
+            name: "Chief Accountant",
+            type: "admin",
+            dateField: "cashier_approved_at",
+          },
           { name: "NSTP Director", type: "prof" },
           { name: "Executive Officer", type: "prof" },
         ]
       : [
-          { name: "Chief Accountant", type: "admin", dateField: "cashier_approved_at" },
-          { name: "Campus Librarian", type: "admin", dateField: "library_approved_at" },
-          { name: "Student's Record Evaluator", type: "admin", dateField: "registrar_approved_at" },
+          {
+            name: "Chief Accountant",
+            type: "admin",
+            dateField: "cashier_approved_at",
+          },
+          {
+            name: "Campus Librarian",
+            type: "admin",
+            dateField: "library_approved_at",
+          },
+          {
+            name: "Student's Record Evaluator",
+            type: "admin",
+            dateField: "registrar_approved_at",
+          },
           { name: "Dean Graduate School", type: "prof" },
         ];
 
@@ -101,9 +135,13 @@ export default function GraduationCertificate({ requestId, studentId, studentInf
       let date = "";
       if (s.type === "prof") {
         const prof = findProf(s.name);
-        date = prof?.approved_at ? formatDateShort(prof.approved_at) : "Cleared";
+        date = prof?.approved_at
+          ? formatDateShort(prof.approved_at)
+          : "Cleared";
       } else {
-        date = certificateData[s.dateField] ? formatDateShort(certificateData[s.dateField]) : "Cleared";
+        date = certificateData[s.dateField]
+          ? formatDateShort(certificateData[s.dateField])
+          : "Cleared";
       }
       stages.push({ name: s.name, date });
     }
@@ -122,17 +160,22 @@ export default function GraduationCertificate({ requestId, studentId, studentInf
     } catch (_) {}
 
     const stages = getClearedStages();
-    const stageRows = stages.map((s, i) => `
+    const stageRows = stages
+      .map(
+        (s, i) => `
       <tr>
         <td style="border:1px solid #c5c5c5;padding:4px 10px;text-align:center;font-size:10px;color:#555;">${i + 1}</td>
         <td style="border:1px solid #c5c5c5;padding:4px 10px;font-size:10px;">${s.name}</td>
         <td style="border:1px solid #c5c5c5;padding:4px 10px;text-align:center;font-size:10px;color:#166534;font-weight:600;">✓ CLEARED</td>
         <td style="border:1px solid #c5c5c5;padding:4px 10px;text-align:center;font-size:10px;color:#555;">${s.date}</td>
       </tr>
-    `).join("");
+    `,
+      )
+      .join("");
 
     const container = document.createElement("div");
-    container.style.cssText = "position:absolute;left:-9999px;top:0;width:794px;background:#fff;";
+    container.style.cssText =
+      "position:absolute;left:-9999px;top:0;width:794px;background:#fff;";
     container.innerHTML = `
       <div style="font-family:'Times New Roman',Times,serif;color:#1a1a1a;width:794px;background:#fff;padding:0;box-sizing:border-box;position:relative;">
         <!-- Outer decorative border -->
@@ -236,10 +279,14 @@ export default function GraduationCertificate({ requestId, studentId, studentInf
                 For verification, scan the QR code or visit the Office of the Registrar.<br/>
                 Document ID: ${certificateData.certificate_number} &nbsp;|&nbsp; Issued: ${issuedDate}
               </div>
-              ${qrDataUrl ? `<div style="flex-shrink:0;margin-left:15px;text-align:center;">
+              ${
+                qrDataUrl
+                  ? `<div style="flex-shrink:0;margin-left:15px;text-align:center;">
                 <img src="${qrDataUrl}" style="width:60px;height:60px;" />
                 <div style="font-size:7px;color:#888;margin-top:2px;">Scan to verify</div>
-              </div>` : ""}
+              </div>`
+                  : ""
+              }
             </div>
 
           </div>
@@ -248,18 +295,31 @@ export default function GraduationCertificate({ requestId, studentId, studentInf
     `;
     document.body.appendChild(container);
 
-    // Wait for images to load
     const imgs = container.querySelectorAll("img");
-    await Promise.all([...imgs].map((img) =>
-      img.complete ? Promise.resolve() : new Promise((r) => { img.onload = r; img.onerror = r; })
-    ));
+    await Promise.all(
+      [...imgs].map((img) =>
+        img.complete
+          ? Promise.resolve()
+          : new Promise((r) => {
+              img.onload = r;
+              img.onerror = r;
+            }),
+      ),
+    );
 
     try {
       const canvas = await html2canvas(container.firstElementChild, {
-        scale: 2, useCORS: true, backgroundColor: "#ffffff", width: 794,
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        width: 794,
       });
       const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
       pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
@@ -273,75 +333,135 @@ export default function GraduationCertificate({ requestId, studentId, studentInf
   if (loading) {
     return (
       <div className="space-y-4 animate-pulse">
-        {/* Skeleton Toolbar */}
+        {}
         <div className="flex justify-end gap-3">
-          <div className={`w-40 h-10 rounded-lg ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
+          <div
+            className={`w-40 h-10 rounded-lg ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
+          ></div>
         </div>
 
-        {/* Skeleton Certificate document */}
-        <div className={`p-8 sm:p-12 border-8 border-double rounded-lg shadow-xl ${isDarkMode ? "bg-slate-900 border-slate-700 ring-1 ring-white/5" : "bg-white border-gray-100"}`}>
+        {}
+        <div
+          className={`p-8 sm:p-12 border-8 border-double rounded-lg shadow-xl ${isDarkMode ? "bg-slate-900 border-slate-700 ring-1 ring-white/5" : "bg-white border-gray-100"}`}
+        >
           <div className="text-center mb-8 flex flex-col items-center">
-            {/* Logo placeholder */}
-            <div className={`h-24 w-24 rounded-full mb-4 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
-            {/* Title placeholders */}
-            <div className={`w-3/4 max-w-md h-8 rounded mb-4 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
+            {}
+            <div
+              className={`h-24 w-24 rounded-full mb-4 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
+            ></div>
+            {}
+            <div
+              className={`w-3/4 max-w-md h-8 rounded mb-4 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
+            ></div>
             <div className="w-32 h-1 bg-green-600/20 mx-auto mb-4"></div>
-            <div className={`w-1/2 max-w-sm h-6 rounded mb-4 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
-            <div className={`w-1/4 h-4 rounded mt-2 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
+            <div
+              className={`w-1/2 max-w-sm h-6 rounded mb-4 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
+            ></div>
+            <div
+              className={`w-1/4 h-4 rounded mt-2 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
+            ></div>
           </div>
 
           <div className="space-y-6 text-center flex flex-col items-center">
-            <div className={`w-48 h-5 rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
-            
+            <div
+              className={`w-48 h-5 rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
+            ></div>
+
             <div className="py-4">
-              <div className={`w-64 h-10 rounded mb-2 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
-              <div className={`w-64 h-0.5 mx-auto ${isDarkMode ? "bg-slate-700" : "bg-gray-300"}`}></div>
+              <div
+                className={`w-64 h-10 rounded mb-2 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
+              ></div>
+              <div
+                className={`w-64 h-0.5 mx-auto ${isDarkMode ? "bg-slate-700" : "bg-gray-300"}`}
+              ></div>
             </div>
 
             <div className="grid grid-cols-2 gap-4 max-w-md w-full mx-auto text-left">
               <div>
-                <div className={`w-24 h-4 rounded mb-2 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
-                <div className={`w-32 h-5 rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-300"}`}></div>
+                <div
+                  className={`w-24 h-4 rounded mb-2 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
+                ></div>
+                <div
+                  className={`w-32 h-5 rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-300"}`}
+                ></div>
               </div>
               <div>
-                <div className={`w-20 h-4 rounded mb-2 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
-                <div className={`w-40 h-5 rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-300"}`}></div>
+                <div
+                  className={`w-20 h-4 rounded mb-2 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
+                ></div>
+                <div
+                  className={`w-40 h-5 rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-300"}`}
+                ></div>
               </div>
             </div>
 
-            <div className={`w-full max-w-2xl py-6 px-8 rounded-lg mt-8 ${isDarkMode ? "bg-slate-800/50" : "bg-gray-100"}`}>
-              <div className={`w-full h-4 rounded mb-2 ${isDarkMode ? "bg-slate-700" : "bg-gray-200"}`}></div>
-              <div className={`w-5/6 h-4 rounded mx-auto ${isDarkMode ? "bg-slate-700" : "bg-gray-200"}`}></div>
+            <div
+              className={`w-full max-w-2xl py-6 px-8 rounded-lg mt-8 ${isDarkMode ? "bg-slate-800/50" : "bg-gray-100"}`}
+            >
+              <div
+                className={`w-full h-4 rounded mb-2 ${isDarkMode ? "bg-slate-700" : "bg-gray-200"}`}
+              ></div>
+              <div
+                className={`w-5/6 h-4 rounded mx-auto ${isDarkMode ? "bg-slate-700" : "bg-gray-200"}`}
+              ></div>
             </div>
 
             <div className="pt-8">
-              <div className={`w-24 h-4 rounded mx-auto mb-2 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
-              <div className={`w-32 h-6 rounded mx-auto ${isDarkMode ? "bg-slate-800" : "bg-gray-300"}`}></div>
+              <div
+                className={`w-24 h-4 rounded mx-auto mb-2 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
+              ></div>
+              <div
+                className={`w-32 h-6 rounded mx-auto ${isDarkMode ? "bg-slate-800" : "bg-gray-300"}`}
+              ></div>
             </div>
 
             <div className="pt-12 grid grid-cols-2 gap-8 max-w-2xl w-full mx-auto">
               <div className="text-center flex flex-col items-center">
-                <div className={`w-48 h-0.5 mb-4 ${isDarkMode ? "bg-slate-700" : "bg-gray-400"}`}></div>
-                <div className={`w-32 h-5 rounded mb-2 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
-                <div className={`w-24 h-4 rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
+                <div
+                  className={`w-48 h-0.5 mb-4 ${isDarkMode ? "bg-slate-700" : "bg-gray-400"}`}
+                ></div>
+                <div
+                  className={`w-32 h-5 rounded mb-2 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
+                ></div>
+                <div
+                  className={`w-24 h-4 rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
+                ></div>
               </div>
               <div className="text-center flex flex-col items-center">
-                <div className={`w-48 h-0.5 mb-4 ${isDarkMode ? "bg-slate-700" : "bg-gray-400"}`}></div>
-                <div className={`w-40 h-5 rounded mb-2 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
-                <div className={`w-24 h-4 rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
+                <div
+                  className={`w-48 h-0.5 mb-4 ${isDarkMode ? "bg-slate-700" : "bg-gray-400"}`}
+                ></div>
+                <div
+                  className={`w-40 h-5 rounded mb-2 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
+                ></div>
+                <div
+                  className={`w-24 h-4 rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
+                ></div>
               </div>
             </div>
           </div>
 
-          <div className={`mt-12 pt-6 border-t flex items-end justify-between gap-4 ${isDarkMode ? "border-slate-800" : "border-gray-200"}`}>
+          <div
+            className={`mt-12 pt-6 border-t flex items-end justify-between gap-4 ${isDarkMode ? "border-slate-800" : "border-gray-200"}`}
+          >
             <div className="space-y-2 w-full max-w-sm">
-              <div className={`w-full h-3 rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
-              <div className={`w-3/4 h-3 rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
-              <div className={`w-1/2 h-3 rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
+              <div
+                className={`w-full h-3 rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
+              ></div>
+              <div
+                className={`w-3/4 h-3 rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
+              ></div>
+              <div
+                className={`w-1/2 h-3 rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
+              ></div>
             </div>
             <div className="flex-shrink-0 flex flex-col items-center">
-              <div className={`w-[80px] h-[80px] rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
-              <div className={`w-16 h-2 rounded mt-2 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}></div>
+              <div
+                className={`w-[80px] h-[80px] rounded ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
+              ></div>
+              <div
+                className={`w-16 h-2 rounded mt-2 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
+              ></div>
             </div>
           </div>
         </div>
@@ -351,7 +471,9 @@ export default function GraduationCertificate({ requestId, studentId, studentInf
 
   if (!certificateData) {
     return (
-      <div className={`p-8 text-center ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
+      <div
+        className={`p-8 text-center ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+      >
         Certificate data not found
       </div>
     );
@@ -359,7 +481,7 @@ export default function GraduationCertificate({ requestId, studentId, studentInf
 
   return (
     <div className="space-y-4">
-      {/* Dark-mode aware toolbar */}
+      {}
       <div className="flex justify-end gap-3 print:hidden">
         <button
           onClick={handlePrint}
@@ -370,35 +492,62 @@ export default function GraduationCertificate({ requestId, studentId, studentInf
           }`}
           aria-label="Download certificate as PDF"
         >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+            />
           </svg>
           Download PDF
         </button>
       </div>
 
-      {/* Certificate document */}
-      <div className={`bg-white p-8 sm:p-12 border-8 border-double border-green-700 rounded-lg shadow-2xl print:shadow-none print:border-black ${
-        isDarkMode ? "ring-1 ring-white/10" : ""
-      }`}>
+      {}
+      <div
+        className={`bg-white p-8 sm:p-12 border-8 border-double border-green-700 rounded-lg shadow-2xl print:shadow-none print:border-black ${
+          isDarkMode ? "ring-1 ring-white/10" : ""
+        }`}
+      >
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <img
               src="/IsabelaLogo.jpg"
               alt="ISU Logo"
               className="h-24 w-24 object-contain"
-              onError={(e) => { e.target.style.display = "none"; }}
+              onError={(e) => {
+                e.target.style.display = "none";
+              }}
             />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">ISABELA STATE UNIVERSITY CAMPUS</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            ISABELA STATE UNIVERSITY CAMPUS
+          </h1>
           <div className="w-32 h-1 bg-green-600 mx-auto mb-4"></div>
-          <h2 className="text-2xl font-semibold text-green-700 mb-2">GRADUATION CLEARANCE CERTIFICATE</h2>
-          <p className="text-sm text-gray-600">Certificate No: <span className="font-mono font-bold">{certificateData.certificate_number}</span></p>
-          <p className="text-xs text-gray-500 mt-2">{portionLabel.toUpperCase()}</p>
+          <h2 className="text-2xl font-semibold text-green-700 mb-2">
+            GRADUATION CLEARANCE CERTIFICATE
+          </h2>
+          <p className="text-sm text-gray-600">
+            Certificate No:{" "}
+            <span className="font-mono font-bold">
+              {certificateData.certificate_number}
+            </span>
+          </p>
+          <p className="text-xs text-gray-500 mt-2">
+            {portionLabel.toUpperCase()}
+          </p>
         </div>
 
         <div className="space-y-6 text-center">
-          <p className="text-lg text-gray-700 leading-relaxed">This is to certify that</p>
+          <p className="text-lg text-gray-700 leading-relaxed">
+            This is to certify that
+          </p>
           <div className="py-4">
             <h3 className="text-3xl font-bold text-gray-900 border-b-2 border-gray-300 inline-block px-8 pb-2">
               {certificateData.student_name}
@@ -408,19 +557,24 @@ export default function GraduationCertificate({ requestId, studentId, studentInf
           <div className="grid grid-cols-2 gap-4 max-w-md mx-auto text-left">
             <div>
               <p className="text-sm text-gray-600">Student Number:</p>
-              <p className="font-semibold text-gray-900">{certificateData.student_number}</p>
+              <p className="font-semibold text-gray-900">
+                {certificateData.student_number}
+              </p>
             </div>
             <div>
               <p className="text-sm text-gray-600">Program:</p>
-              <p className="font-semibold text-gray-900">{certificateData.course_year || "N/A"}</p>
+              <p className="font-semibold text-gray-900">
+                {certificateData.course_year || "N/A"}
+              </p>
             </div>
           </div>
 
-
-
           <div className="py-6 px-8 bg-green-50 rounded-lg border border-green-200 mt-8">
             <p className="text-base text-gray-800 leading-relaxed">
-              has fulfilled all <strong>academic</strong>, <strong>library</strong>, and <strong>financial obligations</strong> required for graduation and is hereby cleared to participate in the commencement exercises.
+              has fulfilled all <strong>academic</strong>,{" "}
+              <strong>library</strong>, and{" "}
+              <strong>financial obligations</strong> required for graduation and
+              is hereby cleared to participate in the commencement exercises.
             </p>
           </div>
 
@@ -432,13 +586,17 @@ export default function GraduationCertificate({ requestId, studentId, studentInf
           <div className="pt-12 grid grid-cols-2 gap-8 max-w-2xl mx-auto">
             <div className="text-center">
               <div className="border-t-2 border-gray-400 pt-2 mb-2">
-                <p className="font-semibold text-gray-900">University Registrar</p>
+                <p className="font-semibold text-gray-900">
+                  University Registrar
+                </p>
               </div>
               <p className="text-sm text-gray-600">Office of the Registrar</p>
             </div>
             <div className="text-center">
               <div className="border-t-2 border-gray-400 pt-2 mb-2">
-                <p className="font-semibold text-gray-900">Campus Executive Director</p>
+                <p className="font-semibold text-gray-900">
+                  Campus Executive Director
+                </p>
               </div>
               <p className="text-sm text-gray-600">ISU Echague Campus</p>
             </div>
@@ -447,16 +605,33 @@ export default function GraduationCertificate({ requestId, studentId, studentInf
 
         <div className="mt-12 pt-6 border-t border-gray-300 flex items-end justify-between gap-4">
           <div className="text-xs text-gray-500 text-left leading-relaxed">
-            <strong>Effectivity: February 20, 2024</strong>&nbsp;&nbsp;&nbsp;&nbsp;<strong>Revision: 0</strong><br/>
-            <em>Isui-ReO-Stc-001f</em><br/><br/>
-            <em>This document is system-generated by the ISU SmartClearance System.</em><br/>
-            For verification, scan the QR code or visit the Office of the Registrar.<br/>
-            Document ID: {certificateData.certificate_number} &nbsp;|&nbsp; Issued: {issuedDate}
+            <strong>Effectivity: February 20, 2024</strong>
+            &nbsp;&nbsp;&nbsp;&nbsp;<strong>Revision: 0</strong>
+            <br />
+            <em>Isui-ReO-Stc-001f</em>
+            <br />
+            <br />
+            <em>
+              This document is system-generated by the ISU SmartClearance
+              System.
+            </em>
+            <br />
+            For verification, scan the QR code or visit the Office of the
+            Registrar.
+            <br />
+            Document ID: {certificateData.certificate_number} &nbsp;|&nbsp;
+            Issued: {issuedDate}
           </div>
           {qrCodeDataUrl && (
             <div className="flex-shrink-0 text-center">
-              <img src={qrCodeDataUrl} alt="Verification QR Code" className="w-[80px] h-[80px] object-contain ml-auto" />
-              <div className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider">Scan to verify</div>
+              <img
+                src={qrCodeDataUrl}
+                alt="Verification QR Code"
+                className="w-[80px] h-[80px] object-contain ml-auto"
+              />
+              <div className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider">
+                Scan to verify
+              </div>
             </div>
           )}
         </div>
@@ -464,4 +639,3 @@ export default function GraduationCertificate({ requestId, studentId, studentInf
     </div>
   );
 }
-

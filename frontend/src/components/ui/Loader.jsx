@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import logo from "../../assets/logo.png";
 
 const Loader = () => {
@@ -15,7 +15,6 @@ const Loader = () => {
   ];
 
   useEffect(() => {
-
     const interval = setInterval(() => {
       setLoadingProgress((prev) => {
         if (prev >= 100) {
@@ -32,7 +31,6 @@ const Loader = () => {
   }, []);
 
   useEffect(() => {
-
     const stepInterval = setInterval(() => {
       setCurrentStep((prev) => (prev + 1) % loadingSteps.length);
     }, 180);
@@ -40,16 +38,19 @@ const Loader = () => {
     return () => clearInterval(stepInterval);
   }, []);
 
-
-  const particles = Array.from({ length: 30 }, (_, i) => ({
-    id: i,
-    x: Math.random() * 100,
-    y: Math.random() * 100,
-    size: Math.random() * 3 + 1,
-    duration: Math.random() * 20 + 10,
-    delay: Math.random() * 5,
-  }));
-
+  const particles = useMemo(
+    () =>
+      Array.from({ length: 30 }, (_, i) => ({
+        id: i,
+        x: Math.random() * 100,
+        y: Math.random() * 100,
+        size: Math.random() * 3 + 1,
+        duration: Math.random() * 20 + 10,
+        delay: Math.random() * 5,
+        animX: Math.random() * 50 - 25,
+      })),
+    [],
+  );
 
   const rings = [
     { radius: 140, duration: 15, delay: 0, direction: 1 },
@@ -89,7 +90,6 @@ const Loader = () => {
       aria-live="polite"
       aria-label="Loading SmartClearance"
     >
-
       <div className="absolute inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-[#010a02] via-[#051a08] to-[#010a02]" />
         <motion.div
@@ -116,7 +116,6 @@ const Loader = () => {
         />
       </div>
 
-
       <div className="absolute inset-0 z-[1] overflow-hidden">
         {particles.map((particle) => (
           <motion.div
@@ -131,18 +130,18 @@ const Loader = () => {
                 particle.id % 3 === 0
                   ? "linear-gradient(135deg, #22c55e, #16a34a)"
                   : particle.id % 3 === 1
-                  ? "linear-gradient(135deg, #eab308, #ca8a04)"
-                  : "linear-gradient(135deg, #ffffff, #e5e7eb)",
+                    ? "linear-gradient(135deg, #eab308, #ca8a04)"
+                    : "linear-gradient(135deg, #ffffff, #e5e7eb)",
               boxShadow:
                 particle.id % 3 === 0
                   ? "0 0 10px rgba(34,197,94,0.8)"
                   : particle.id % 3 === 1
-                  ? "0 0 10px rgba(234,179,8,0.8)"
-                  : "0 0 10px rgba(255,255,255,0.8)",
+                    ? "0 0 10px rgba(234,179,8,0.8)"
+                    : "0 0 10px rgba(255,255,255,0.8)",
             }}
             animate={{
               y: [0, -100, 0],
-              x: [0, Math.random() * 50 - 25, 0],
+              x: [0, particle.animX, 0],
               opacity: [0, 1, 0],
               scale: [0.5, 1, 0.5],
             }}
@@ -155,7 +154,6 @@ const Loader = () => {
           />
         ))}
       </div>
-
 
       <div className="absolute inset-0 z-[2] opacity-20">
         <motion.div
@@ -170,15 +168,14 @@ const Loader = () => {
               linear-gradient(90deg, rgba(34, 197, 94, 0.3) 1px, transparent 1px)
             `,
             backgroundSize: "80px 80px",
-            transform: "perspective(1000px) rotateX(60deg) translateY(200px) scale(2)",
+            transform:
+              "perspective(1000px) rotateX(60deg) translateY(200px) scale(2)",
             transformOrigin: "center bottom",
           }}
         />
       </div>
 
-
       <div className="relative z-10 flex flex-col items-center">
-
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           {rings.map((ring, index) => (
             <motion.div
@@ -203,7 +200,6 @@ const Loader = () => {
                 delay: ring.delay,
               }}
             >
-
               <motion.div
                 className="absolute w-2 h-2 rounded-full"
                 style={{
@@ -233,9 +229,10 @@ const Loader = () => {
           ))}
         </div>
 
-
-        <div className="relative w-48 h-48 mb-12 flex items-center justify-center" style={{ perspective: "1000px" }}>
-
+        <div
+          className="relative w-48 h-48 mb-12 flex items-center justify-center"
+          style={{ perspective: "1000px" }}
+        >
           {[1, 2, 3].map((ring) => (
             <motion.div
               key={ring}
@@ -250,13 +247,11 @@ const Loader = () => {
             />
           ))}
 
-
           <motion.div
             variants={glowVariants}
             animate="animate"
             className="absolute w-40 h-40 rounded-full bg-gradient-to-r from-primary-500/20 via-secondary-500/20 to-primary-500/20 blur-2xl"
           />
-
 
           <motion.div
             animate={{
@@ -267,7 +262,6 @@ const Loader = () => {
             className="absolute w-36 h-36 rounded-full bg-gradient-to-br from-primary-500/30 to-secondary-500/30 blur-3xl"
           />
 
-
           <motion.div
             animate={{
               scale: [1, 0.85, 1],
@@ -276,7 +270,6 @@ const Loader = () => {
             transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
             className="absolute bottom-2 w-28 h-10 bg-black/80 blur-2xl rounded-[100%]"
           />
-
 
           <motion.div
             animate={{
@@ -291,16 +284,15 @@ const Loader = () => {
             }}
             className="relative z-30"
           >
-
             <div className="absolute inset-0 bg-gradient-to-r from-primary-500/40 via-secondary-500/40 to-primary-500/40 blur-2xl scale-110" />
-            
 
             <motion.img
               src={logo}
               alt="SmartClearance"
               className="relative w-28 h-28 object-contain drop-shadow-2xl"
               style={{
-                filter: "drop-shadow(0 0 30px rgba(34,197,94,0.5)) drop-shadow(0 20px 40px rgba(0,0,0,0.4))",
+                filter:
+                  "drop-shadow(0 0 30px rgba(34,197,94,0.5)) drop-shadow(0 20px 40px rgba(0,0,0,0.4))",
               }}
               animate={{
                 scale: [1, 1.02, 1],
@@ -311,7 +303,6 @@ const Loader = () => {
                 ease: "easeInOut",
               }}
             />
-
 
             <motion.div
               animate={{ x: ["-100%", "200%"] }}
@@ -325,18 +316,20 @@ const Loader = () => {
             />
           </motion.div>
 
-
           {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
             <motion.div
               key={i}
               className="absolute w-1.5 h-1.5 rounded-full"
               style={{
                 background: i % 2 === 0 ? "#22c55e" : "#eab308",
-                boxShadow: i % 2 === 0 ? "0 0 15px rgba(34,197,94,0.8)" : "0 0 15px rgba(234,179,8,0.8)",
+                boxShadow:
+                  i % 2 === 0
+                    ? "0 0 15px rgba(34,197,94,0.8)"
+                    : "0 0 15px rgba(234,179,8,0.8)",
               }}
               animate={{
-                x: [0, Math.cos(i * 45 * Math.PI / 180) * 80, 0],
-                y: [0, Math.sin(i * 45 * Math.PI / 180) * 80, 0],
+                x: [0, Math.cos((i * 45 * Math.PI) / 180) * 80, 0],
+                y: [0, Math.sin((i * 45 * Math.PI) / 180) * 80, 0],
                 opacity: [0, 1, 0],
                 scale: [0, 1.5, 0],
               }}
@@ -350,7 +343,6 @@ const Loader = () => {
           ))}
         </div>
 
-
         <div className="flex flex-col items-center space-y-4">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -359,7 +351,9 @@ const Loader = () => {
             className="relative"
           >
             <h1 className="text-5xl font-bold tracking-tight">
-              <span className="text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.3)]">Smart</span>
+              <span className="text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.3)]">
+                Smart
+              </span>
               <span className="relative">
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 via-primary-300 to-secondary-400 drop-shadow-[0_0_30px_rgba(34,197,94,0.6)]">
                   Clearance
@@ -379,11 +373,9 @@ const Loader = () => {
             </h1>
           </motion.div>
 
-
           <div className="flex flex-col items-center space-y-3">
-
             <div className="flex items-center gap-3">
-              <motion.span 
+              <motion.span
                 className="h-[1px] w-8 bg-gradient-to-r from-transparent to-primary-500/50"
                 animate={{ opacity: [0.3, 1, 0.3] }}
                 transition={{ duration: 2, repeat: Infinity }}
@@ -400,13 +392,12 @@ const Loader = () => {
                   {loadingSteps[currentStep]}
                 </motion.span>
               </AnimatePresence>
-              <motion.span 
+              <motion.span
                 className="h-[1px] w-8 bg-gradient-to-l from-transparent to-primary-500/50"
                 animate={{ opacity: [0.3, 1, 0.3] }}
                 transition={{ duration: 2, repeat: Infinity, delay: 0.5 }}
               />
             </div>
-
 
             <div
               className="w-56 h-1 bg-white/10 rounded-full overflow-hidden"
@@ -427,17 +418,17 @@ const Loader = () => {
               />
             </div>
 
-
-            <motion.span 
+            <motion.span
               className="text-xs font-mono text-primary-400/70"
               key={loadingProgress}
             >
               {loadingProgress}%
             </motion.span>
-            <span className="sr-only">Loading SmartClearance, {loadingProgress} percent complete</span>
+            <span className="sr-only">
+              Loading SmartClearance, {loadingProgress} percent complete
+            </span>
           </div>
         </div>
-
 
         <div className="absolute bottom-10 flex items-center gap-4">
           {[0, 1, 2].map((i) => (
@@ -461,7 +452,6 @@ const Loader = () => {
           ))}
         </div>
       </div>
-
 
       <div className="absolute top-8 left-8 w-20 h-20 border-l-2 border-t-2 border-primary-500/20 rounded-tl-3xl" />
       <div className="absolute top-8 right-8 w-20 h-20 border-r-2 border-t-2 border-primary-500/20 rounded-tr-3xl" />

@@ -44,7 +44,6 @@ router.post("/:clearanceId/comments", requireAuth, async (req, res) => {
       });
     }
 
-    // Verify the authenticated user matches the claimed user_id
     if (req.user.id !== user_id) {
       return res.status(403).json({
         success: false,
@@ -161,7 +160,6 @@ router.put("/comments/:commentId", requireAuth, async (req, res) => {
       });
     }
 
-    // Verify the authenticated user matches the claimed user_id
     if (req.user.id !== user_id) {
       return res.status(403).json({
         success: false,
@@ -273,7 +271,6 @@ router.post("/create", requireAuth, async (req, res) => {
       });
     }
 
-    // Verify the authenticated user matches the claimed user_id
     if (req.user.id !== user_id) {
       return res.status(403).json({
         success: false,

@@ -9,14 +9,16 @@ const {
   verifyCertificate,
 } = require("../services/certificateService");
 
-// S9 FIX: Rate limit the public verification endpoint to prevent brute-force enumeration
 const isDev = process.env.NODE_ENV === "development";
 const verifyLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: isDev ? 200 : 20,    // 20 verification attempts per 15 min per IP
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 200 : 20,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, error: "Too many verification attempts. Please try again later." },
+  message: {
+    success: false,
+    error: "Too many verification attempts. Please try again later.",
+  },
 });
 
 router.post("/generate", requireAuth, async (req, res) => {
@@ -51,7 +53,8 @@ router.post("/generate", requireAuth, async (req, res) => {
       .single();
 
     const isOwner = request.student_id === user_id;
-    const isAdmin = isStaffRole(userProfile?.role) || isManagementRole(userProfile?.role);
+    const isAdmin =
+      isStaffRole(userProfile?.role) || isManagementRole(userProfile?.role);
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({
@@ -101,7 +104,8 @@ router.get("/request/:request_id", requireAuth, async (req, res) => {
       .single();
 
     const isOwner = request.student_id === user_id;
-    const isAdmin = isStaffRole(userProfile?.role) || isManagementRole(userProfile?.role);
+    const isAdmin =
+      isStaffRole(userProfile?.role) || isManagementRole(userProfile?.role);
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({

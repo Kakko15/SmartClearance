@@ -113,16 +113,16 @@ export default function CommentCard({
   return (
     <div
       className={`border-l-2 pl-4 py-3 transition-all ${
-        isDarkMode
-          ? "border-[#8ab4f8]"
-          : "border-[#1a73e8]"
+        isDarkMode ? "border-[#8ab4f8]" : "border-[#1a73e8]"
       }`}
     >
       <div className="flex items-start justify-between mb-1">
         <div className="flex items-center gap-2 flex-wrap">
           <div
             className={`w-9 h-9 rounded-full flex items-center justify-center font-medium text-[15px] flex-shrink-0 ${
-              isDarkMode ? "bg-[#8ab4f8]/20 text-[#8ab4f8]" : "bg-[#e8f0fe] text-[#1a73e8]"
+              isDarkMode
+                ? "bg-[#8ab4f8]/20 text-[#8ab4f8]"
+                : "bg-[#e8f0fe] text-[#1a73e8]"
             }`}
           >
             {comment.commenter_name?.charAt(0)?.toUpperCase() || "?"}
@@ -132,7 +132,7 @@ export default function CommentCard({
             <div className="flex items-center gap-2 flex-wrap">
               <span
                 className={`font-medium text-[14px] leading-tight ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}
-                style={{ fontFamily: 'Google Sans, sans-serif' }}
+                style={{ fontFamily: "Google Sans, sans-serif" }}
               >
                 {comment.commenter_name}
               </span>

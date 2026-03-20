@@ -1,23 +1,13 @@
 import { useEffect, useRef, useCallback } from "react";
 import { supabase } from "../lib/supabase";
 
-/**
- * Subscribe to Supabase Realtime changes on a table.
- * When a change is detected, calls `onUpdate` (typically a re-fetch).
- *
- * @param {string} table - The Supabase table name to listen on
- * @param {Function} onUpdate - Callback fired on INSERT/UPDATE/DELETE
- * @param {Object} [options]
- * @param {string} [options.event='*'] - Postgres change event type
- * @param {string} [options.filter] - Supabase realtime filter e.g. "status=eq.pending"
- * @param {boolean} [options.enabled=true] - Toggle subscription on/off
- */
 export default function useRealtimeSubscription(table, onUpdate, options = {}) {
   const { event = "*", filter, enabled = true } = options;
   const onUpdateRef = useRef(onUpdate);
-  onUpdateRef.current = onUpdate;
+  useEffect(() => {
+    onUpdateRef.current = onUpdate;
+  }, [onUpdate]);
 
-  // Debounce rapid-fire changes so we don't spam the API
   const timerRef = useRef(null);
   const debouncedUpdate = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -44,7 +34,10 @@ export default function useRealtimeSubscription(table, onUpdate, options = {}) {
       })
       .subscribe((status, err) => {
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          console.warn(`Realtime subscription error on "${table}":`, err || status);
+          console.warn(
+            `Realtime subscription error on "${table}":`,
+            err || status,
+          );
         }
       });
 

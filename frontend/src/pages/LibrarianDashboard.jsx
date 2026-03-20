@@ -34,7 +34,9 @@ export default function LibraryAdminDashboard({
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [comments, setComments] = useState("");
-  const [activeView, setActiveView] = useState(() => sessionStorage.getItem("tab_librarian") || "pending");
+  const [activeView, setActiveView] = useState(
+    () => sessionStorage.getItem("tab_librarian") || "pending",
+  );
 
   useEffect(() => {
     sessionStorage.setItem("tab_librarian", activeView);
@@ -65,10 +67,8 @@ export default function LibraryAdminDashboard({
     fetchPendingRequests();
   }, [fetchPendingRequests]);
 
-  // Live updates — re-fetch silently when requests table changes
   useRealtimeSubscription("requests", () => fetchPendingRequests(true));
 
-  // Polling fallback
   useEffect(() => {
     const interval = setInterval(() => fetchPendingRequests(true), 10000);
     return () => clearInterval(interval);
@@ -78,14 +78,11 @@ export default function LibraryAdminDashboard({
     if (!selectedRequest) return;
     setActionLoading(true);
     try {
-      const response = await authAxios.post(
-        `graduation/library/approve`,
-        {
-          request_id: selectedRequest.id,
-          admin_id: adminId,
-          comments: comments.trim() || null,
-        },
-      );
+      const response = await authAxios.post(`graduation/library/approve`, {
+        request_id: selectedRequest.id,
+        admin_id: adminId,
+        comments: comments.trim() || null,
+      });
       if (response.data.success) {
         toast.success("Library clearance approved!");
         setComments("");
@@ -107,14 +104,11 @@ export default function LibraryAdminDashboard({
     }
     setActionLoading(true);
     try {
-      const response = await authAxios.post(
-        `graduation/library/reject`,
-        {
-          request_id: selectedRequest.id,
-          admin_id: adminId,
-          comments: comments.trim(),
-        },
-      );
+      const response = await authAxios.post(`graduation/library/reject`, {
+        request_id: selectedRequest.id,
+        admin_id: adminId,
+        comments: comments.trim(),
+      });
       if (response.data.success) {
         toast.success("Library clearance rejected");
         setComments("");
@@ -134,27 +128,40 @@ export default function LibraryAdminDashboard({
       if (
         !(req.student?.full_name || "").toLowerCase().includes(q) &&
         !(req.student?.student_number || "").toLowerCase().includes(q)
-      ) return false;
+      )
+        return false;
     }
     if (dateFrom && req.created_at && req.created_at < dateFrom) return false;
-    if (dateTo && req.created_at && req.created_at > dateTo + "T23:59:59") return false;
+    if (dateTo && req.created_at && req.created_at > dateTo + "T23:59:59")
+      return false;
     return true;
   });
 
   const handleExport = () => {
-    exportToCSV(filteredRequests, [
-      { label: "Student Name", accessor: (r) => r.student?.full_name || "" },
-      { label: "Student Number", accessor: (r) => r.student?.student_number || "" },
-      { label: "Status", key: "library_status" },
-      { label: "Submitted", accessor: (r) => r.created_at ? new Date(r.created_at).toLocaleDateString() : "" },
-    ], "library_clearances");
+    exportToCSV(
+      filteredRequests,
+      [
+        { label: "Student Name", accessor: (r) => r.student?.full_name || "" },
+        {
+          label: "Student Number",
+          accessor: (r) => r.student?.student_number || "",
+        },
+        { label: "Status", key: "library_status" },
+        {
+          label: "Submitted",
+          accessor: (r) =>
+            r.created_at ? new Date(r.created_at).toLocaleDateString() : "",
+        },
+      ],
+      "library_clearances",
+    );
   };
 
-  // G5: Bulk action handlers
   const toggleSelect = (id) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -169,15 +176,23 @@ export default function LibraryAdminDashboard({
     setBulkLoading(true);
     try {
       const response = await authAxios.post("graduation/bulk-approve", {
-        request_ids: [...selectedIds], admin_id: adminId, stage: "library",
+        request_ids: [...selectedIds],
+        admin_id: adminId,
+        stage: "library",
       });
       if (response.data.success) {
-        toast.success(`${response.data.results.approved.length} clearances approved`);
-        setSelectedIds(new Set()); setBulkMode(false); fetchPendingRequests();
+        toast.success(
+          `${response.data.results.approved.length} clearances approved`,
+        );
+        setSelectedIds(new Set());
+        setBulkMode(false);
+        fetchPendingRequests();
       }
     } catch (error) {
       toast.error(error.response?.data?.error || "Bulk approve failed");
-    } finally { setBulkLoading(false); }
+    } finally {
+      setBulkLoading(false);
+    }
   };
 
   const handleBulkReject = async () => {
@@ -188,15 +203,25 @@ export default function LibraryAdminDashboard({
     setBulkLoading(true);
     try {
       const response = await authAxios.post("graduation/bulk-reject", {
-        request_ids: [...selectedIds], admin_id: adminId, stage: "library", comments: comments.trim(),
+        request_ids: [...selectedIds],
+        admin_id: adminId,
+        stage: "library",
+        comments: comments.trim(),
       });
       if (response.data.success) {
-        toast.success(`${response.data.results.rejected.length} clearances rejected`);
-        setSelectedIds(new Set()); setBulkMode(false); setComments(""); fetchPendingRequests();
+        toast.success(
+          `${response.data.results.rejected.length} clearances rejected`,
+        );
+        setSelectedIds(new Set());
+        setBulkMode(false);
+        setComments("");
+        fetchPendingRequests();
       }
     } catch (error) {
       toast.error(error.response?.data?.error || "Bulk reject failed");
-    } finally { setBulkLoading(false); }
+    } finally {
+      setBulkLoading(false);
+    }
   };
 
   const theme = getLibrarianTheme(isDarkMode);
@@ -216,7 +241,11 @@ export default function LibraryAdminDashboard({
       menuItems={menuItems}
       activeView={activeView}
       setActiveView={setActiveView}
-      userInfo={{ name: "Campus Librarian", subtitle: "Library Admin", avatar: user?.user_metadata?.avatar_url }}
+      userInfo={{
+        name: "Campus Librarian",
+        subtitle: "Library Admin",
+        avatar: user?.user_metadata?.avatar_url,
+      }}
       onSignOut={onSignOut}
       onOpenSettings={onOpenSettings}
       onManageAccount={onManageAccount}
@@ -226,15 +255,21 @@ export default function LibraryAdminDashboard({
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className={`text-3xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+            <h2
+              className={`text-3xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}
+            >
               Library Clearance
             </h2>
-            <p className={`mt-1 ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+            <p
+              className={`mt-1 ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}
+            >
               Review student library obligations and book returns
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <div className={`px-4 py-2 rounded-xl border text-center ${isDarkMode ? "text-amber-400 bg-amber-500/10 border-amber-500/20" : "text-amber-600 bg-amber-50 border-amber-200"}`}>
+            <div
+              className={`px-4 py-2 rounded-xl border text-center ${isDarkMode ? "text-amber-400 bg-amber-500/10 border-amber-500/20" : "text-amber-600 bg-amber-50 border-amber-200"}`}
+            >
               <div className="text-xl font-bold">{requests.length}</div>
               <div className="text-xs font-medium">Pending</div>
             </div>
@@ -255,9 +290,14 @@ export default function LibraryAdminDashboard({
             >
               {filteredRequests.length > 1 && (
                 <button
-                  onClick={() => { setBulkMode(!bulkMode); setSelectedIds(new Set()); }}
+                  onClick={() => {
+                    setBulkMode(!bulkMode);
+                    setSelectedIds(new Set());
+                  }}
                   className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
-                    bulkMode ? "bg-violet-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                    bulkMode
+                      ? "bg-violet-600 text-white"
+                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                   }`}
                 >
                   {bulkMode ? "Cancel Bulk" : "Bulk Actions"}
@@ -267,16 +307,31 @@ export default function LibraryAdminDashboard({
             {bulkMode && (
               <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-violet-50 border border-violet-200">
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={selectedIds.size === filteredRequests.length} onChange={toggleSelectAll} className="w-4 h-4 rounded" />
-                  <span className="text-sm font-medium text-gray-700">Select All ({selectedIds.size}/{filteredRequests.length})</span>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.size === filteredRequests.length}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    Select All ({selectedIds.size}/{filteredRequests.length})
+                  </span>
                 </label>
                 <div className="flex gap-2">
-                  <button onClick={handleBulkApprove} disabled={selectedIds.size === 0 || bulkLoading}
-                    className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-green-600 text-white disabled:opacity-50">
+                  <button
+                    onClick={handleBulkApprove}
+                    disabled={selectedIds.size === 0 || bulkLoading}
+                    className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-green-600 text-white disabled:opacity-50"
+                  >
                     {bulkLoading ? "..." : `Approve (${selectedIds.size})`}
                   </button>
-                  <button onClick={handleBulkReject} disabled={selectedIds.size === 0 || bulkLoading || !comments.trim()}
-                    className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-red-600 text-white disabled:opacity-50">
+                  <button
+                    onClick={handleBulkReject}
+                    disabled={
+                      selectedIds.size === 0 || bulkLoading || !comments.trim()
+                    }
+                    className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-red-600 text-white disabled:opacity-50"
+                  >
                     {bulkLoading ? "..." : `Reject (${selectedIds.size})`}
                   </button>
                 </div>
@@ -292,7 +347,10 @@ export default function LibraryAdminDashboard({
                 Loading Students...
               </h3>
               {[1, 2, 3].map((i) => (
-                <div key={i} className="p-4 rounded-xl border-2 border-gray-100 bg-white/70">
+                <div
+                  key={i}
+                  className="p-4 rounded-xl border-2 border-gray-100 bg-white/70"
+                >
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-slate-200 rounded-xl animate-pulse" />
                     <div className="flex-1">
@@ -310,9 +368,9 @@ export default function LibraryAdminDashboard({
               </h3>
               <GlassCard className="p-5 h-[400px] flex items-center justify-center">
                 <div className="flex flex-col items-center gap-4 w-full">
-                   <div className="w-16 h-16 rounded-2xl bg-slate-200 animate-pulse" />
-                   <div className="h-4 w-48 bg-slate-200 rounded animate-pulse mb-2" />
-                   <div className="h-3 w-32 bg-slate-200 rounded animate-pulse" />
+                  <div className="w-16 h-16 rounded-2xl bg-slate-200 animate-pulse" />
+                  <div className="h-4 w-48 bg-slate-200 rounded animate-pulse mb-2" />
+                  <div className="h-3 w-32 bg-slate-200 rounded animate-pulse" />
                 </div>
               </GlassCard>
             </div>
@@ -324,9 +382,13 @@ export default function LibraryAdminDashboard({
               animate={{ scale: 1 }}
               className={`w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-5 ${isDarkMode ? "bg-violet-500/10" : "bg-violet-50"}`}
             >
-              <InboxStackIcon className={`w-10 h-10 ${isDarkMode ? "text-violet-400" : "text-violet-400"}`} />
+              <InboxStackIcon
+                className={`w-10 h-10 ${isDarkMode ? "text-violet-400" : "text-violet-400"}`}
+              />
             </motion.div>
-            <h3 className={`text-xl font-bold mb-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+            <h3
+              className={`text-xl font-bold mb-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}
+            >
               No Pending Clearances
             </h3>
             <p className={isDarkMode ? "text-gray-400" : "text-gray-500"}>
@@ -336,7 +398,9 @@ export default function LibraryAdminDashboard({
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="space-y-3">
-              <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+              <h3
+                className={`text-sm font-semibold uppercase tracking-wider ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}
+              >
                 Student Requests
               </h3>
               <AnimatePresence mode="popLayout">
@@ -358,23 +422,36 @@ export default function LibraryAdminDashboard({
                             : "border-gray-100 bg-white/70 hover:border-violet-200 hover:shadow-md"
                       }`}
                       onClick={() => {
-                        if (bulkMode) { toggleSelect(req.id); return; }
+                        if (bulkMode) {
+                          toggleSelect(req.id);
+                          return;
+                        }
                         setSelectedRequest(req);
                         setComments("");
                       }}
                     >
                       <div className="flex items-center gap-3">
                         {bulkMode && (
-                          <input type="checkbox" checked={selectedIds.has(req.id)} onChange={() => toggleSelect(req.id)} onClick={(e) => e.stopPropagation()} className="w-4 h-4 rounded" />
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(req.id)}
+                            onChange={() => toggleSelect(req.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-4 h-4 rounded"
+                          />
                         )}
                         <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-violet-500/20">
                           {req.student?.full_name?.charAt(0) || "?"}
                         </div>
                         <div className="flex-1">
-                          <h4 className={`font-bold text-sm ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                          <h4
+                            className={`font-bold text-sm ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                          >
                             {req.student?.full_name || "Unknown Student"}
                           </h4>
-                          <p className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                          <p
+                            className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}
+                          >
                             {req.student?.student_number || ""}
                           </p>
                         </div>
@@ -387,7 +464,9 @@ export default function LibraryAdminDashboard({
             </div>
 
             <div>
-              <h3 className={`text-sm font-semibold uppercase tracking-wider mb-3 ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+              <h3
+                className={`text-sm font-semibold uppercase tracking-wider mb-3 ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}
+              >
                 Review Panel
               </h3>
               {selectedRequest ? (
@@ -397,10 +476,14 @@ export default function LibraryAdminDashboard({
                       {selectedRequest.student?.full_name?.charAt(0) || "?"}
                     </div>
                     <div>
-                      <h3 className={`font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                      <h3
+                        className={`font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                      >
                         {selectedRequest.student?.full_name}
                       </h3>
-                      <p className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                      <p
+                        className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}
+                      >
                         {selectedRequest.student?.student_number}
                       </p>
                     </div>
@@ -418,8 +501,12 @@ export default function LibraryAdminDashboard({
                   )}
 
                   <div className="mb-4">
-                    <label className={`text-sm font-medium mb-1.5 flex items-center gap-2 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                      <ChatBubbleIcon className={`w-4 h-4 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`} />
+                    <label
+                      className={`text-sm font-medium mb-1.5 flex items-center gap-2 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}
+                    >
+                      <ChatBubbleIcon
+                        className={`w-4 h-4 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}
+                      />
                       Add Comment
                     </label>
                     <textarea
@@ -456,10 +543,16 @@ export default function LibraryAdminDashboard({
                 </GlassCard>
               ) : (
                 <GlassCard className="p-8 text-center" isDark={isDarkMode}>
-                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 ${isDarkMode ? "bg-violet-500/10" : "bg-violet-50"}`}>
-                    <UserIcon className={`w-8 h-8 ${isDarkMode ? "text-violet-400" : "text-violet-400"}`} />
+                  <div
+                    className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 ${isDarkMode ? "bg-violet-500/10" : "bg-violet-50"}`}
+                  >
+                    <UserIcon
+                      className={`w-8 h-8 ${isDarkMode ? "text-violet-400" : "text-violet-400"}`}
+                    />
                   </div>
-                  <p className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                  <p
+                    className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}
+                  >
                     Select a student to review their request
                   </p>
                 </GlassCard>

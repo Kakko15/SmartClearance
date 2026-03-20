@@ -31,7 +31,11 @@ router.get("/pending-accounts", requireAuth, async (req, res) => {
 
 router.get("/all-users", requireAuth, async (req, res) => {
   try {
-    const { data: admin } = await supabase.from("profiles").select("role").eq("id", req.user.id).single();
+    const { data: admin } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", req.user.id)
+      .single();
     if (!admin || admin.role !== "super_admin") {
       return res.status(403).json({ success: false, error: "Unauthorized" });
     }
@@ -116,7 +120,9 @@ router.post("/approve-account", requireAuth, async (req, res) => {
     });
 
     logAction(adminId, ACTIONS.ACCOUNT_APPROVED, {
-      targetId: userId, targetType: "profile", metadata: { admin_role: admin.role },
+      targetId: userId,
+      targetType: "profile",
+      metadata: { admin_role: admin.role },
     });
   } catch (error) {
     console.error("Error approving account:", error);
@@ -197,7 +203,9 @@ router.post("/reject-account", requireAuth, async (req, res) => {
     });
 
     logAction(adminId, ACTIONS.ACCOUNT_REJECTED, {
-      targetId: userId, targetType: "profile", metadata: { admin_role: admin.role, reason },
+      targetId: userId,
+      targetType: "profile",
+      metadata: { admin_role: admin.role, reason },
     });
   } catch (error) {
     console.error("Error rejecting account:", error);
@@ -208,20 +216,29 @@ router.post("/reject-account", requireAuth, async (req, res) => {
   }
 });
 
-// ── Bulk Approve ──────────────────────────────────────────────────────────────
 router.post("/bulk-approve", requireAuth, async (req, res) => {
   try {
     const { userIds } = req.body;
     const adminId = req.user.id;
 
     if (!Array.isArray(userIds) || userIds.length === 0) {
-      return res.status(400).json({ success: false, error: "No accounts selected" });
+      return res
+        .status(400)
+        .json({ success: false, error: "No accounts selected" });
     }
 
     const { data: admin } = await supabase
-      .from("profiles").select("role").eq("id", adminId).single();
+      .from("profiles")
+      .select("role")
+      .eq("id", adminId)
+      .single();
     if (!admin || admin.role !== "super_admin") {
-      return res.status(403).json({ success: false, error: "Only super admin can approve accounts" });
+      return res
+        .status(403)
+        .json({
+          success: false,
+          error: "Only super admin can approve accounts",
+        });
     }
 
     const results = { approved: [], failed: [] };
@@ -243,13 +260,17 @@ router.post("/bulk-approve", requireAuth, async (req, res) => {
         results.failed.push(userId);
       } else {
         results.approved.push(userId);
-        // Write to auth_audit_log (matches single approve behavior)
+
         try {
           await supabase.from("auth_audit_log").insert({
             user_id: userId,
             action: "account_approved_by_admin",
             success: true,
-            metadata: { approved_by: adminId, admin_role: admin.role, bulk: true },
+            metadata: {
+              approved_by: adminId,
+              admin_role: admin.role,
+              bulk: true,
+            },
           });
         } catch (logErr) {
           console.warn("Auth audit log insert failed:", logErr.message);
@@ -259,7 +280,11 @@ router.post("/bulk-approve", requireAuth, async (req, res) => {
 
     logAction(adminId, ACTIONS.ACCOUNT_BULK_APPROVED, {
       targetType: "profile",
-      metadata: { count: results.approved.length, approved: results.approved, failed: results.failed },
+      metadata: {
+        count: results.approved.length,
+        approved: results.approved,
+        failed: results.failed,
+      },
     });
 
     res.json({
@@ -273,23 +298,34 @@ router.post("/bulk-approve", requireAuth, async (req, res) => {
   }
 });
 
-// ── Bulk Reject ───────────────────────────────────────────────────────────────
 router.post("/bulk-reject", requireAuth, async (req, res) => {
   try {
     const { userIds, reason } = req.body;
     const adminId = req.user.id;
 
     if (!Array.isArray(userIds) || userIds.length === 0) {
-      return res.status(400).json({ success: false, error: "No accounts selected" });
+      return res
+        .status(400)
+        .json({ success: false, error: "No accounts selected" });
     }
     if (!reason || !reason.trim()) {
-      return res.status(400).json({ success: false, error: "Rejection reason is required" });
+      return res
+        .status(400)
+        .json({ success: false, error: "Rejection reason is required" });
     }
 
     const { data: admin } = await supabase
-      .from("profiles").select("role").eq("id", adminId).single();
+      .from("profiles")
+      .select("role")
+      .eq("id", adminId)
+      .single();
     if (!admin || admin.role !== "super_admin") {
-      return res.status(403).json({ success: false, error: "Only super admin can reject accounts" });
+      return res
+        .status(403)
+        .json({
+          success: false,
+          error: "Only super admin can reject accounts",
+        });
     }
 
     const results = { rejected: [], failed: [] };
@@ -311,13 +347,18 @@ router.post("/bulk-reject", requireAuth, async (req, res) => {
         results.failed.push(userId);
       } else {
         results.rejected.push(userId);
-        // Write to auth_audit_log (matches single reject behavior)
+
         try {
           await supabase.from("auth_audit_log").insert({
             user_id: userId,
             action: "account_rejected_by_admin",
             success: true,
-            metadata: { rejected_by: adminId, admin_role: admin.role, reason, bulk: true },
+            metadata: {
+              rejected_by: adminId,
+              admin_role: admin.role,
+              reason,
+              bulk: true,
+            },
           });
         } catch (logErr) {
           console.warn("Auth audit log insert failed:", logErr.message);
@@ -327,7 +368,12 @@ router.post("/bulk-reject", requireAuth, async (req, res) => {
 
     logAction(adminId, ACTIONS.ACCOUNT_BULK_REJECTED, {
       targetType: "profile",
-      metadata: { count: results.rejected.length, reason, rejected: results.rejected, failed: results.failed },
+      metadata: {
+        count: results.rejected.length,
+        reason,
+        rejected: results.rejected,
+        failed: results.failed,
+      },
     });
 
     res.json({
@@ -343,8 +389,6 @@ router.post("/bulk-reject", requireAuth, async (req, res) => {
 
 router.get("/account-stats", requireAuth, async (req, res) => {
   try {
-    // B4 FIX: With head:true, Supabase returns { count } not { data }.
-    // Destructure `count` directly from each query.
     const { count: pendingCount } = await supabase
       .from("profiles")
       .select("id", { count: "exact", head: true })

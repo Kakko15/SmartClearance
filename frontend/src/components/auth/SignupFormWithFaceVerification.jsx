@@ -10,10 +10,15 @@ import SpotlightBorder from "../ui/SpotlightBorder";
 import TwoFactorSetup from "./TwoFactorSetup";
 import EmailVerification from "./EmailVerification";
 import CustomSelect from "../ui/CustomSelect";
-import { COURSE_OPTIONS, YEAR_LEVEL_OPTIONS } from "../../constants/formOptions";
+import {
+  COURSE_OPTIONS,
+  YEAR_LEVEL_OPTIONS,
+} from "../../constants/formOptions";
 
 const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
-const IS_LOCALHOST = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+const IS_LOCALHOST =
+  window.location.hostname === "localhost" ||
+  window.location.hostname === "127.0.0.1";
 const STUDENT_NUMBER_PATTERN = /^\d{2}-\d{3,5}(?:-[A-Z]{1,3})?$/;
 const PENDING_SIGNUP_VERIFICATION_KEY = "pending_signup_email_verification";
 const PENDING_SIGNUP_TWO_FACTOR_KEY = "pending_signup_two_factor_setup";
@@ -136,8 +141,12 @@ export default function SignupFormWithFaceVerification({
   isDark,
   onLoginSuccess,
 }) {
-  const [restoredVerification] = useState(() => getPendingSignupVerification("student"));
-  const [restoredTwoFactor] = useState(() => getPendingTwoFactorSetup("student"));
+  const [restoredVerification] = useState(() =>
+    getPendingSignupVerification("student"),
+  );
+  const [restoredTwoFactor] = useState(() =>
+    getPendingTwoFactorSetup("student"),
+  );
   const [currentStep, setCurrentStep] = useState(() => {
     const saved = sessionStorage.getItem("signupStep");
     if (saved) {
@@ -202,7 +211,10 @@ export default function SignupFormWithFaceVerification({
     () => restoredTwoFactor?.userId || restoredVerification?.userId || null,
   );
   const [signupToken, setSignupToken] = useState(
-    () => restoredTwoFactor?.signupToken || restoredVerification?.signupToken || null,
+    () =>
+      restoredTwoFactor?.signupToken ||
+      restoredVerification?.signupToken ||
+      null,
   );
   const [signupEmail, setSignupEmail] = useState(
     () => restoredTwoFactor?.email || restoredVerification?.email || "",
@@ -211,7 +223,7 @@ export default function SignupFormWithFaceVerification({
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [touched, setTouched] = useState({});
   const recaptchaRef = useRef(null);
-  // Keep password in a ref as backup 
+  // Keep password in a ref as backup
   const passwordRef = useRef(formData.password);
 
   const handleClearFields = () => {
@@ -250,7 +262,8 @@ export default function SignupFormWithFaceVerification({
         if (!val || val.trim().length < 2) return "Last name is required.";
         break;
       case "password":
-        if (!val || val.length < 8) return "Password must be at least 8 characters.";
+        if (!val || val.length < 8)
+          return "Password must be at least 8 characters.";
         if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])/.test(val))
           return "Must include uppercase, lowercase, number, and special character.";
         break;
@@ -260,7 +273,11 @@ export default function SignupFormWithFaceVerification({
         break;
       case "studentNumber":
         if (!val || !val.trim()) return "Student number is required.";
-        if (!STUDENT_NUMBER_PATTERN.test(val.trim().toUpperCase().replace(/[–—]/g, "-"))) {
+        if (
+          !STUDENT_NUMBER_PATTERN.test(
+            val.trim().toUpperCase().replace(/[–—]/g, "-"),
+          )
+        ) {
           return "Use format: [Year]-[Digits] (e.g., 23-1234 or 23-1234-TS)";
         }
         break;
@@ -281,10 +298,8 @@ export default function SignupFormWithFaceVerification({
   }, [currentStep]);
 
   useEffect(() => {
-    // Persist complete form data in sessionStorage so progress isn't lost on refresh.
-    // sessionStorage is automatically cleared when the tab is closed.
     sessionStorage.setItem("signupFormData", JSON.stringify(formData));
-    // Keep password ref in sync so it survives component remounts
+
     if (formData.password) passwordRef.current = formData.password;
   }, [formData]);
 
@@ -301,27 +316,27 @@ export default function SignupFormWithFaceVerification({
   const validateAndCheckEmail = async (email) => {
     const trimmed = email.trim().toLowerCase();
 
-    // Empty — they touched it but left it blank
     if (!trimmed) {
       setEmailError("Email is required.");
       return;
     }
 
-    // Format validation first
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
       setEmailError("Please enter a valid email address.");
       return;
     }
 
-    // Format is good — clear any format error, then check availability
     setEmailError("");
     setCheckingEmail(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/check-email`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmed }),
-      });
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/auth/check-email`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: trimmed }),
+        },
+      );
       const data = await res.json();
       if (data.success && data.message) {
         setEmailError(data.message);
@@ -337,65 +352,92 @@ export default function SignupFormWithFaceVerification({
   };
 
   const handleStep1Submit = async (e) => {
-      e.preventDefault();
+    e.preventDefault();
 
-      // Mark all fields as touched so errors show
-      const allFields = ["firstName", "lastName", "email", "password", "confirmPassword", "studentNumber", "course", "yearLevel"];
-      const allTouched = {};
-      allFields.forEach((f) => (allTouched[f] = true));
-      setTouched((prev) => ({ ...prev, ...allTouched }));
+    // Mark all fields as touched so errors show
+    const allFields = [
+      "firstName",
+      "lastName",
+      "email",
+      "password",
+      "confirmPassword",
+      "studentNumber",
+      "course",
+      "yearLevel",
+    ];
+    const allTouched = {};
+    allFields.forEach((f) => (allTouched[f] = true));
+    setTouched((prev) => ({ ...prev, ...allTouched }));
 
-      // Check if any field has a validation error
-      const hasError = allFields.some((f) => {
-        const val = formData[f];
-        switch (f) {
-          case "firstName": return !val || val.trim().length < 2;
-          case "lastName": return !val || val.trim().length < 2;
-          case "email": return !val || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
-          case "password": return !val || val.length < 8 || !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])/.test(val);
-          case "confirmPassword": return !val || val !== formData.password;
-          case "studentNumber": {
-            if (!val || !val.trim()) return true;
-            return !STUDENT_NUMBER_PATTERN.test(val.trim().toUpperCase().replace(/[–—]/g, "-"));
-          }
-          case "course": return !val;
-          case "yearLevel": return !val;
-          default: return false;
+    const hasError = allFields.some((f) => {
+      const val = formData[f];
+      switch (f) {
+        case "firstName":
+          return !val || val.trim().length < 2;
+        case "lastName":
+          return !val || val.trim().length < 2;
+        case "email":
+          return !val || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+        case "password":
+          return (
+            !val ||
+            val.length < 8 ||
+            !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])/.test(val)
+          );
+        case "confirmPassword":
+          return !val || val !== formData.password;
+        case "studentNumber": {
+          if (!val || !val.trim()) return true;
+          return !STUDENT_NUMBER_PATTERN.test(
+            val.trim().toUpperCase().replace(/[–—]/g, "-"),
+          );
         }
-      });
-
-      if (hasError) {
-        toast.error("Please fill in all required fields correctly.");
-        return;
+        case "course":
+          return !val;
+        case "yearLevel":
+          return !val;
+        default:
+          return false;
       }
+    });
 
-      if (emailError) return;
+    if (hasError) {
+      toast.error("Please fill in all required fields correctly.");
+      return;
+    }
 
-      if (!recaptchaToken && !IS_LOCALHOST) {
-        toast.error("Please verify reCAPTCHA");
-        return;
-      }
+    if (emailError) return;
 
-      if (modelsLoading) {
-        setLoading(true);
-        try {
-          await loadFaceModels();
-          setModelsLoading(false);
-        } catch {
-          toast.error("Face detection models failed to load. Please refresh the page.");
-          setLoading(false);
-          return;
-        }
+    if (!recaptchaToken && !IS_LOCALHOST) {
+      toast.error("Please verify reCAPTCHA");
+      return;
+    }
+
+    if (modelsLoading) {
+      setLoading(true);
+      try {
+        await loadFaceModels();
+        setModelsLoading(false);
+      } catch {
+        toast.error(
+          "Face detection models failed to load. Please refresh the page.",
+        );
         setLoading(false);
+        return;
       }
+      setLoading(false);
+    }
 
-      setCurrentStep(2);
-    };
+    setCurrentStep(2);
+  };
 
   const handleIDVerified = (descriptor) => {
     setIdDescriptor(descriptor);
-    // Persist descriptor so step 3 survives a page refresh
-    sessionStorage.setItem("signupIdDescriptor", JSON.stringify(Array.from(descriptor)));
+
+    sessionStorage.setItem(
+      "signupIdDescriptor",
+      JSON.stringify(Array.from(descriptor)),
+    );
     toast.success("ID verified! Now take a selfie.");
     setCurrentStep(3);
   };
@@ -405,7 +447,7 @@ export default function SignupFormWithFaceVerification({
       toast.error(
         `Face verification failed (${similarity.toFixed(1)}% similarity). Please retake your selfie or re-upload your ID.`,
       );
-      // Go back to step 2 (ID upload) so the user can retry
+
       setCurrentStep(2);
       sessionStorage.setItem("signupStep", "2");
       return;
@@ -501,8 +543,18 @@ export default function SignupFormWithFaceVerification({
             }`}
           >
             {currentStep > step ? (
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2.5}
+                  d="M5 13l4 4L19 7"
+                />
               </svg>
             ) : (
               step
@@ -534,8 +586,12 @@ export default function SignupFormWithFaceVerification({
         signupToken={signupToken}
         isDark={isDark}
         onVerified={() => {
-          toast.success("Email verified! Now set up 2FA to secure your account.");
-          const normalizedEmail = (signupEmail || formData.email || "").trim().toLowerCase();
+          toast.success(
+            "Email verified! Now set up 2FA to secure your account.",
+          );
+          const normalizedEmail = (signupEmail || formData.email || "")
+            .trim()
+            .toLowerCase();
           clearPendingSignupVerification();
           persistPendingTwoFactorSetup({
             userId: signupUserId,
@@ -567,28 +623,40 @@ export default function SignupFormWithFaceVerification({
           clearPendingSignupVerification();
           toast.success("You're all set! Signing you in...");
           try {
-            const { data: { session } } = await (await import("../../lib/supabase")).supabase.auth.getSession();
+            const {
+              data: { session },
+            } = await (
+              await import("../../lib/supabase")
+            ).supabase.auth.getSession();
             if (session?.user && onLoginSuccess) {
               await onLoginSuccess(session.user);
               return;
             }
-          } catch (_e) { /* fall through to manual login */ }
+          } catch (_e) {}
           toast.success("Please sign in with your new account.");
-          setTimeout(() => { if (onSwitchMode) onSwitchMode(); }, 1000);
+          setTimeout(() => {
+            if (onSwitchMode) onSwitchMode();
+          }, 1000);
         }}
         onSkip={async () => {
           clearPendingTwoFactorSetup();
           clearPendingSignupVerification();
           toast("You can enable 2FA later from Settings.", { icon: "ℹ️" });
           try {
-            const { data: { session } } = await (await import("../../lib/supabase")).supabase.auth.getSession();
+            const {
+              data: { session },
+            } = await (
+              await import("../../lib/supabase")
+            ).supabase.auth.getSession();
             if (session?.user && onLoginSuccess) {
               await onLoginSuccess(session.user);
               return;
             }
-          } catch (_e) { /* fall through to manual login */ }
+          } catch (_e) {}
           toast.success("Please sign in with your new account.");
-          setTimeout(() => { if (onSwitchMode) onSwitchMode(); }, 1000);
+          setTimeout(() => {
+            if (onSwitchMode) onSwitchMode();
+          }, 1000);
         }}
       />
     );
@@ -613,7 +681,10 @@ export default function SignupFormWithFaceVerification({
               >
                 First Name <span className="text-red-500">*</span>
               </label>
-              <SpotlightBorder isDark={isDark} error={!!getFieldError("firstName")}>
+              <SpotlightBorder
+                isDark={isDark}
+                error={!!getFieldError("firstName")}
+              >
                 <input
                   type="text"
                   value={formData.firstName}
@@ -651,7 +722,10 @@ export default function SignupFormWithFaceVerification({
               >
                 Last Name <span className="text-red-500">*</span>
               </label>
-              <SpotlightBorder isDark={isDark} error={!!getFieldError("lastName")}>
+              <SpotlightBorder
+                isDark={isDark}
+                error={!!getFieldError("lastName")}
+              >
                 <input
                   type="text"
                   value={formData.lastName}
@@ -712,9 +786,24 @@ export default function SignupFormWithFaceVerification({
                 />
                 {checkingEmail && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <svg className="animate-spin h-5 w-5 text-green-500" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    <svg
+                      className="animate-spin h-5 w-5 text-green-500"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      />
                     </svg>
                   </div>
                 )}
@@ -741,7 +830,10 @@ export default function SignupFormWithFaceVerification({
             >
               Password <span className="text-red-500">*</span>
             </label>
-            <SpotlightBorder isDark={isDark} error={!!getFieldError("password")}>
+            <SpotlightBorder
+              isDark={isDark}
+              error={!!getFieldError("password")}
+            >
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
@@ -750,7 +842,10 @@ export default function SignupFormWithFaceVerification({
                     setFormData({ ...formData, password: e.target.value })
                   }
                   onFocus={() => setIsPasswordFocused(true)}
-                  onBlur={() => { setIsPasswordFocused(false); handleBlur("password"); }}
+                  onBlur={() => {
+                    setIsPasswordFocused(false);
+                    handleBlur("password");
+                  }}
                   required
                   className={`w-full border rounded-xl px-4 py-3 outline-none ${
                     isDark
@@ -903,13 +998,19 @@ export default function SignupFormWithFaceVerification({
             >
               Confirm Password <span className="text-red-500">*</span>
             </label>
-            <SpotlightBorder isDark={isDark} error={!!getFieldError("confirmPassword")}>
+            <SpotlightBorder
+              isDark={isDark}
+              error={!!getFieldError("confirmPassword")}
+            >
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
                   value={formData.confirmPassword}
                   onChange={(e) =>
-                    setFormData({ ...formData, confirmPassword: e.target.value })
+                    setFormData({
+                      ...formData,
+                      confirmPassword: e.target.value,
+                    })
                   }
                   onBlur={() => handleBlur("confirmPassword")}
                   required
@@ -1059,14 +1160,19 @@ export default function SignupFormWithFaceVerification({
             >
               Student Number <span className="text-red-500">*</span>
             </label>
-            <SpotlightBorder isDark={isDark} error={!!getFieldError("studentNumber")}>
+            <SpotlightBorder
+              isDark={isDark}
+              error={!!getFieldError("studentNumber")}
+            >
               <input
                 type="text"
                 value={formData.studentNumber}
                 onChange={(e) =>
                   setFormData({
                     ...formData,
-                    studentNumber: e.target.value.toUpperCase().replace(/[–—]/g, "-"),
+                    studentNumber: e.target.value
+                      .toUpperCase()
+                      .replace(/[–—]/g, "-"),
                   })
                 }
                 onBlur={() => handleBlur("studentNumber")}
@@ -1164,8 +1270,14 @@ export default function SignupFormWithFaceVerification({
               <ReCAPTCHA
                 ref={recaptchaRef}
                 sitekey={RECAPTCHA_SITE_KEY}
-                onChange={(token) => { setRecaptchaToken(token); setRecaptchaExpired(false); }}
-                onExpired={() => { setRecaptchaToken(null); setRecaptchaExpired(true); }}
+                onChange={(token) => {
+                  setRecaptchaToken(token);
+                  setRecaptchaExpired(false);
+                }}
+                onExpired={() => {
+                  setRecaptchaToken(null);
+                  setRecaptchaExpired(true);
+                }}
                 theme={isDark ? "dark" : "light"}
               />
             </div>
@@ -1182,8 +1294,8 @@ export default function SignupFormWithFaceVerification({
               type="button"
               onClick={handleClearFields}
               className={`text-sm font-semibold rounded px-4 py-2 transition-colors ${
-                isDark 
-                  ? "text-blue-400 hover:bg-slate-800" 
+                isDark
+                  ? "text-blue-400 hover:bg-slate-800"
                   : "text-blue-600 hover:bg-blue-50"
               }`}
             >
@@ -1193,14 +1305,34 @@ export default function SignupFormWithFaceVerification({
 
           <button
             type="submit"
-            disabled={loading || checkingEmail || !!emailError || (!recaptchaToken && !IS_LOCALHOST)}
+            disabled={
+              loading ||
+              checkingEmail ||
+              !!emailError ||
+              (!recaptchaToken && !IS_LOCALHOST)
+            }
             className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-full shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
           >
             {loading ? (
               <>
-                <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                <svg
+                  className="animate-spin h-5 w-5 text-white"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    fill="none"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
                 </svg>
                 <span>Preparing verification...</span>
               </>

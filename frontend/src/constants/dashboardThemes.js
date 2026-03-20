@@ -1,10 +1,3 @@
-/**
- * Consistent Design System — Shared Dashboard Themes
- *
- * All dashboards use the same base theme tokens for visual consistency.
- * Only `name`, `abbrev`, and `dashboardTitle` differ per role.
- */
-
 function baseTheme(isDarkMode) {
   return {
     sidebarGradient: isDarkMode

@@ -85,7 +85,8 @@ export default function AuthPage({
   const canSignUp = true;
   const selectedRoleLabel = formatRoleLabel(selectedRole);
   const selectedRoleIsAdmin =
-    selectedRole === "staff" || ["librarian", "cashier", "registrar", "super_admin"].includes(selectedRole);
+    selectedRole === "staff" ||
+    ["librarian", "cashier", "registrar", "super_admin"].includes(selectedRole);
   const navigate = useNavigate();
 
   const [isSignUp, setIsSignUp] = useState(() => {
@@ -106,7 +107,9 @@ export default function AuthPage({
   }, [isSignUp]);
 
   useEffect(() => {
-    document.title = isSignUp ? "SmartClearance | Signup" : "SmartClearance | Login";
+    document.title = isSignUp
+      ? "SmartClearance | Signup"
+      : "SmartClearance | Login";
   }, [isSignUp]);
 
   return (
@@ -149,7 +152,7 @@ export default function AuthPage({
         transition={{
           layout: { duration: 0.3, ease: "easeInOut" },
           opacity: { duration: 0.3 },
-          scale: { duration: 0.3, ease: "easeOut" }
+          scale: { duration: 0.3, ease: "easeOut" },
         }}
         className={`w-full max-w-[500px] rounded-3xl overflow-visible relative z-20 transition-all duration-300 ${isDark ? "spatial-glass-dark" : "spatial-glass"}`}
       >
@@ -198,7 +201,7 @@ export default function AuthPage({
             {!isSignUp && selectedRoleLabel && (
               <div className="mb-3 w-fit">
                 <span
-                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${selectedRoleIsAdmin ? (isDark ? "bg-indigo-500/15 text-indigo-200 border border-indigo-400/20" : "bg-indigo-50 text-indigo-700 border border-indigo-200") : (isDark ? "bg-green-500/15 text-green-200 border border-green-400/20" : "bg-green-50 text-green-700 border border-green-200")}`}
+                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${selectedRoleIsAdmin ? (isDark ? "bg-indigo-500/15 text-indigo-200 border border-indigo-400/20" : "bg-indigo-50 text-indigo-700 border border-indigo-200") : isDark ? "bg-green-500/15 text-green-200 border border-green-400/20" : "bg-green-50 text-green-700 border border-green-200"}`}
                 >
                   <span
                     className={`h-2 w-2 rounded-full ${selectedRoleIsAdmin ? "bg-indigo-400" : "bg-green-500"}`}
@@ -227,7 +230,10 @@ export default function AuthPage({
               </button>
               {isSignUp && (
                 <button
-                  onClick={() => { setLoginInitialView("forgot"); setIsSignUp(false); }}
+                  onClick={() => {
+                    setLoginInitialView("forgot");
+                    setIsSignUp(false);
+                  }}
                   className={`ml-3 font-bold transition-colors text-sm ${isDark ? "text-green-400 hover:text-green-300" : "text-green-600 hover:text-green-700"}`}
                 >
                   Forgot password?
@@ -250,7 +256,10 @@ export default function AuthPage({
               >
                 <LoginForm
                   key={loginInitialView}
-                  onSwitchMode={() => { setLoginInitialView("login"); canSignUp && setIsSignUp(true); }}
+                  onSwitchMode={() => {
+                    setLoginInitialView("login");
+                    canSignUp && setIsSignUp(true);
+                  }}
                   isDark={isDark}
                   selectedRole={selectedRole}
                   onLoginSuccess={onLoginSuccess}

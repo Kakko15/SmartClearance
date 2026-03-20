@@ -32,7 +32,8 @@ async function createEnhancedImageVariant(imageFile) {
         const contrast = 1.35;
 
         for (let i = 0; i < data.length; i += 4) {
-          const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+          const gray =
+            0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
           const enhanced = (gray - 128) * contrast + 128;
           const v = Math.max(0, Math.min(255, enhanced));
           data[i] = v;
@@ -95,7 +96,6 @@ export async function extractTextFromID(imageFile, onProgress = null) {
     } = await worker.recognize(imageFile);
     emitProgress(70);
 
-    // Second OCR pass on a high-contrast variant to recover faint/blurred digits.
     currentProgressPhase = "enhanced";
     const enhancedImage = await createEnhancedImageVariant(imageFile);
     const {
@@ -259,7 +259,9 @@ export async function verifyStudentID(imageFile, onProgress = null) {
       };
     }
 
-    const verification = verifyISUStudentID(ocrResult.rawText || ocrResult.text);
+    const verification = verifyISUStudentID(
+      ocrResult.rawText || ocrResult.text,
+    );
 
     if (!verification.isValid) {
       return {

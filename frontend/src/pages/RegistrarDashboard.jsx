@@ -35,7 +35,9 @@ export default function RegistrarAdminDashboard({
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [comments, setComments] = useState("");
-  const [activeView, setActiveView] = useState(() => sessionStorage.getItem("tab_registrar") || "pending");
+  const [activeView, setActiveView] = useState(
+    () => sessionStorage.getItem("tab_registrar") || "pending",
+  );
 
   useEffect(() => {
     sessionStorage.setItem("tab_registrar", activeView);
@@ -52,7 +54,7 @@ export default function RegistrarAdminDashboard({
   const [reviewChecklist, setReviewChecklist] = useState({
     academicRecord: false,
     thesisTitle: false,
-    intentAcknowledged: false
+    intentAcknowledged: false,
   });
 
   // Reset checklist when selected request changes
@@ -60,7 +62,7 @@ export default function RegistrarAdminDashboard({
     setReviewChecklist({
       academicRecord: false,
       thesisTitle: false,
-      intentAcknowledged: false
+      intentAcknowledged: false,
     });
     setComments("");
   }, [selectedRequest]);
@@ -74,9 +76,7 @@ export default function RegistrarAdminDashboard({
   const fetchPendingRequests = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const response = await authAxios.get(
-        `graduation/registrar/pending`,
-      );
+      const response = await authAxios.get(`graduation/registrar/pending`);
       if (response.data.success) setRequests(response.data.requests);
     } catch (error) {
       console.error("Error fetching requests:", error);
@@ -104,13 +104,14 @@ export default function RegistrarAdminDashboard({
     fetchPendingAccounts();
   }, [fetchPendingRequests, fetchPendingAccounts]);
 
-  // Live updates — re-fetch silently when data changes
   useRealtimeSubscription("requests", () => fetchPendingRequests(true));
   useRealtimeSubscription("profiles", () => fetchPendingAccounts(true));
 
-  // Polling fallback
   useEffect(() => {
-    const interval = setInterval(() => { fetchPendingRequests(true); fetchPendingAccounts(true); }, 10000);
+    const interval = setInterval(() => {
+      fetchPendingRequests(true);
+      fetchPendingAccounts(true);
+    }, 10000);
     return () => clearInterval(interval);
   }, [fetchPendingRequests, fetchPendingAccounts]);
 
@@ -160,9 +161,10 @@ export default function RegistrarAdminDashboard({
 
   const isApproveReady = () => {
     if (!selectedRequest) return false;
-    const rulesOk = reviewChecklist.academicRecord && 
-                    reviewChecklist.intentAcknowledged &&
-                    (!selectedRequest.thesis_title || reviewChecklist.thesisTitle);
+    const rulesOk =
+      reviewChecklist.academicRecord &&
+      reviewChecklist.intentAcknowledged &&
+      (!selectedRequest.thesis_title || reviewChecklist.thesisTitle);
     return rulesOk;
   };
 
@@ -170,14 +172,11 @@ export default function RegistrarAdminDashboard({
     if (!selectedRequest || !isApproveReady()) return;
     setActionLoading(true);
     try {
-      const response = await authAxios.post(
-        `graduation/registrar/approve`,
-        {
-          request_id: selectedRequest.id,
-          admin_id: adminId,
-          comments: comments.trim() || null,
-        },
-      );
+      const response = await authAxios.post(`graduation/registrar/approve`, {
+        request_id: selectedRequest.id,
+        admin_id: adminId,
+        comments: comments.trim() || null,
+      });
       if (response.data.success) {
         toast.success("Registrar clearance approved — certificate generated!");
         setComments("");
@@ -199,14 +198,11 @@ export default function RegistrarAdminDashboard({
     }
     setActionLoading(true);
     try {
-      const response = await authAxios.post(
-        `graduation/registrar/reject`,
-        {
-          request_id: selectedRequest.id,
-          admin_id: adminId,
-          comments: comments.trim(),
-        },
-      );
+      const response = await authAxios.post(`graduation/registrar/reject`, {
+        request_id: selectedRequest.id,
+        admin_id: adminId,
+        comments: comments.trim(),
+      });
       if (response.data.success) {
         toast.success("Registrar clearance rejected");
         setComments("");
@@ -226,33 +222,54 @@ export default function RegistrarAdminDashboard({
       if (
         !(req.student?.full_name || "").toLowerCase().includes(q) &&
         !(req.student?.student_number || "").toLowerCase().includes(q)
-      ) return false;
+      )
+        return false;
     }
     if (dateFrom && req.created_at && req.created_at < dateFrom) return false;
-    if (dateTo && req.created_at && req.created_at > dateTo + "T23:59:59") return false;
+    if (dateTo && req.created_at && req.created_at > dateTo + "T23:59:59")
+      return false;
     return true;
   });
 
   const handleExportRequests = () => {
-    exportToCSV(filteredRequests, [
-      { label: "Student Name", accessor: (r) => r.student?.full_name || "" },
-      { label: "Student Number", accessor: (r) => r.student?.student_number || "" },
-      { label: "Professors", key: "professors_status" },
-      { label: "Library", key: "library_status" },
-      { label: "Cashier", key: "cashier_status" },
-      { label: "Registrar", key: "registrar_status" },
-      { label: "Submitted", accessor: (r) => r.created_at ? new Date(r.created_at).toLocaleDateString() : "" },
-    ], "registrar_clearances");
+    exportToCSV(
+      filteredRequests,
+      [
+        { label: "Student Name", accessor: (r) => r.student?.full_name || "" },
+        {
+          label: "Student Number",
+          accessor: (r) => r.student?.student_number || "",
+        },
+        { label: "Professors", key: "professors_status" },
+        { label: "Library", key: "library_status" },
+        { label: "Cashier", key: "cashier_status" },
+        { label: "Registrar", key: "registrar_status" },
+        {
+          label: "Submitted",
+          accessor: (r) =>
+            r.created_at ? new Date(r.created_at).toLocaleDateString() : "",
+        },
+      ],
+      "registrar_clearances",
+    );
   };
 
   const handleExportAccounts = () => {
-    exportToCSV(filteredAccounts, [
-      { label: "Full Name", key: "full_name" },
-      { label: "Student Number", key: "student_number" },
-      { label: "Email", key: "email" },
-      { label: "Verification Status", key: "verification_status" },
-      { label: "Created", accessor: (r) => r.created_at ? new Date(r.created_at).toLocaleDateString() : "" },
-    ], "pending_accounts");
+    exportToCSV(
+      filteredAccounts,
+      [
+        { label: "Full Name", key: "full_name" },
+        { label: "Student Number", key: "student_number" },
+        { label: "Email", key: "email" },
+        { label: "Verification Status", key: "verification_status" },
+        {
+          label: "Created",
+          accessor: (r) =>
+            r.created_at ? new Date(r.created_at).toLocaleDateString() : "",
+        },
+      ],
+      "pending_accounts",
+    );
   };
 
   const filteredAccounts = pendingAccounts.filter((acc) => {
@@ -268,7 +285,8 @@ export default function RegistrarAdminDashboard({
   const toggleSelect = (id) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -283,15 +301,23 @@ export default function RegistrarAdminDashboard({
     setBulkLoading(true);
     try {
       const response = await authAxios.post("graduation/bulk-approve", {
-        request_ids: [...selectedIds], admin_id: adminId, stage: "registrar",
+        request_ids: [...selectedIds],
+        admin_id: adminId,
+        stage: "registrar",
       });
       if (response.data.success) {
-        toast.success(`${response.data.results.approved.length} clearances approved`);
-        setSelectedIds(new Set()); setBulkMode(false); fetchPendingRequests();
+        toast.success(
+          `${response.data.results.approved.length} clearances approved`,
+        );
+        setSelectedIds(new Set());
+        setBulkMode(false);
+        fetchPendingRequests();
       }
     } catch (error) {
       toast.error(error.response?.data?.error || "Bulk approve failed");
-    } finally { setBulkLoading(false); }
+    } finally {
+      setBulkLoading(false);
+    }
   };
 
   const handleBulkReject = async () => {
@@ -302,15 +328,25 @@ export default function RegistrarAdminDashboard({
     setBulkLoading(true);
     try {
       const response = await authAxios.post("graduation/bulk-reject", {
-        request_ids: [...selectedIds], admin_id: adminId, stage: "registrar", comments: comments.trim(),
+        request_ids: [...selectedIds],
+        admin_id: adminId,
+        stage: "registrar",
+        comments: comments.trim(),
       });
       if (response.data.success) {
-        toast.success(`${response.data.results.rejected.length} clearances rejected`);
-        setSelectedIds(new Set()); setBulkMode(false); setComments(""); fetchPendingRequests();
+        toast.success(
+          `${response.data.results.rejected.length} clearances rejected`,
+        );
+        setSelectedIds(new Set());
+        setBulkMode(false);
+        setComments("");
+        fetchPendingRequests();
       }
     } catch (error) {
       toast.error(error.response?.data?.error || "Bulk reject failed");
-    } finally { setBulkLoading(false); }
+    } finally {
+      setBulkLoading(false);
+    }
   };
 
   const theme = getRegistrarTheme(isDarkMode);
@@ -336,7 +372,11 @@ export default function RegistrarAdminDashboard({
       menuItems={menuItems}
       activeView={activeView}
       setActiveView={setActiveView}
-      userInfo={{ name: "Registrar", subtitle: "Registrar Admin", avatar: user?.user_metadata?.avatar_url }}
+      userInfo={{
+        name: "Registrar",
+        subtitle: "Registrar Admin",
+        avatar: user?.user_metadata?.avatar_url,
+      }}
       onSignOut={onSignOut}
       onOpenSettings={onOpenSettings}
       onManageAccount={onManageAccount}
@@ -378,9 +418,14 @@ export default function RegistrarAdminDashboard({
                 >
                   {filteredRequests.length > 1 && (
                     <button
-                      onClick={() => { setBulkMode(!bulkMode); setSelectedIds(new Set()); }}
+                      onClick={() => {
+                        setBulkMode(!bulkMode);
+                        setSelectedIds(new Set());
+                      }}
                       className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
-                        bulkMode ? "bg-slate-700 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                        bulkMode
+                          ? "bg-slate-700 text-white"
+                          : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                       }`}
                     >
                       {bulkMode ? "Cancel Bulk" : "Bulk Actions"}
@@ -390,16 +435,34 @@ export default function RegistrarAdminDashboard({
                 {bulkMode && (
                   <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={selectedIds.size === filteredRequests.length} onChange={toggleSelectAll} className="w-4 h-4 rounded" />
-                      <span className="text-sm font-medium text-gray-700">Select All ({selectedIds.size}/{filteredRequests.length})</span>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.size === filteredRequests.length}
+                        onChange={toggleSelectAll}
+                        className="w-4 h-4 rounded"
+                      />
+                      <span className="text-sm font-medium text-gray-700">
+                        Select All ({selectedIds.size}/{filteredRequests.length}
+                        )
+                      </span>
                     </label>
                     <div className="flex gap-2">
-                      <button onClick={handleBulkApprove} disabled={selectedIds.size === 0 || bulkLoading}
-                        className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-green-600 text-white disabled:opacity-50">
+                      <button
+                        onClick={handleBulkApprove}
+                        disabled={selectedIds.size === 0 || bulkLoading}
+                        className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-green-600 text-white disabled:opacity-50"
+                      >
                         {bulkLoading ? "..." : `Approve (${selectedIds.size})`}
                       </button>
-                      <button onClick={handleBulkReject} disabled={selectedIds.size === 0 || bulkLoading || !comments.trim()}
-                        className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-red-600 text-white disabled:opacity-50">
+                      <button
+                        onClick={handleBulkReject}
+                        disabled={
+                          selectedIds.size === 0 ||
+                          bulkLoading ||
+                          !comments.trim()
+                        }
+                        className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-red-600 text-white disabled:opacity-50"
+                      >
                         {bulkLoading ? "..." : `Reject (${selectedIds.size})`}
                       </button>
                     </div>
@@ -415,7 +478,10 @@ export default function RegistrarAdminDashboard({
                     Loading Students...
                   </h3>
                   {[1, 2, 3].map((i) => (
-                    <div key={i} className="p-4 rounded-xl border-2 border-gray-100 bg-white/70">
+                    <div
+                      key={i}
+                      className="p-4 rounded-xl border-2 border-gray-100 bg-white/70"
+                    >
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-slate-200 rounded-xl animate-pulse" />
                         <div className="flex-1">
@@ -433,9 +499,9 @@ export default function RegistrarAdminDashboard({
                   </h3>
                   <GlassCard className="p-5 h-[400px] flex items-center justify-center">
                     <div className="flex flex-col items-center gap-4 w-full">
-                       <div className="w-16 h-16 rounded-2xl bg-slate-200 animate-pulse" />
-                       <div className="h-4 w-48 bg-slate-200 rounded animate-pulse mb-2" />
-                       <div className="h-3 w-32 bg-slate-200 rounded animate-pulse" />
+                      <div className="w-16 h-16 rounded-2xl bg-slate-200 animate-pulse" />
+                      <div className="h-4 w-48 bg-slate-200 rounded animate-pulse mb-2" />
+                      <div className="h-3 w-32 bg-slate-200 rounded animate-pulse" />
                     </div>
                   </GlassCard>
                 </div>
@@ -470,7 +536,11 @@ export default function RegistrarAdminDashboard({
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, x: -30 }}
-                        transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                        transition={{
+                          type: "spring",
+                          stiffness: 350,
+                          damping: 30,
+                        }}
                       >
                         <div
                           className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
@@ -481,14 +551,23 @@ export default function RegistrarAdminDashboard({
                                 : "border-gray-100 bg-white/70 hover:border-slate-300 hover:shadow-md"
                           }`}
                           onClick={() => {
-                            if (bulkMode) { toggleSelect(req.id); return; }
+                            if (bulkMode) {
+                              toggleSelect(req.id);
+                              return;
+                            }
                             setSelectedRequest(req);
                             setComments("");
                           }}
                         >
                           <div className="flex items-center gap-3">
                             {bulkMode && (
-                              <input type="checkbox" checked={selectedIds.has(req.id)} onChange={() => toggleSelect(req.id)} onClick={(e) => e.stopPropagation()} className="w-4 h-4 rounded" />
+                              <input
+                                type="checkbox"
+                                checked={selectedIds.has(req.id)}
+                                onChange={() => toggleSelect(req.id)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-4 h-4 rounded"
+                              />
                             )}
                             <div className="w-10 h-10 bg-gradient-to-br from-slate-600 to-slate-800 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-slate-500/20">
                               {req.student?.full_name?.charAt(0) || "?"}
@@ -502,29 +581,29 @@ export default function RegistrarAdminDashboard({
                                   {req.student?.student_number || ""}
                                 </p>
                                 <div className="flex items-center gap-1">
-                                {req.professors_status === "approved" && (
-                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-600">
-                                    Prof ✓
-                                  </span>
-                                )}
-                                {req.library_status === "approved" && (
-                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-600">
-                                    Lib ✓
-                                  </span>
-                                )}
-                                {req.cashier_status === "approved" && (
-                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-600">
-                                    Cash ✓
-                                  </span>
-                                )}
+                                  {req.professors_status === "approved" && (
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-600">
+                                      Prof ✓
+                                    </span>
+                                  )}
+                                  {req.library_status === "approved" && (
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-600">
+                                      Lib ✓
+                                    </span>
+                                  )}
+                                  {req.cashier_status === "approved" && (
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-600">
+                                      Cash ✓
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
+                            <StatusBadge status="pending" />
                           </div>
-                          <StatusBadge status="pending" />
                         </div>
-                      </div>
-                    </motion.div>
-                  ))}
+                      </motion.div>
+                    ))}
                   </AnimatePresence>
                 </div>
 
@@ -605,50 +684,88 @@ export default function RegistrarAdminDashboard({
                         />
                       </div>
 
-                      {/* NEW STRICT CHECKLIST (FORM 07) */}
+                      {}
                       <div className="mb-5 p-4 rounded-xl border border-primary-200 bg-primary-50/50">
-                        <h4 className="text-xs font-bold text-primary-700 uppercase tracking-wider mb-3">Registrar Validation Checklist</h4>
+                        <h4 className="text-xs font-bold text-primary-700 uppercase tracking-wider mb-3">
+                          Registrar Validation Checklist
+                        </h4>
                         <div className="space-y-3">
                           <label className="flex items-start gap-3 cursor-pointer">
-                            <input 
-                              type="checkbox" 
+                            <input
+                              type="checkbox"
                               checked={reviewChecklist.academicRecord}
-                              onChange={(e) => setReviewChecklist({...reviewChecklist, academicRecord: e.target.checked})}
-                              className="mt-0.5 w-4 h-4 rounded text-primary-600 focus:ring-primary-500" 
+                              onChange={(e) =>
+                                setReviewChecklist({
+                                  ...reviewChecklist,
+                                  academicRecord: e.target.checked,
+                                })
+                              }
+                              className="mt-0.5 w-4 h-4 rounded text-primary-600 focus:ring-primary-500"
                             />
                             <div className="flex flex-col">
-                              <span className="text-sm font-medium text-gray-800">Evaluated Student's Academic Record</span>
-                              <span className="text-xs text-gray-500">Includes {selectedRequest.semesters_enrolled || "N/A"} semesters and {selectedRequest.summers_enrolled || 0} summers enrolled.</span>
+                              <span className="text-sm font-medium text-gray-800">
+                                Evaluated Student's Academic Record
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                Includes{" "}
+                                {selectedRequest.semesters_enrolled || "N/A"}{" "}
+                                semesters and{" "}
+                                {selectedRequest.summers_enrolled || 0} summers
+                                enrolled.
+                              </span>
                             </div>
                           </label>
 
                           {selectedRequest.thesis_title && (
                             <label className="flex items-start gap-3 cursor-pointer">
-                              <input 
-                                type="checkbox" 
+                              <input
+                                type="checkbox"
                                 checked={reviewChecklist.thesisTitle}
-                                onChange={(e) => setReviewChecklist({...reviewChecklist, thesisTitle: e.target.checked})}
-                                className="mt-0.5 w-4 h-4 rounded text-primary-600 focus:ring-primary-500" 
+                                onChange={(e) =>
+                                  setReviewChecklist({
+                                    ...reviewChecklist,
+                                    thesisTitle: e.target.checked,
+                                  })
+                                }
+                                className="mt-0.5 w-4 h-4 rounded text-primary-600 focus:ring-primary-500"
                               />
                               <div className="flex flex-col">
-                                <span className="text-sm font-medium text-gray-800">Reviewed Research Title</span>
-                                <span className="text-xs text-gray-500 italic max-w-[280px] break-words">"{selectedRequest.thesis_title}"</span>
+                                <span className="text-sm font-medium text-gray-800">
+                                  Reviewed Research Title
+                                </span>
+                                <span className="text-xs text-gray-500 italic max-w-[280px] break-words">
+                                  "{selectedRequest.thesis_title}"
+                                </span>
                               </div>
                             </label>
                           )}
 
                           <label className="flex items-start gap-3 cursor-pointer">
-                            <input 
-                              type="checkbox" 
+                            <input
+                              type="checkbox"
                               checked={reviewChecklist.intentAcknowledged}
-                              onChange={(e) => setReviewChecklist({...reviewChecklist, intentAcknowledged: e.target.checked})}
-                              className="mt-0.5 w-4 h-4 rounded text-primary-600 focus:ring-primary-500" 
+                              onChange={(e) =>
+                                setReviewChecklist({
+                                  ...reviewChecklist,
+                                  intentAcknowledged: e.target.checked,
+                                })
+                              }
+                              className="mt-0.5 w-4 h-4 rounded text-primary-600 focus:ring-primary-500"
                             />
                             <div className="flex flex-col">
-                              <span className="text-sm font-medium text-gray-800">Verified Clearance Intent(s)</span>
+                              <span className="text-sm font-medium text-gray-800">
+                                Verified Clearance Intent(s)
+                              </span>
                               <span className="text-xs text-gray-500">
-                                {Array.isArray(selectedRequest.clearance_intent) && selectedRequest.clearance_intent.length > 0
-                                  ? selectedRequest.clearance_intent.join(", ") + (selectedRequest.clearance_intent_others ? ` (${selectedRequest.clearance_intent_others})` : "")
+                                {Array.isArray(
+                                  selectedRequest.clearance_intent,
+                                ) && selectedRequest.clearance_intent.length > 0
+                                  ? selectedRequest.clearance_intent.join(
+                                      ", ",
+                                    ) +
+                                    (selectedRequest.clearance_intent_others
+                                      ? ` (${selectedRequest.clearance_intent_others})`
+                                      : "")
                                   : "General Clearance"}
                               </span>
                             </div>
@@ -658,8 +775,16 @@ export default function RegistrarAdminDashboard({
 
                       <div className="flex gap-3">
                         <motion.button
-                          whileHover={isApproveReady() && !actionLoading ? { scale: 1.02 } : {}}
-                          whileTap={isApproveReady() && !actionLoading ? { scale: 0.98 } : {}}
+                          whileHover={
+                            isApproveReady() && !actionLoading
+                              ? { scale: 1.02 }
+                              : {}
+                          }
+                          whileTap={
+                            isApproveReady() && !actionLoading
+                              ? { scale: 0.98 }
+                              : {}
+                          }
                           onClick={handleApprove}
                           disabled={actionLoading || !isApproveReady()}
                           className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-full font-semibold transition-all text-sm ${
@@ -750,7 +875,10 @@ export default function RegistrarAdminDashboard({
                     Loading Accounts...
                   </h3>
                   {[1, 2, 3].map((i) => (
-                    <div key={i} className="p-4 rounded-xl border-2 border-gray-100 bg-white/70">
+                    <div
+                      key={i}
+                      className="p-4 rounded-xl border-2 border-gray-100 bg-white/70"
+                    >
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-slate-200 rounded-xl animate-pulse" />
                         <div className="flex-1">
@@ -768,9 +896,9 @@ export default function RegistrarAdminDashboard({
                   </h3>
                   <GlassCard className="p-5 h-[400px] flex items-center justify-center">
                     <div className="flex flex-col items-center gap-4 w-full">
-                       <div className="w-16 h-16 rounded-2xl bg-slate-200 animate-pulse" />
-                       <div className="h-4 w-48 bg-slate-200 rounded animate-pulse mb-2" />
-                       <div className="h-3 w-32 bg-slate-200 rounded animate-pulse" />
+                      <div className="w-16 h-16 rounded-2xl bg-slate-200 animate-pulse" />
+                      <div className="h-4 w-48 bg-slate-200 rounded animate-pulse mb-2" />
+                      <div className="h-3 w-32 bg-slate-200 rounded animate-pulse" />
                     </div>
                   </GlassCard>
                 </div>
@@ -805,7 +933,11 @@ export default function RegistrarAdminDashboard({
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, x: -30 }}
-                        transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                        transition={{
+                          type: "spring",
+                          stiffness: 350,
+                          damping: 30,
+                        }}
                       >
                         <div
                           className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${

@@ -3,7 +3,6 @@ const router = express.Router();
 const supabase = require("../supabaseClient");
 const { requireAuth, requireRole } = require("../middleware/authMiddleware");
 
-// GET /api/delegation — get current delegation status for the signatory
 router.get("/", requireAuth, requireRole("signatory"), async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -37,39 +36,48 @@ router.get("/", requireAuth, requireRole("signatory"), async (req, res) => {
   }
 });
 
-// GET /api/delegation/signatories — list other signatories to delegate to
-router.get("/signatories", requireAuth, requireRole("signatory"), async (req, res) => {
-  try {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, full_name")
-      .eq("role", "signatory")
-      .eq("account_enabled", true)
-      .neq("id", req.user.id)
-      .order("full_name");
+router.get(
+  "/signatories",
+  requireAuth,
+  requireRole("signatory"),
+  async (req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .eq("role", "signatory")
+        .eq("account_enabled", true)
+        .neq("id", req.user.id)
+        .order("full_name");
 
-    if (error) throw error;
-    res.json({ success: true, signatories: data || [] });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+      if (error) throw error;
+      res.json({ success: true, signatories: data || [] });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  },
+);
 
-// POST /api/delegation/set — create or update delegation
 router.post("/set", requireAuth, requireRole("signatory"), async (req, res) => {
   try {
     const { delegated_to, expires_at } = req.body;
 
     if (!delegated_to || !expires_at) {
-      return res.status(400).json({ success: false, error: "Delegate and expiry date are required" });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          error: "Delegate and expiry date are required",
+        });
     }
 
     const expiryDate = new Date(expires_at);
     if (expiryDate <= new Date()) {
-      return res.status(400).json({ success: false, error: "Expiry date must be in the future" });
+      return res
+        .status(400)
+        .json({ success: false, error: "Expiry date must be in the future" });
     }
 
-    // Verify the delegate is a signatory
     const { data: delegate } = await supabase
       .from("profiles")
       .select("id, role")
@@ -78,7 +86,12 @@ router.post("/set", requireAuth, requireRole("signatory"), async (req, res) => {
       .single();
 
     if (!delegate) {
-      return res.status(400).json({ success: false, error: "Invalid delegate — must be a signatory" });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          error: "Invalid delegate — must be a signatory",
+        });
     }
 
     const { error } = await supabase
@@ -91,7 +104,6 @@ router.post("/set", requireAuth, requireRole("signatory"), async (req, res) => {
 
     if (error) throw error;
 
-    // Notify the delegate
     await supabase.from("notifications").insert({
       user_id: delegated_to,
       type: "info",
@@ -105,19 +117,23 @@ router.post("/set", requireAuth, requireRole("signatory"), async (req, res) => {
   }
 });
 
-// POST /api/delegation/revoke — remove delegation
-router.post("/revoke", requireAuth, requireRole("signatory"), async (req, res) => {
-  try {
-    const { error } = await supabase
-      .from("profiles")
-      .update({ delegated_to: null, delegation_expires_at: null })
-      .eq("id", req.user.id);
+router.post(
+  "/revoke",
+  requireAuth,
+  requireRole("signatory"),
+  async (req, res) => {
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ delegated_to: null, delegation_expires_at: null })
+        .eq("id", req.user.id);
 
-    if (error) throw error;
-    res.json({ success: true, message: "Delegation revoked" });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+      if (error) throw error;
+      res.json({ success: true, message: "Delegation revoked" });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  },
+);
 
 module.exports = router;

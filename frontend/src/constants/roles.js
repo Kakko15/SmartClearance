@@ -1,13 +1,3 @@
-/**
- * Centralized role definitions for the Smart Clearance System.
- *
- * Role hierarchy:
- *   Tier 1 — system_admin  (developer / IT, no app UI)
- *   Tier 2 — super_admin   (university management)
- *   Tier 3 — Staff: librarian, cashier, registrar, signatory
- *   Tier 4 — student
- */
-
 export const ROLES = {
   SYSTEM_ADMIN: "system_admin",
   SUPER_ADMIN: "super_admin",
@@ -42,10 +32,7 @@ export const SECRET_CODE_ROLES = [
   ROLES.REGISTRAR,
 ];
 
-export const MANAGEMENT_ROLES = [
-  ROLES.SUPER_ADMIN,
-  ROLES.SYSTEM_ADMIN,
-];
+export const MANAGEMENT_ROLES = [ROLES.SUPER_ADMIN, ROLES.SYSTEM_ADMIN];
 
 export const isStaffRole = (role) => STAFF_ROLES.includes(role);
 export const isManagementRole = (role) => MANAGEMENT_ROLES.includes(role);

@@ -23,7 +23,9 @@ export function ThemeProvider({ children }) {
     return false;
   });
 
-  useEffect(() => {
+  const [prevThemePref, setPrevThemePref] = useState(themePreference);
+  if (themePreference !== prevThemePref) {
+    setPrevThemePref(themePreference);
     let activeDark = false;
     if (themePreference === "dark") activeDark = true;
     else if (themePreference === "light") activeDark = false;
@@ -31,8 +33,11 @@ export function ThemeProvider({ children }) {
       activeDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
 
     setIsDarkMode(activeDark);
-    document.documentElement.classList.toggle("dark", activeDark);
-  }, [themePreference]);
+  }
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", isDarkMode);
+  }, [isDarkMode]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

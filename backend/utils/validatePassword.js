@@ -1,7 +1,3 @@
-/**
- * Shared password strength validation.
- * Returns { valid: true } or { valid: false, error: "..." }
- */
 function validatePassword(password) {
   if (!password || password.length < 8) {
     return { valid: false, error: "Password must be at least 8 characters" };
@@ -15,7 +11,8 @@ function validatePassword(password) {
   if (!hasUppercase || !hasLowercase || !hasNumber || !hasSpecial) {
     return {
       valid: false,
-      error: "Password must contain uppercase, lowercase, number, and special character",
+      error:
+        "Password must contain uppercase, lowercase, number, and special character",
     };
   }
 

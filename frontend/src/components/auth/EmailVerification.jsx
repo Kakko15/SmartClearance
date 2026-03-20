@@ -4,7 +4,15 @@ import { motion } from "framer-motion";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
-export default function EmailVerification({ email, userId, isDark, onVerified, onSwitchToLogin, signupToken, verifyToken }) {
+export default function EmailVerification({
+  email,
+  userId,
+  isDark,
+  onVerified,
+  onSwitchToLogin,
+  signupToken,
+  verifyToken,
+}) {
   const [code, setCode] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
@@ -43,11 +51,16 @@ export default function EmailVerification({ email, userId, isDark, onVerified, o
     } else {
       // First mount — set 10 min expiry
       const expiresAt = Date.now() + 600 * 1000;
-      sessionStorage.setItem(`${storagePrefix}expires_at`, expiresAt.toString());
+      sessionStorage.setItem(
+        `${storagePrefix}expires_at`,
+        expiresAt.toString(),
+      );
       startCountdown(600);
     }
 
-    const storedCooldown = sessionStorage.getItem(`${storagePrefix}resend_until`);
+    const storedCooldown = sessionStorage.getItem(
+      `${storagePrefix}resend_until`,
+    );
     if (storedCooldown) {
       const remaining = Math.ceil((Number(storedCooldown) - Date.now()) / 1000);
       if (remaining > 0) {
@@ -58,7 +71,10 @@ export default function EmailVerification({ email, userId, isDark, onVerified, o
       }
     } else {
       const cooldownUntil = Date.now() + 60 * 1000;
-      sessionStorage.setItem(`${storagePrefix}resend_until`, cooldownUntil.toString());
+      sessionStorage.setItem(
+        `${storagePrefix}resend_until`,
+        cooldownUntil.toString(),
+      );
       startResendCooldown(60);
     }
   }, []);
@@ -102,7 +118,10 @@ export default function EmailVerification({ email, userId, isDark, onVerified, o
   };
 
   const maskedEmail = email
-    ? email.replace(/(.{2})(.*)(@.*)/, (_, a, b, c) => a + "*".repeat(Math.min(b.length, 6)) + c)
+    ? email.replace(
+        /(.{2})(.*)(@.*)/,
+        (_, a, b, c) => a + "*".repeat(Math.min(b.length, 6)) + c,
+      )
     : "";
 
   const handleCodeChange = (index, value) => {
@@ -125,7 +144,10 @@ export default function EmailVerification({ email, userId, isDark, onVerified, o
 
   const handlePaste = (e) => {
     e.preventDefault();
-    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    const pasted = e.clipboardData
+      .getData("text")
+      .replace(/\D/g, "")
+      .slice(0, 6);
     setCode(pasted);
     const nextIdx = Math.min(pasted.length, 5);
     inputRefs.current[nextIdx]?.focus();
@@ -181,10 +203,16 @@ export default function EmailVerification({ email, userId, isDark, onVerified, o
         toast.success("New verification code sent!");
         setCode("");
         const expiresAt = Date.now() + 600 * 1000;
-        sessionStorage.setItem(`${storagePrefix}expires_at`, expiresAt.toString());
+        sessionStorage.setItem(
+          `${storagePrefix}expires_at`,
+          expiresAt.toString(),
+        );
         startCountdown(600);
         const cooldownUntil = Date.now() + 60 * 1000;
-        sessionStorage.setItem(`${storagePrefix}resend_until`, cooldownUntil.toString());
+        sessionStorage.setItem(
+          `${storagePrefix}resend_until`,
+          cooldownUntil.toString(),
+        );
         startResendCooldown(60);
       } else {
         toast.error(data.error || "Failed to resend code");
@@ -203,16 +231,33 @@ export default function EmailVerification({ email, userId, isDark, onVerified, o
       className="w-full max-w-md mx-auto"
     >
       <div className="text-center mb-6">
-        <div className={`w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center ${isDark ? "bg-green-500/20" : "bg-green-100"}`}>
-          <svg className={`w-8 h-8 ${isDark ? "text-green-400" : "text-green-600"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+        <div
+          className={`w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center ${isDark ? "bg-green-500/20" : "bg-green-100"}`}
+        >
+          <svg
+            className={`w-8 h-8 ${isDark ? "text-green-400" : "text-green-600"}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+            />
           </svg>
         </div>
-        <h2 className={`text-2xl font-bold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}>
+        <h2
+          className={`text-2xl font-bold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}
+        >
           Verify Your Email
         </h2>
         <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>
-          We sent a 6-digit code to <strong className={isDark ? "text-white" : "text-gray-900"}>{maskedEmail}</strong>
+          We sent a 6-digit code to{" "}
+          <strong className={isDark ? "text-white" : "text-gray-900"}>
+            {maskedEmail}
+          </strong>
         </p>
         {countdown > 0 && (
           <motion.p
@@ -222,8 +267,12 @@ export default function EmailVerification({ email, userId, isDark, onVerified, o
               countdown <= 60
                 ? "text-red-500"
                 : countdown <= 180
-                  ? isDark ? "text-yellow-400" : "text-yellow-600"
-                  : isDark ? "text-green-400" : "text-green-600"
+                  ? isDark
+                    ? "text-yellow-400"
+                    : "text-yellow-600"
+                  : isDark
+                    ? "text-green-400"
+                    : "text-green-600"
             }`}
           >
             Code expires in {formatTime(countdown)}

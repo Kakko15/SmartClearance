@@ -18,7 +18,7 @@ export default function PasswordInput({
 }) {
   const [showPassword, setShowPassword] = useState(false);
 
-  const baseInputClass = `w-full px-4 py-3 bg-transparent border rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600 ${status ? 'pr-20' : 'pr-12'} ${
+  const baseInputClass = `w-full px-4 py-3 bg-transparent border rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600 ${status ? "pr-20" : "pr-12"} ${
     isDark
       ? "border-[#5f6368] text-[#e8eaed] placeholder-[#9aa0a6] hover:border-[#9aa0a6]"
       : "border-[#dadce0] text-[#202124] placeholder-[#5f6368] hover:border-[#80868b]"
@@ -27,8 +27,13 @@ export default function PasswordInput({
   return (
     <div>
       {label && (
-        <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-[#9aa0a6]' : 'text-[#5f6368]'}`}>
-          {label} {required && <span className={isDark ? "text-red-400" : "text-red-500"}>*</span>}
+        <label
+          className={`block text-sm font-medium mb-2 ${isDark ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}
+        >
+          {label}{" "}
+          {required && (
+            <span className={isDark ? "text-red-400" : "text-red-500"}>*</span>
+          )}
         </label>
       )}
       <div className="relative">
@@ -45,8 +50,8 @@ export default function PasswordInput({
             placeholder={placeholder}
           />
         </SpotlightBorder>
-        
-        {/* Status Icon with Smooth Google-like Animation */}
+
+        {}
         <div className="absolute right-12 top-1/2 -translate-y-1/2 pointer-events-none flex items-center justify-center">
           <AnimatePresence>
             {status === "success" ? (
@@ -104,7 +109,6 @@ export default function PasswordInput({
           onClick={() => setShowPassword(!showPassword)}
           aria-label={showPassword ? "Hide password" : "Show password"}
           aria-pressed={showPassword}
-  // BUG 12 FIX: Use theme-aware colors for the eye icon toggle button
           className={`absolute right-3 top-1/2 -translate-y-1/2 rounded-md transition-colors ${isDark ? "text-[#9aa0a6] hover:text-[#e8eaed]" : "text-[#5f6368] hover:text-[#202124]"} focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600`}
         >
           {showPassword ? (

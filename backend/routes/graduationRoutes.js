@@ -5,42 +5,56 @@ const rateLimit = require("express-rate-limit");
 const supabase = require("../supabaseClient");
 const { requireAuth, requireRole } = require("../middleware/authMiddleware");
 const { logAction, ACTIONS } = require("../services/auditService");
-const { resolveUserEmail, sendEmail, createInAppNotification, notifyBulkAction, notifyNextStageStaff } = require("../services/notificationService");
+const {
+  resolveUserEmail,
+  sendEmail,
+  createInAppNotification,
+  notifyBulkAction,
+  notifyNextStageStaff,
+} = require("../services/notificationService");
 const { escapeHtml } = require("../utils/escapeHtml");
 
-// ── S5 FIX: Rate limiting on graduation endpoints ────────────────────────────
 const isDev = process.env.NODE_ENV === "development";
 
 const graduationWriteLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: isDev ? 200 : 30,    // 30 state-changing requests per 15 min
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 200 : 30,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, error: "Too many requests. Please try again later." },
+  message: {
+    success: false,
+    error: "Too many requests. Please try again later.",
+  },
 });
 
 const graduationReadLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isDev ? 500 : 120,   // 120 reads per 15 min
+  max: isDev ? 500 : 120,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, error: "Too many requests. Please try again later." },
+  message: {
+    success: false,
+    error: "Too many requests. Please try again later.",
+  },
 });
 
-// Apply read limiter to all GET routes, write limiter to all POST/DELETE routes
 router.use((req, _res, next) => {
   if (req.method === "GET") return graduationReadLimiter(req, _res, next);
   return graduationWriteLimiter(req, _res, next);
 });
 
-// ── S8 FIX: Max comment length ───────────────────────────────────────────────
 const MAX_COMMENT_LENGTH = 2000;
 
-// ── G4: Default deadline (30 days from now) ──────────────────────────────────
 const DEFAULT_DEADLINE_DAYS = 30;
 
-// ── G7: Log status transitions to clearance_status_history ───────────────────
-async function logStatusChange(requestId, stage, oldStatus, newStatus, changedBy, comments) {
+async function logStatusChange(
+  requestId,
+  stage,
+  oldStatus,
+  newStatus,
+  changedBy,
+  comments,
+) {
   try {
     await supabase.from("clearance_status_history").insert({
       request_id: requestId,
@@ -55,10 +69,8 @@ async function logStatusChange(requestId, stage, oldStatus, newStatus, changedBy
   }
 }
 
-// ── G6: Notify assigned signatories and admin staff when a student applies ───
 async function notifyStaffOfNewApplication(requestId, studentName, portion) {
   try {
-    // Get all staff who might need to act on this request
     const roles = ["librarian", "cashier", "registrar", "signatory"];
     const { data: staff } = await supabase
       .from("profiles")
@@ -80,7 +92,6 @@ async function notifyStaffOfNewApplication(requestId, studentName, portion) {
       </div>
     `;
 
-    // Send to each staff member (fire-and-forget, don't block)
     for (const member of staff) {
       const email = await resolveUserEmail(member.id);
       if (email) {
@@ -92,21 +103,12 @@ async function notifyStaffOfNewApplication(requestId, studentName, portion) {
   }
 }
 
-// ── B2 FIX: Collision-proof certificate number generator ─────────────────────
 function generateCertificateNumber() {
   const year = new Date().getFullYear();
   const hex = crypto.randomBytes(4).toString("hex").toUpperCase();
   return `ISU-GC-${year}-${hex}`;
 }
 
-// ── B3 FIX: Single shared completion check ───────────────────────────────────
-// Called after any stage approval to check if the entire clearance is done.
-// Uses the `portion` column (B5 fix) to determine which stages are required.
-/**
- * Guard against DB triggers that may reset professor_approvals to "pending"
- * when the requests table is updated. Snapshots approval statuses BEFORE
- * a requests-table write, then restores any that were silently reverted.
- */
 async function snapshotApprovals(requestId) {
   const { data } = await supabase
     .from("professor_approvals")
@@ -125,45 +127,40 @@ async function restoreApprovals(requestId, snapshot) {
 
   for (const prev of snapshot) {
     const now = current.find((c) => c.id === prev.id);
-    // If a previously approved/rejected approval was reset to pending, restore it
+
     if (now && prev.status !== "pending" && now.status === "pending") {
-      console.error(`TRIGGER RESET DETECTED: approval ${prev.id} was "${prev.status}" but got reset to "pending". Restoring.`);
+      console.error(
+        `TRIGGER RESET DETECTED: approval ${prev.id} was "${prev.status}" but got reset to "pending". Restoring.`,
+      );
       await supabase
         .from("professor_approvals")
-        .update({ status: prev.status, comments: prev.comments, approved_at: prev.approved_at, updated_at: new Date().toISOString() })
+        .update({
+          status: prev.status,
+          comments: prev.comments,
+          approved_at: prev.approved_at,
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", prev.id);
     }
   }
 }
 
-/**
- * Self-healing read: detect professor_approvals that were reset to "pending"
- * by a DB trigger. Uses two sources of truth:
- *   1. approved_at — if set but status is "pending", the trigger only reset status
- *   2. clearance_status_history — if a "signatory" → "approved" log exists for
- *      this request and professor, the approval was definitely granted
- *
- * Does NOT write back to the DB (that would re-trigger the cycle).
- * Returns a corrected copy of the approvals array.
- */
 async function healApprovals(approvals, requestId) {
   if (!approvals || approvals.length === 0) return approvals;
 
-  // Fast path: check if any approvals need healing
-  const needsHealing = approvals.some((a) => a.status === "pending" && a.approved_at);
-  // Also check if ALL are pending but we might have history records
+  const needsHealing = approvals.some(
+    (a) => a.status === "pending" && a.approved_at,
+  );
+
   const allPending = approvals.every((a) => a.status === "pending");
 
   if (!needsHealing && (!allPending || !requestId)) {
-    // Even if not all are pending, some might have been reset — check history
-    // if we have any pending approvals and a requestId
     const hasPending = approvals.some((a) => a.status === "pending");
     if (!hasPending || !requestId) {
       return approvals;
     }
   }
 
-  // If approved_at is set, trust it (trigger only reset status)
   let healed = approvals.map((a) => {
     if (a.status === "pending" && a.approved_at) {
       return { ...a, status: "approved" };
@@ -171,7 +168,6 @@ async function healApprovals(approvals, requestId) {
     return a;
   });
 
-  // If still any pending and we have a requestId, check status history as fallback
   const stillPending = healed.filter((a) => a.status === "pending");
   if (stillPending.length > 0 && requestId) {
     try {
@@ -185,28 +181,35 @@ async function healApprovals(approvals, requestId) {
       if (history && history.length > 0) {
         const approvedByIds = new Set(history.map((h) => h.changed_by));
         healed = healed.map((a) => {
-          if (a.status === "pending" && a.professor_id && approvedByIds.has(a.professor_id)) {
+          if (
+            a.status === "pending" &&
+            a.professor_id &&
+            approvedByIds.has(a.professor_id)
+          ) {
             return { ...a, status: "approved" };
           }
           return a;
         });
       }
     } catch (err) {
-      // Non-fatal — fall back to whatever we have
       console.warn("healApprovals history lookup failed:", err.message);
     }
   }
 
-  // Persist healed approvals back to DB so the fix sticks across requests
   for (const h of healed) {
     const orig = approvals.find((a) => a.id === h.id);
     if (orig && orig.status === "pending" && h.status === "approved") {
       try {
         await supabase
           .from("professor_approvals")
-          .update({ status: "approved", approved_at: h.approved_at || new Date().toISOString() })
+          .update({
+            status: "approved",
+            approved_at: h.approved_at || new Date().toISOString(),
+          })
           .eq("id", h.id);
-        console.warn(`healApprovals: persisted fix for approval ${h.id} (professor ${h.professor_id}) back to DB`);
+        console.warn(
+          `healApprovals: persisted fix for approval ${h.id} (professor ${h.professor_id}) back to DB`,
+        );
       } catch (writeErr) {
         console.warn("healApprovals: DB write-back failed:", writeErr.message);
       }
@@ -220,13 +223,14 @@ async function tryCompleteRequest(requestId) {
   try {
     const { data: request } = await supabase
       .from("requests")
-      .select("id, portion, library_status, cashier_status, registrar_status, is_completed")
+      .select(
+        "id, portion, library_status, cashier_status, registrar_status, is_completed",
+      )
       .eq("id", requestId)
       .single();
 
     if (!request || request.is_completed) return;
 
-    // Check all professor approvals are done
     const { data: rawApprovals } = await supabase
       .from("professor_approvals")
       .select("status, approved_at, professor_id")
@@ -234,23 +238,24 @@ async function tryCompleteRequest(requestId) {
 
     const allApprovals = await healApprovals(rawApprovals || [], requestId);
 
-    const allProfessorsApproved = allApprovals &&
+    const allProfessorsApproved =
+      allApprovals &&
       allApprovals.length > 0 &&
       allApprovals.every((a) => a.status === "approved");
 
     if (!allProfessorsApproved) return;
 
-    // Check admin stages — B5 FIX: undergrad has no registrar step
     const isUndergrad = request.portion === "undergraduate";
 
     const adminDone = isUndergrad
-      ? request.library_status === "approved" && request.cashier_status === "approved"
-      : request.library_status === "approved" && request.cashier_status === "approved" && request.registrar_status === "approved";
+      ? request.library_status === "approved" &&
+        request.cashier_status === "approved"
+      : request.library_status === "approved" &&
+        request.cashier_status === "approved" &&
+        request.registrar_status === "approved";
 
     if (!adminDone) return;
 
-    // All stages approved → mark complete
-    // Snapshot approvals before updating requests table (guard against DB triggers)
     const preSnapshot = await snapshotApprovals(requestId);
 
     const certificateNumber = generateCertificateNumber();
@@ -265,14 +270,12 @@ async function tryCompleteRequest(requestId) {
         updated_at: new Date().toISOString(),
       })
       .eq("id", requestId)
-      .eq("is_completed", false) // Optimistic lock — only update if still not completed
+      .eq("is_completed", false)
       .select()
       .single();
 
-    // Restore any approvals that a DB trigger may have reset
     await restoreApprovals(requestId, preSnapshot);
 
-    // Feature 6: Notify student that all stages are cleared
     if (updated) {
       notifyClearanceStatusChange(requestId, "completed", "All Stages", null);
     }
@@ -281,11 +284,12 @@ async function tryCompleteRequest(requestId) {
   }
 }
 
-/**
- * Feature 7: Email notification for clearance status changes.
- * Fire-and-forget — never blocks the response.
- */
-async function notifyClearanceStatusChange(requestId, status, stageName, comments) {
+async function notifyClearanceStatusChange(
+  requestId,
+  status,
+  stageName,
+  comments,
+) {
   try {
     const { data: request } = await supabase
       .from("requests")
@@ -304,7 +308,6 @@ async function notifyClearanceStatusChange(requestId, status, stageName, comment
     const isCompleted = status === "completed";
     const isRejected = status === "rejected";
 
-    // In-app notification for the student
     const notifType = isCompleted ? "success" : isRejected ? "warning" : "info";
     const notifTitle = isCompleted
       ? "Graduation Clearance Completed!"
@@ -325,7 +328,6 @@ async function notifyClearanceStatusChange(requestId, status, stageName, comment
       requestId,
     );
 
-    // Email notification (fire-and-forget)
     const email = await resolveUserEmail(request.student_id);
     if (!email) return;
 
@@ -335,8 +337,16 @@ async function notifyClearanceStatusChange(requestId, status, stageName, comment
         ? `Clearance On Hold — ${stageName}`
         : `Clearance Approved — ${stageName}`;
 
-    const statusColor = isCompleted ? "#22c55e" : isRejected ? "#ef4444" : "#3b82f6";
-    const statusLabel = isCompleted ? "Completed" : isRejected ? "On Hold" : "Approved";
+    const statusColor = isCompleted
+      ? "#22c55e"
+      : isRejected
+        ? "#ef4444"
+        : "#3b82f6";
+    const statusLabel = isCompleted
+      ? "Completed"
+      : isRejected
+        ? "On Hold"
+        : "Approved";
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -362,8 +372,8 @@ async function notifyClearanceStatusChange(requestId, status, stageName, comment
 
 router.post("/apply", requireAuth, requireRole("student"), async (req, res) => {
   try {
-    const { 
-      student_id, 
+    const {
+      student_id,
       portion,
       clearance_intent,
       clearance_intent_others,
@@ -372,10 +382,9 @@ router.post("/apply", requireAuth, requireRole("student"), async (req, res) => {
       summers_enrolled,
       student_agreement_accepted,
       nstp_serial_no,
-      major
+      major,
     } = req.body;
 
-    // B1 FIX: Ownership check — only the authenticated student can apply for themselves
     if (req.user.id !== student_id) {
       return res.status(403).json({
         success: false,
@@ -390,20 +399,23 @@ router.post("/apply", requireAuth, requireRole("student"), async (req, res) => {
       });
     }
 
-    // NEW FORM 07 VALIDATION: If Honorable Dismissal, agreement must be checked
-    if (clearance_intent && clearance_intent.includes("Honorable Dismissal") && !student_agreement_accepted) {
+    if (
+      clearance_intent &&
+      clearance_intent.includes("Honorable Dismissal") &&
+      !student_agreement_accepted
+    ) {
       return res.status(400).json({
         success: false,
-        error: "You must accept the incomplete grade conversion policy to request Honorable Dismissal."
+        error:
+          "You must accept the incomplete grade conversion policy to request Honorable Dismissal.",
       });
     }
 
-    // UPDATE PROFILE WITH ACADEMIC INFO IF PROVIDED
     if (nstp_serial_no || major) {
       const updates = {};
       if (nstp_serial_no) updates.nstp_serial_no = nstp_serial_no;
       if (major) updates.major = major;
-      
+
       const { error: profileErr } = await supabase
         .from("profiles")
         .update(updates)
@@ -438,8 +450,6 @@ router.post("/apply", requireAuth, requireRole("student"), async (req, res) => {
       });
     }
 
-    // B5 FIX: Undergrad has no registrar step — auto-approve it on creation.
-    // Graduate flow requires registrar, so it stays "pending".
     const isUndergrad = portion === "undergraduate";
 
     const { data: request, error } = await supabase
@@ -448,27 +458,27 @@ router.post("/apply", requireAuth, requireRole("student"), async (req, res) => {
         student_id,
         doc_type_id: docType.id,
         clearance_type: "graduation",
-        portion, // B5 FIX: Store portion so we don't have to infer it later
-        deadline: new Date(Date.now() + DEFAULT_DEADLINE_DAYS * 24 * 60 * 60 * 1000).toISOString(), // G4
+        portion,
+        deadline: new Date(
+          Date.now() + DEFAULT_DEADLINE_DAYS * 24 * 60 * 60 * 1000,
+        ).toISOString(),
         current_status: "pending",
         professors_status: "pending",
         library_status: "pending",
         cashier_status: "pending",
         registrar_status: isUndergrad ? "approved" : "pending",
         is_completed: false,
-        // NEW FORM 07 FIELDS
+
         clearance_intent: clearance_intent || [],
         clearance_intent_others: clearance_intent_others || null,
         thesis_title: thesis_title || null,
         semesters_enrolled: semesters_enrolled || null,
         summers_enrolled: summers_enrolled || null,
-        student_agreement_accepted: student_agreement_accepted || false
+        student_agreement_accepted: student_agreement_accepted || false,
       })
       .select()
       .single();
 
-    // B1 FIX: If the unique index rejects the insert (race condition),
-    // return a friendly error instead of crashing.
     if (error) {
       if (error.code === "23505") {
         return res.status(400).json({
@@ -479,14 +489,12 @@ router.post("/apply", requireAuth, requireRole("student"), async (req, res) => {
       throw error;
     }
 
-    // Fetch all signatory accounts
     let { data: allSignatories } = await supabase
       .from("profiles")
       .select("id, full_name")
       .eq("role", "signatory")
       .eq("account_enabled", true);
 
-    // Determine which signatories belong to this portion (REG Form 07)
     let wantedSignatories = allSignatories || [];
     if (portion === "undergraduate") {
       const undergradNames = [
@@ -496,15 +504,17 @@ router.post("/apply", requireAuth, requireRole("student"), async (req, res) => {
         "NSTP Director",
         "Executive Officer",
       ];
-      wantedSignatories = wantedSignatories.filter((p) => undergradNames.includes(p.full_name));
+      wantedSignatories = wantedSignatories.filter((p) =>
+        undergradNames.includes(p.full_name),
+      );
     } else if (portion === "graduate") {
-      wantedSignatories = wantedSignatories.filter((p) => p.full_name === "Dean Graduate School");
+      wantedSignatories = wantedSignatories.filter(
+        (p) => p.full_name === "Dean Graduate School",
+      );
     }
 
     const wantedIds = wantedSignatories.map((p) => p.id);
 
-    // Step 1: Remove any auto-created professor_approvals that are NOT in our wanted list
-    // (DB trigger may create approvals for ALL professors on request insert)
     if (wantedIds.length > 0) {
       await supabase
         .from("professor_approvals")
@@ -513,9 +523,7 @@ router.post("/apply", requireAuth, requireRole("student"), async (req, res) => {
         .not("professor_id", "in", `(${wantedIds.join(",")})`);
     }
 
-    // Step 2: Ensure wanted professor_approvals exist (upsert to handle both cases)
     if (wantedSignatories.length > 0) {
-      // Link student to signatories
       const studentSignatoryLinks = wantedSignatories.map((p) => ({
         student_id,
         professor_id: p.id,
@@ -524,14 +532,11 @@ router.post("/apply", requireAuth, requireRole("student"), async (req, res) => {
         is_active: true,
       }));
 
-      await supabase
-        .from("student_professors")
-        .upsert(studentSignatoryLinks, {
-          onConflict: "student_id,professor_id",
-          ignoreDuplicates: true,
-        });
+      await supabase.from("student_professors").upsert(studentSignatoryLinks, {
+        onConflict: "student_id,professor_id",
+        ignoreDuplicates: true,
+      });
 
-      // Upsert professor approvals — force reset status to "pending" for fresh applications
       const approvalRecords = wantedSignatories.map((p) => ({
         request_id: request.id,
         professor_id: p.id,
@@ -547,10 +552,12 @@ router.post("/apply", requireAuth, requireRole("student"), async (req, res) => {
         });
 
       if (approvalError) {
-        console.warn("Professor approvals upsert warning:", approvalError.message);
+        console.warn(
+          "Professor approvals upsert warning:",
+          approvalError.message,
+        );
       }
 
-      // Update professor counts on the request
       await supabase
         .from("requests")
         .update({
@@ -567,12 +574,25 @@ router.post("/apply", requireAuth, requireRole("student"), async (req, res) => {
       message: "Graduation clearance application submitted successfully",
     });
 
-    // G6: Notify staff of new application (fire-and-forget)
-    const { data: studentProfile } = await supabase.from("profiles").select("full_name").eq("id", student_id).single();
-    notifyStaffOfNewApplication(request.id, studentProfile?.full_name || "Student", portion);
+    const { data: studentProfile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", student_id)
+      .single();
+    notifyStaffOfNewApplication(
+      request.id,
+      studentProfile?.full_name || "Student",
+      portion,
+    );
 
-    // G7: Log initial status
-    logStatusChange(request.id, "application", null, "pending", student_id, `${portion} graduation clearance submitted`);
+    logStatusChange(
+      request.id,
+      "application",
+      null,
+      "pending",
+      student_id,
+      `${portion} graduation clearance submitted`,
+    );
   } catch (error) {
     console.error("Error applying for clearance:", error);
     res.status(500).json({
@@ -582,125 +602,141 @@ router.post("/apply", requireAuth, requireRole("student"), async (req, res) => {
   }
 });
 
-router.delete("/cancel/:studentId", requireAuth, requireRole("student"), async (req, res) => {
-  try {
-    const { studentId } = req.params;
+router.delete(
+  "/cancel/:studentId",
+  requireAuth,
+  requireRole("student"),
+  async (req, res) => {
+    try {
+      const { studentId } = req.params;
 
-    // S3 FIX: Ownership check — students can only cancel their own request
-    if (req.user.id !== studentId) {
-      return res.status(403).json({
-        success: false,
-        error: "You can only cancel your own clearance request",
-      });
-    }
-
-    // Use maybeSingle to avoid throwing on 0 rows, and handle multiple rows gracefully
-    const { data: requests, error: findError } = await supabase
-      .from("requests")
-      .select("id, current_status, is_completed")
-      .eq("student_id", studentId)
-      .eq("clearance_type", "graduation")
-      .eq("is_completed", false);
-
-    if (findError) throw findError;
-
-    if (!requests || requests.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "No pending graduation clearance request found",
-      });
-    }
-
-    // Delete ALL pending graduation requests for this student (handles orphaned duplicates)
-    for (const existingRequest of requests) {
-      if (existingRequest.is_completed) continue;
-
-      // Clean up clearance_comments for this request
-      const { error: commentsDeleteError } = await supabase
-        .from("clearance_comments")
-        .delete()
-        .eq("clearance_request_id", existingRequest.id);
-
-      if (commentsDeleteError) {
-        console.warn("Clearance comments cleanup warning:", commentsDeleteError.message);
+      if (req.user.id !== studentId) {
+        return res.status(403).json({
+          success: false,
+          error: "You can only cancel your own clearance request",
+        });
       }
 
-      // Clean up status history for this request
-      const { error: historyDeleteError } = await supabase
-        .from("clearance_status_history")
-        .delete()
-        .eq("request_id", existingRequest.id);
-
-      if (historyDeleteError) {
-        console.warn("Status history cleanup warning:", historyDeleteError.message);
-      }
-
-      const { error: approvalDeleteError } = await supabase
-        .from("professor_approvals")
-        .delete()
-        .eq("request_id", existingRequest.id);
-
-      if (approvalDeleteError) {
-        console.warn("Professor approvals cleanup warning:", approvalDeleteError.message);
-      }
-
-      const { error: deleteError } = await supabase
+      const { data: requests, error: findError } = await supabase
         .from("requests")
-        .delete()
-        .eq("id", existingRequest.id);
+        .select("id, current_status, is_completed")
+        .eq("student_id", studentId)
+        .eq("clearance_type", "graduation")
+        .eq("is_completed", false);
 
-      if (deleteError) {
-        console.error("Failed to delete request:", existingRequest.id, deleteError.message);
-        throw deleteError;
+      if (findError) throw findError;
+
+      if (!requests || requests.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: "No pending graduation clearance request found",
+        });
       }
-    }
 
-    res.json({
-      success: true,
-      message: "Graduation clearance request cancelled successfully",
-    });
-  } catch (error) {
-    console.error("Error cancelling clearance:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
+      for (const existingRequest of requests) {
+        if (existingRequest.is_completed) continue;
 
-router.get("/status/:studentId", requireAuth, requireRole("student"), async (req, res) => {
-  try {
-    const { studentId } = req.params;
+        const { error: commentsDeleteError } = await supabase
+          .from("clearance_comments")
+          .delete()
+          .eq("clearance_request_id", existingRequest.id);
 
-    let request = null;
+        if (commentsDeleteError) {
+          console.warn(
+            "Clearance comments cleanup warning:",
+            commentsDeleteError.message,
+          );
+        }
 
-    // Query the requests table directly for reliability
-    const { data: reqData, error: reqError } = await supabase
-      .from("requests")
-      .select("*")
-      .eq("student_id", studentId)
-      .eq("clearance_type", "graduation")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+        const { error: historyDeleteError } = await supabase
+          .from("clearance_status_history")
+          .delete()
+          .eq("request_id", existingRequest.id);
 
-    if (reqError) throw reqError;
-    if (reqData) {
-      request = { ...reqData, request_id: reqData.id };
-    }
+        if (historyDeleteError) {
+          console.warn(
+            "Status history cleanup warning:",
+            historyDeleteError.message,
+          );
+        }
 
-    if (!request) {
-      return res.json({
+        const { error: approvalDeleteError } = await supabase
+          .from("professor_approvals")
+          .delete()
+          .eq("request_id", existingRequest.id);
+
+        if (approvalDeleteError) {
+          console.warn(
+            "Professor approvals cleanup warning:",
+            approvalDeleteError.message,
+          );
+        }
+
+        const { error: deleteError } = await supabase
+          .from("requests")
+          .delete()
+          .eq("id", existingRequest.id);
+
+        if (deleteError) {
+          console.error(
+            "Failed to delete request:",
+            existingRequest.id,
+            deleteError.message,
+          );
+          throw deleteError;
+        }
+      }
+
+      res.json({
         success: true,
-        hasRequest: false,
-        message: "No clearance request found",
+        message: "Graduation clearance request cancelled successfully",
+      });
+    } catch (error) {
+      console.error("Error cancelling clearance:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
       });
     }
+  },
+);
 
-    const { data: professorApprovals } = await supabase
-      .from("professor_approvals")
-      .select(
-        `
+router.get(
+  "/status/:studentId",
+  requireAuth,
+  requireRole("student"),
+  async (req, res) => {
+    try {
+      const { studentId } = req.params;
+
+      let request = null;
+
+      const { data: reqData, error: reqError } = await supabase
+        .from("requests")
+        .select("*")
+        .eq("student_id", studentId)
+        .eq("clearance_type", "graduation")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (reqError) throw reqError;
+      if (reqData) {
+        request = { ...reqData, request_id: reqData.id };
+      }
+
+      if (!request) {
+        return res.json({
+          success: true,
+          hasRequest: false,
+          message: "No clearance request found",
+        });
+      }
+
+      const { data: professorApprovals } = await supabase
+        .from("professor_approvals")
+        .select(
+          `
         id,
         professor_id,
         status,
@@ -712,126 +748,140 @@ router.get("/status/:studentId", requireAuth, requireRole("student"), async (req
           avatar_url
         )
       `,
-      )
-      .eq("request_id", request.request_id || request.id);
+        )
+        .eq("request_id", request.request_id || request.id);
 
-    const approvals = await healApprovals(professorApprovals || [], request.request_id || request.id);
-    const professorsApprovedCount = approvals.filter(
-      (a) => a.status === "approved",
-    ).length;
-    const professorsTotalCount = approvals.length;
-
-    // Always recalculate current_stage per REG Form 07 order
-    {
-      // B5 FIX: Use stored portion column, fall back to inference for legacy requests
-      const UNDERGRAD_NAMES = ["Department Chairman", "College Dean", "Director Student Affairs", "NSTP Director", "Executive Officer"];
-      const isUndergrad = request.portion === "undergraduate" ||
-        (!request.portion && approvals.some((a) => UNDERGRAD_NAMES.includes(a.professor?.full_name)));
-      const findProfStatus = (name) => approvals.find((a) => a.professor?.full_name === name)?.status;
-
-      if (isUndergrad) {
-        // REG Form 07 Undergraduate order (7 steps)
-        if (findProfStatus("Department Chairman") !== "approved") {
-          request.current_stage = "Department Chairman";
-        } else if (findProfStatus("College Dean") !== "approved") {
-          request.current_stage = "College Dean/Director";
-        } else if (findProfStatus("Director Student Affairs") !== "approved") {
-          request.current_stage = "Director for Student Affairs";
-        } else if (request.library_status !== "approved") {
-          request.current_stage = "Campus Librarian";
-        } else if (request.cashier_status !== "approved") {
-          request.current_stage = "Chief Accountant";
-        } else if (findProfStatus("NSTP Director") !== "approved") {
-          request.current_stage = "NSTP Director";
-        } else if (findProfStatus("Executive Officer") !== "approved") {
-          request.current_stage = "Executive Officer";
-        } else {
-          request.current_stage = "Completed";
-        }
-      } else {
-        // REG Form 07 Graduate order
-        if (request.cashier_status !== "approved") {
-          request.current_stage = "Chief Accountant";
-        } else if (request.library_status !== "approved") {
-          request.current_stage = "Campus Librarian";
-        } else if (request.registrar_status !== "approved") {
-          request.current_stage = "Record Evaluator";
-        } else if (findProfStatus("Dean Graduate School") !== "approved") {
-          request.current_stage = "Dean, Graduate School";
-        } else {
-          request.current_stage = "Completed";
-        }
-      }
-    }
-
-    request.professors_approved_count = professorsApprovedCount;
-    request.professors_total_count = professorsTotalCount;
-
-    // If all stages are done but the request wasn't marked complete (e.g. the
-    // completion check failed during a previous approval due to a transient
-    // issue), catch up now so the certificate gets generated.
-    if (!request.is_completed && request.current_stage === "Completed") {
-      const certNum = generateCertificateNumber();
-      const { data: refreshed } = await supabase
-        .from("requests")
-        .update({
-          is_completed: true,
-          professors_status: "approved",
-          certificate_generated: true,
-          certificate_generated_at: new Date().toISOString(),
-          certificate_number: certNum,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", request.request_id || request.id)
-        .select("*")
-        .single();
-      if (refreshed) {
-        Object.assign(request, refreshed);
-        request.request_id = refreshed.id;
-      }
-    }
-
-    let unresolvedCommentCount = 0;
-    let totalCommentCount = 0;
-    try {
-      const { data: commentData } = await supabase
-        .from("clearance_comments")
-        .select("id, is_resolved")
-        .eq("clearance_request_id", request.request_id || request.id);
-
-      totalCommentCount = (commentData || []).length;
-      unresolvedCommentCount = (commentData || []).filter(
-        (c) => !c.is_resolved,
+      const approvals = await healApprovals(
+        professorApprovals || [],
+        request.request_id || request.id,
+      );
+      const professorsApprovedCount = approvals.filter(
+        (a) => a.status === "approved",
       ).length;
-    } catch (commentErr) {
-      console.warn("Could not fetch comment counts:", commentErr.message);
+      const professorsTotalCount = approvals.length;
+
+      {
+        const UNDERGRAD_NAMES = [
+          "Department Chairman",
+          "College Dean",
+          "Director Student Affairs",
+          "NSTP Director",
+          "Executive Officer",
+        ];
+        const isUndergrad =
+          request.portion === "undergraduate" ||
+          (!request.portion &&
+            approvals.some((a) =>
+              UNDERGRAD_NAMES.includes(a.professor?.full_name),
+            ));
+        const findProfStatus = (name) =>
+          approvals.find((a) => a.professor?.full_name === name)?.status;
+
+        if (isUndergrad) {
+          if (findProfStatus("Department Chairman") !== "approved") {
+            request.current_stage = "Department Chairman";
+          } else if (findProfStatus("College Dean") !== "approved") {
+            request.current_stage = "College Dean/Director";
+          } else if (
+            findProfStatus("Director Student Affairs") !== "approved"
+          ) {
+            request.current_stage = "Director for Student Affairs";
+          } else if (request.library_status !== "approved") {
+            request.current_stage = "Campus Librarian";
+          } else if (request.cashier_status !== "approved") {
+            request.current_stage = "Chief Accountant";
+          } else if (findProfStatus("NSTP Director") !== "approved") {
+            request.current_stage = "NSTP Director";
+          } else if (findProfStatus("Executive Officer") !== "approved") {
+            request.current_stage = "Executive Officer";
+          } else {
+            request.current_stage = "Completed";
+          }
+        } else {
+          if (request.cashier_status !== "approved") {
+            request.current_stage = "Chief Accountant";
+          } else if (request.library_status !== "approved") {
+            request.current_stage = "Campus Librarian";
+          } else if (request.registrar_status !== "approved") {
+            request.current_stage = "Record Evaluator";
+          } else if (findProfStatus("Dean Graduate School") !== "approved") {
+            request.current_stage = "Dean, Graduate School";
+          } else {
+            request.current_stage = "Completed";
+          }
+        }
+      }
+
+      request.professors_approved_count = professorsApprovedCount;
+      request.professors_total_count = professorsTotalCount;
+
+      if (!request.is_completed && request.current_stage === "Completed") {
+        const certNum = generateCertificateNumber();
+        const { data: refreshed } = await supabase
+          .from("requests")
+          .update({
+            is_completed: true,
+            professors_status: "approved",
+            certificate_generated: true,
+            certificate_generated_at: new Date().toISOString(),
+            certificate_number: certNum,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", request.request_id || request.id)
+          .select("*")
+          .single();
+        if (refreshed) {
+          Object.assign(request, refreshed);
+          request.request_id = refreshed.id;
+        }
+      }
+
+      let unresolvedCommentCount = 0;
+      let totalCommentCount = 0;
+      try {
+        const { data: commentData } = await supabase
+          .from("clearance_comments")
+          .select("id, is_resolved")
+          .eq("clearance_request_id", request.request_id || request.id);
+
+        totalCommentCount = (commentData || []).length;
+        unresolvedCommentCount = (commentData || []).filter(
+          (c) => !c.is_resolved,
+        ).length;
+      } catch (commentErr) {
+        console.warn("Could not fetch comment counts:", commentErr.message);
+      }
+
+      res.json({
+        success: true,
+        hasRequest: true,
+        request,
+        professorApprovals: approvals,
+        unresolvedCommentCount,
+        totalCommentCount,
+      });
+    } catch (error) {
+      console.error("Error getting clearance status:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
     }
+  },
+);
 
-    res.json({
-      success: true,
-      hasRequest: true,
-      request,
-      professorApprovals: approvals,
-      unresolvedCommentCount,
-      totalCommentCount,
-    });
-  } catch (error) {
-    console.error("Error getting clearance status:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
+router.get(
+  "/professor/students/:professorId",
+  requireAuth,
+  requireRole("signatory"),
+  async (req, res) => {
+    try {
+      const { professorId } = req.params;
 
-router.get("/professor/students/:professorId", requireAuth, requireRole("signatory"), async (req, res) => {
-  try {
-    const { professorId } = req.params;
-
-    const { data: rawApprovals, error } = await supabase
-      .from("professor_approvals")
-      .select(
-        `
+      const { data: rawApprovals, error } = await supabase
+        .from("professor_approvals")
+        .select(
+          `
         id,
         request_id,
         status,
@@ -855,424 +905,568 @@ router.get("/professor/students/:professorId", requireAuth, requireRole("signato
           professor_approvals(id, status, approved_at, professor_id, professor:professor_id(full_name))
         )
       `,
-      )
-      .eq("professor_id", professorId)
-      .order("created_at", { ascending: false });
+        )
+        .eq("professor_id", professorId)
+        .order("created_at", { ascending: false });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    // Professor prerequisites per REG Form 07
-    // Undergraduate: Chairman → Dean → DSA → [Library] → [Cashier] → NSTP → [Registrar] → Executive
-    // Graduate: [Cashier] → [Library] → [Registrar] → Dean Graduate School
-    const UNDERGRAD_PROF_PREREQS = {
-      "Department Chairman": [],
-      "College Dean": ["Department Chairman"],
-      "Director Student Affairs": ["College Dean"],
-      "NSTP Director": ["Director Student Affairs"],
-      "Executive Officer": ["NSTP Director"],
-    };
+      const UNDERGRAD_PROF_PREREQS = {
+        "Department Chairman": [],
+        "College Dean": ["Department Chairman"],
+        "Director Student Affairs": ["College Dean"],
+        "NSTP Director": ["Director Student Affairs"],
+        "Executive Officer": ["NSTP Director"],
+      };
 
-    // Heal all approvals before processing prerequisites
-    const healedRawApprovals = [];
-    for (const app of (rawApprovals || []).filter((a) => a.request && a.request.student)) {
-      // Heal this approval
-      const healedSelf = (await healApprovals([app], app.request_id))[0];
-      // Heal nested sibling approvals
-      if (healedSelf.request?.professor_approvals) {
-        healedSelf.request.professor_approvals = await healApprovals(
-          healedSelf.request.professor_approvals,
-          healedSelf.request_id,
-        );
-      }
-      healedRawApprovals.push(healedSelf);
-    }
+      const healedRawApprovals = [];
+      for (const app of (rawApprovals || []).filter(
+        (a) => a.request && a.request.student,
+      )) {
+        const healedSelf = (await healApprovals([app], app.request_id))[0];
 
-    const approvals = healedRawApprovals.map((app) => {
-      let is_locked = false;
-      const myName = app.professor?.full_name;
-      const otherApps = app.request?.professor_approvals || [];
-
-      // Check professor prerequisites
-      const prereqs = UNDERGRAD_PROF_PREREQS[myName] || [];
-      for (const prereqName of prereqs) {
-        const prev = otherApps.find((oa) => oa.professor?.full_name === prereqName);
-        if (prev && prev.status !== "approved") {
-          is_locked = true;
-          break;
+        if (healedSelf.request?.professor_approvals) {
+          healedSelf.request.professor_approvals = await healApprovals(
+            healedSelf.request.professor_approvals,
+            healedSelf.request_id,
+          );
         }
+        healedRawApprovals.push(healedSelf);
       }
 
-      // Interleaved admin stage checks (REG Form 07 order)
-      if (!is_locked && app.request) {
-        if (myName === "NSTP Director") {
-          // Undergrad: NSTP requires Library + Cashier admin approved first
-          if (app.request.library_status !== "approved" || app.request.cashier_status !== "approved") {
+      const approvals = healedRawApprovals.map((app) => {
+        let is_locked = false;
+        const myName = app.professor?.full_name;
+        const otherApps = app.request?.professor_approvals || [];
+
+        const prereqs = UNDERGRAD_PROF_PREREQS[myName] || [];
+        for (const prereqName of prereqs) {
+          const prev = otherApps.find(
+            (oa) => oa.professor?.full_name === prereqName,
+          );
+          if (prev && prev.status !== "approved") {
             is_locked = true;
-          }
-        } else if (myName === "Executive Officer") {
-          // Undergrad: Executive Officer requires Cashier approved (no registrar in undergrad flow)
-          if (app.request.cashier_status !== "approved") {
-            is_locked = true;
-          }
-        } else if (myName === "Dean Graduate School") {
-          // Graduate: Dean requires all admin stages approved
-          if (app.request.cashier_status !== "approved" ||
-            app.request.library_status !== "approved" ||
-            app.request.registrar_status !== "approved") {
-            is_locked = true;
+            break;
           }
         }
-      }
 
-      if (app.request) delete app.request.professor_approvals;
-      return { ...app, is_locked };
-    });
+        if (!is_locked && app.request) {
+          if (myName === "NSTP Director") {
+            if (
+              app.request.library_status !== "approved" ||
+              app.request.cashier_status !== "approved"
+            ) {
+              is_locked = true;
+            }
+          } else if (myName === "Executive Officer") {
+            if (app.request.cashier_status !== "approved") {
+              is_locked = true;
+            }
+          } else if (myName === "Dean Graduate School") {
+            if (
+              app.request.cashier_status !== "approved" ||
+              app.request.library_status !== "approved" ||
+              app.request.registrar_status !== "approved"
+            ) {
+              is_locked = true;
+            }
+          }
+        }
 
-    res.json({
-      success: true,
-      approvals,
-    });
-  } catch (error) {
-    console.error("Error getting professor students:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
+        if (app.request) delete app.request.professor_approvals;
+        return { ...app, is_locked };
+      });
 
-// ── G1 FIX: Request Re-evaluation after rejection ────────────────────────────
-// Students can request re-evaluation on a rejected stage, resetting it to "pending".
-router.post("/request-reevaluation", requireAuth, requireRole("student"), async (req, res) => {
-  try {
-    const { request_id, stage_type, stage_key, approval_id } = req.body;
-
-    // Ownership check
-    const { data: request, error: reqErr } = await supabase
-      .from("requests")
-      .select("id, student_id, is_completed")
-      .eq("id", request_id)
-      .single();
-
-    if (reqErr || !request) {
-      return res.status(404).json({ success: false, error: "Request not found" });
+      res.json({
+        success: true,
+        approvals,
+      });
+    } catch (error) {
+      console.error("Error getting professor students:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
     }
-    if (request.student_id !== req.user.id) {
-      return res.status(403).json({ success: false, error: "You can only request re-evaluation for your own clearance" });
-    }
-    if (request.is_completed) {
-      return res.status(400).json({ success: false, error: "Cannot re-evaluate a completed request" });
-    }
+  },
+);
 
-    if (stage_type === "signatory" && approval_id) {
-      // Reset a professor approval from "rejected" to "pending"
-      const { data: approval, error: apErr } = await supabase
-        .from("professor_approvals")
-        .select("id, status, professor_id")
-        .eq("id", approval_id)
-        .eq("request_id", request_id)
-        .single();
+router.post(
+  "/request-reevaluation",
+  requireAuth,
+  requireRole("student"),
+  async (req, res) => {
+    try {
+      const { request_id, stage_type, stage_key, approval_id } = req.body;
 
-      if (apErr || !approval) {
-        return res.status(404).json({ success: false, error: "Approval not found" });
-      }
-      if (approval.status !== "rejected") {
-        return res.status(400).json({ success: false, error: "Only rejected stages can be re-evaluated" });
-      }
-
-      const { error: updateErr } = await supabase
-        .from("professor_approvals")
-        .update({ status: "pending", comments: null, updated_at: new Date().toISOString() })
-        .eq("id", approval_id);
-
-      if (updateErr) throw updateErr;
-
-      // Notify the signatory
-      notifyClearanceStatusChange(request_id, "pending", "Re-evaluation Requested", "Student has requested re-evaluation after rejection.");
-
-      res.json({ success: true, message: "Re-evaluation requested. The signatory has been notified." });
-    } else if (stage_type === "stage" && stage_key) {
-      // Reset an admin stage (library/cashier/registrar) from "rejected" to "pending"
-      const statusField = { library: "library_status", cashier: "cashier_status", registrar: "registrar_status" }[stage_key];
-      const commentField = { library: "library_comments", cashier: "cashier_comments", registrar: "registrar_comments" }[stage_key];
-
-      if (!statusField) {
-        return res.status(400).json({ success: false, error: "Invalid stage key" });
-      }
-
-      // Verify the stage is actually rejected
-      const { data: current } = await supabase
+      const { data: request, error: reqErr } = await supabase
         .from("requests")
-        .select(statusField)
+        .select("id, student_id, is_completed")
         .eq("id", request_id)
         .single();
 
-      if (current?.[statusField] !== "rejected") {
-        return res.status(400).json({ success: false, error: "Only rejected stages can be re-evaluated" });
+      if (reqErr || !request) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Request not found" });
       }
-
-      // Snapshot professor approvals before updating requests table
-      const preSnapshot = await snapshotApprovals(request_id);
-
-      const { error: updateErr } = await supabase
-        .from("requests")
-        .update({ [statusField]: "pending", [commentField]: null, updated_at: new Date().toISOString() })
-        .eq("id", request_id);
-
-      if (updateErr) throw updateErr;
-
-      // Restore any professor approvals that a DB trigger may have reset
-      await restoreApprovals(request_id, preSnapshot);
-
-      const stageNames = { library: "Campus Librarian", cashier: "Chief Accountant", registrar: "Record Evaluator" };
-      notifyClearanceStatusChange(request_id, "pending", stageNames[stage_key] || stage_key, "Student has requested re-evaluation after rejection.");
-      // Notify the staff at this stage that they have a request to re-review
-      notifyNextStageStaff(request_id, stage_key);
-
-      res.json({ success: true, message: "Re-evaluation requested. The reviewer has been notified." });
-    } else {
-      return res.status(400).json({ success: false, error: "Invalid re-evaluation request" });
-    }
-  } catch (error) {
-    console.error("Error requesting re-evaluation:", error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-router.post("/professor/approve", requireAuth, requireRole("signatory"), async (req, res) => {
-  try {
-    const { approval_id, professor_id, comments } = req.body;
-
-    // S4 FIX: Professors can only approve as themselves
-    if (req.user.id !== professor_id) {
-      return res.status(403).json({
-        success: false,
-        error: "You can only approve as yourself",
-      });
-    }
-
-    // S8 FIX: Comment length validation
-    if (comments && comments.length > MAX_COMMENT_LENGTH) {
-      return res.status(400).json({ success: false, error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less` });
-    }
-
-    // Fetch the approval record first to get request_id for prerequisite check
-    const { data: currentApproval, error: fetchErr } = await supabase
-      .from("professor_approvals")
-      .select("id, request_id, status, professor:professor_id(full_name)")
-      .eq("id", approval_id)
-      .eq("professor_id", professor_id)
-      .single();
-
-    if (fetchErr || !currentApproval) {
-      return res.status(404).json({ success: false, error: "Approval record not found" });
-    }
-
-    // Server-side prerequisite enforcement (REG Form 07 order)
-    const myName = currentApproval.professor?.full_name;
-    const UNDERGRAD_PROF_PREREQS = {
-      "Department Chairman": [],
-      "College Dean": ["Department Chairman"],
-      "Director Student Affairs": ["College Dean"],
-      "NSTP Director": ["Director Student Affairs"],
-      "Executive Officer": ["NSTP Director"],
-    };
-
-    const prereqs = UNDERGRAD_PROF_PREREQS[myName] || [];
-    if (prereqs.length > 0) {
-      const { data: rawPrereqApprovals } = await supabase
-        .from("professor_approvals")
-        .select("status, approved_at, professor_id, professor:professor_id(full_name)")
-        .eq("request_id", currentApproval.request_id);
-
-      const allApprovals = await healApprovals(rawPrereqApprovals || [], currentApproval.request_id);
-
-      for (const prereqName of prereqs) {
-        const prev = allApprovals.find((a) => a.professor?.full_name === prereqName);
-        if (!prev || prev.status !== "approved") {
-          return res.status(400).json({
+      if (request.student_id !== req.user.id) {
+        return res
+          .status(403)
+          .json({
             success: false,
-            error: `Cannot approve yet — ${prereqName} must approve first`,
+            error: "You can only request re-evaluation for your own clearance",
           });
-        }
       }
-    }
+      if (request.is_completed) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: "Cannot re-evaluate a completed request",
+          });
+      }
 
-    // Also check interleaved admin prerequisites
-    if (["NSTP Director", "Executive Officer", "Dean Graduate School"].includes(myName)) {
-      const { data: request } = await supabase
-        .from("requests")
-        .select("library_status, cashier_status, registrar_status")
-        .eq("id", currentApproval.request_id)
+      if (stage_type === "signatory" && approval_id) {
+        const { data: approval, error: apErr } = await supabase
+          .from("professor_approvals")
+          .select("id, status, professor_id")
+          .eq("id", approval_id)
+          .eq("request_id", request_id)
+          .single();
+
+        if (apErr || !approval) {
+          return res
+            .status(404)
+            .json({ success: false, error: "Approval not found" });
+        }
+        if (approval.status !== "rejected") {
+          return res
+            .status(400)
+            .json({
+              success: false,
+              error: "Only rejected stages can be re-evaluated",
+            });
+        }
+
+        const { error: updateErr } = await supabase
+          .from("professor_approvals")
+          .update({
+            status: "pending",
+            comments: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", approval_id);
+
+        if (updateErr) throw updateErr;
+
+        notifyClearanceStatusChange(
+          request_id,
+          "pending",
+          "Re-evaluation Requested",
+          "Student has requested re-evaluation after rejection.",
+        );
+
+        res.json({
+          success: true,
+          message: "Re-evaluation requested. The signatory has been notified.",
+        });
+      } else if (stage_type === "stage" && stage_key) {
+        const statusField = {
+          library: "library_status",
+          cashier: "cashier_status",
+          registrar: "registrar_status",
+        }[stage_key];
+        const commentField = {
+          library: "library_comments",
+          cashier: "cashier_comments",
+          registrar: "registrar_comments",
+        }[stage_key];
+
+        if (!statusField) {
+          return res
+            .status(400)
+            .json({ success: false, error: "Invalid stage key" });
+        }
+
+        const { data: current } = await supabase
+          .from("requests")
+          .select(statusField)
+          .eq("id", request_id)
+          .single();
+
+        if (current?.[statusField] !== "rejected") {
+          return res
+            .status(400)
+            .json({
+              success: false,
+              error: "Only rejected stages can be re-evaluated",
+            });
+        }
+
+        const preSnapshot = await snapshotApprovals(request_id);
+
+        const { error: updateErr } = await supabase
+          .from("requests")
+          .update({
+            [statusField]: "pending",
+            [commentField]: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", request_id);
+
+        if (updateErr) throw updateErr;
+
+        await restoreApprovals(request_id, preSnapshot);
+
+        const stageNames = {
+          library: "Campus Librarian",
+          cashier: "Chief Accountant",
+          registrar: "Record Evaluator",
+        };
+        notifyClearanceStatusChange(
+          request_id,
+          "pending",
+          stageNames[stage_key] || stage_key,
+          "Student has requested re-evaluation after rejection.",
+        );
+
+        notifyNextStageStaff(request_id, stage_key);
+
+        res.json({
+          success: true,
+          message: "Re-evaluation requested. The reviewer has been notified.",
+        });
+      } else {
+        return res
+          .status(400)
+          .json({ success: false, error: "Invalid re-evaluation request" });
+      }
+    } catch (error) {
+      console.error("Error requesting re-evaluation:", error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  },
+);
+
+router.post(
+  "/professor/approve",
+  requireAuth,
+  requireRole("signatory"),
+  async (req, res) => {
+    try {
+      const { approval_id, professor_id, comments } = req.body;
+
+      if (req.user.id !== professor_id) {
+        return res.status(403).json({
+          success: false,
+          error: "You can only approve as yourself",
+        });
+      }
+
+      if (comments && comments.length > MAX_COMMENT_LENGTH) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less`,
+          });
+      }
+
+      const { data: currentApproval, error: fetchErr } = await supabase
+        .from("professor_approvals")
+        .select("id, request_id, status, professor:professor_id(full_name)")
+        .eq("id", approval_id)
+        .eq("professor_id", professor_id)
         .single();
 
-      if (request) {
-        if (myName === "NSTP Director" && (request.library_status !== "approved" || request.cashier_status !== "approved")) {
-          return res.status(400).json({ success: false, error: "Cannot approve yet — Library and Cashier must approve first" });
-        }
-        if (myName === "Executive Officer" && request.cashier_status !== "approved") {
-          return res.status(400).json({ success: false, error: "Cannot approve yet — Cashier must approve first" });
-        }
-        if (myName === "Dean Graduate School" && (request.cashier_status !== "approved" || request.library_status !== "approved" || request.registrar_status !== "approved")) {
-          return res.status(400).json({ success: false, error: "Cannot approve yet — all admin stages must approve first" });
+      if (fetchErr || !currentApproval) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Approval record not found" });
+      }
+
+      const myName = currentApproval.professor?.full_name;
+      const UNDERGRAD_PROF_PREREQS = {
+        "Department Chairman": [],
+        "College Dean": ["Department Chairman"],
+        "Director Student Affairs": ["College Dean"],
+        "NSTP Director": ["Director Student Affairs"],
+        "Executive Officer": ["NSTP Director"],
+      };
+
+      const prereqs = UNDERGRAD_PROF_PREREQS[myName] || [];
+      if (prereqs.length > 0) {
+        const { data: rawPrereqApprovals } = await supabase
+          .from("professor_approvals")
+          .select(
+            "status, approved_at, professor_id, professor:professor_id(full_name)",
+          )
+          .eq("request_id", currentApproval.request_id);
+
+        const allApprovals = await healApprovals(
+          rawPrereqApprovals || [],
+          currentApproval.request_id,
+        );
+
+        for (const prereqName of prereqs) {
+          const prev = allApprovals.find(
+            (a) => a.professor?.full_name === prereqName,
+          );
+          if (!prev || prev.status !== "approved") {
+            return res.status(400).json({
+              success: false,
+              error: `Cannot approve yet — ${prereqName} must approve first`,
+            });
+          }
         }
       }
-    }
 
-    // Snapshot all approvals before updating — a DB trigger on professor_approvals
-    // may cascade-update the requests table, which in turn resets other approvals.
-    const preSnapshot = await snapshotApprovals(currentApproval.request_id);
+      if (
+        ["NSTP Director", "Executive Officer", "Dean Graduate School"].includes(
+          myName,
+        )
+      ) {
+        const { data: request } = await supabase
+          .from("requests")
+          .select("library_status, cashier_status, registrar_status")
+          .eq("id", currentApproval.request_id)
+          .single();
 
-    const { data, error } = await supabase
-      .from("professor_approvals")
-      .update({
-        status: "approved",
-        comments: comments || null,
-        approved_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", approval_id)
-      .eq("professor_id", professor_id)
-      .select()
-      .single();
+        if (request) {
+          if (
+            myName === "NSTP Director" &&
+            (request.library_status !== "approved" ||
+              request.cashier_status !== "approved")
+          ) {
+            return res
+              .status(400)
+              .json({
+                success: false,
+                error:
+                  "Cannot approve yet — Library and Cashier must approve first",
+              });
+          }
+          if (
+            myName === "Executive Officer" &&
+            request.cashier_status !== "approved"
+          ) {
+            return res
+              .status(400)
+              .json({
+                success: false,
+                error: "Cannot approve yet — Cashier must approve first",
+              });
+          }
+          if (
+            myName === "Dean Graduate School" &&
+            (request.cashier_status !== "approved" ||
+              request.library_status !== "approved" ||
+              request.registrar_status !== "approved")
+          ) {
+            return res
+              .status(400)
+              .json({
+                success: false,
+                error:
+                  "Cannot approve yet — all admin stages must approve first",
+              });
+          }
+        }
+      }
 
-    if (error) throw error;
+      const preSnapshot = await snapshotApprovals(currentApproval.request_id);
 
-    // Update the snapshot to reflect the approval we just made, so restoreApprovals
-    // will also restore THIS approval if a DB trigger resets it.
-    const updatedSnapshot = preSnapshot.map((s) =>
-      s.id === approval_id
-        ? { ...s, status: "approved", comments: comments || null, approved_at: data.approved_at }
-        : s
-    );
-    // Restore any approvals that a DB trigger may have reset to "pending"
-    await restoreApprovals(currentApproval.request_id, updatedSnapshot);
+      const { data, error } = await supabase
+        .from("professor_approvals")
+        .update({
+          status: "approved",
+          comments: comments || null,
+          approved_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", approval_id)
+        .eq("professor_id", professor_id)
+        .select()
+        .single();
 
-    // B3 FIX: Use shared completion check instead of inline duplicate logic
-    await tryCompleteRequest(data.request_id);
+      if (error) throw error;
 
-    res.json({
-      success: true,
-      approval: data,
-      message: "Student approved successfully",
-    });
+      const updatedSnapshot = preSnapshot.map((s) =>
+        s.id === approval_id
+          ? {
+              ...s,
+              status: "approved",
+              comments: comments || null,
+              approved_at: data.approved_at,
+            }
+          : s,
+      );
 
-    // Fire-and-forget: audit log + email notification + status history
-    logAction(professor_id, ACTIONS.CLEARANCE_PROFESSOR_APPROVED, {
-      targetId: data.request_id,
-      targetType: "request",
-      metadata: { approval_id, comments },
-    });
-    // Fetch the signatory's position name for the email notification
-    const { data: profProfile } = await supabase.from("profiles").select("full_name").eq("id", professor_id).single();
-    const stageName = profProfile?.full_name || "Professor/Signatory";
-    notifyClearanceStatusChange(data.request_id, "approved", stageName, comments);
-    logStatusChange(data.request_id, `signatory`, "pending", "approved", professor_id, comments);
-  } catch (error) {
-    console.error("Error approving student:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
+      await restoreApprovals(currentApproval.request_id, updatedSnapshot);
 
-router.post("/professor/reject", requireAuth, requireRole("signatory"), async (req, res) => {
-  try {
-    const { approval_id, professor_id, comments } = req.body;
+      await tryCompleteRequest(data.request_id);
 
-    // S4 FIX: Professors can only reject as themselves
-    if (req.user.id !== professor_id) {
-      return res.status(403).json({
-        success: false,
-        error: "You can only reject as yourself",
+      res.json({
+        success: true,
+        approval: data,
+        message: "Student approved successfully",
       });
-    }
 
-    if (!comments || comments.trim() === "") {
-      return res.status(400).json({
-        success: false,
-        error: "Comments are required when rejecting",
+      logAction(professor_id, ACTIONS.CLEARANCE_PROFESSOR_APPROVED, {
+        targetId: data.request_id,
+        targetType: "request",
+        metadata: { approval_id, comments },
       });
-    }
 
-    // S8 FIX: Comment length validation
-    if (comments.length > MAX_COMMENT_LENGTH) {
-      return res.status(400).json({ success: false, error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less` });
-    }
-
-    // Fetch the approval record to get request_id for snapshot
-    const { data: currentApproval, error: fetchErr } = await supabase
-      .from("professor_approvals")
-      .select("id, request_id")
-      .eq("id", approval_id)
-      .eq("professor_id", professor_id)
-      .single();
-
-    if (fetchErr || !currentApproval) {
-      return res.status(404).json({ success: false, error: "Approval record not found" });
-    }
-
-    // Snapshot all approvals before updating — a DB trigger on professor_approvals
-    // may cascade-update the requests table, which in turn resets other approvals.
-    const preSnapshot = await snapshotApprovals(currentApproval.request_id);
-
-    const { data, error } = await supabase
-      .from("professor_approvals")
-      .update({
-        status: "rejected",
+      const { data: profProfile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", professor_id)
+        .single();
+      const stageName = profProfile?.full_name || "Professor/Signatory";
+      notifyClearanceStatusChange(
+        data.request_id,
+        "approved",
+        stageName,
         comments,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", approval_id)
-      .eq("professor_id", professor_id)
-      .select()
-      .single();
+      );
+      logStatusChange(
+        data.request_id,
+        `signatory`,
+        "pending",
+        "approved",
+        professor_id,
+        comments,
+      );
+    } catch (error) {
+      console.error("Error approving student:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  },
+);
 
-    if (error) throw error;
+router.post(
+  "/professor/reject",
+  requireAuth,
+  requireRole("signatory"),
+  async (req, res) => {
+    try {
+      const { approval_id, professor_id, comments } = req.body;
 
-    // Update the snapshot to reflect the rejection we just made, so restoreApprovals
-    // will also restore THIS approval if a DB trigger resets it.
-    const updatedSnapshot = preSnapshot.map((s) =>
-      s.id === approval_id
-        ? { ...s, status: "rejected", comments }
-        : s
-    );
-    // Restore any approvals that a DB trigger may have reset to "pending"
-    await restoreApprovals(data.request_id, updatedSnapshot);
+      if (req.user.id !== professor_id) {
+        return res.status(403).json({
+          success: false,
+          error: "You can only reject as yourself",
+        });
+      }
 
-    res.json({
-      success: true,
-      approval: data,
-      message: "Student rejected with comments",
-    });
+      if (!comments || comments.trim() === "") {
+        return res.status(400).json({
+          success: false,
+          error: "Comments are required when rejecting",
+        });
+      }
 
-    // Fire-and-forget: audit log + email notification + status history
-    logAction(professor_id, ACTIONS.CLEARANCE_PROFESSOR_REJECTED, {
-      targetId: data.request_id,
-      targetType: "request",
-      metadata: { approval_id, comments },
-    });
-    // Fetch the signatory's position name for the email notification
-    const { data: profProfile } = await supabase.from("profiles").select("full_name").eq("id", professor_id).single();
-    const stageName = profProfile?.full_name || "Professor/Signatory";
-    notifyClearanceStatusChange(data.request_id, "rejected", stageName, comments);
-    logStatusChange(data.request_id, `signatory`, "pending", "rejected", professor_id, comments);
-  } catch (error) {
-    console.error("Error rejecting student:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
+      if (comments.length > MAX_COMMENT_LENGTH) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less`,
+          });
+      }
 
-router.get("/library/pending", requireAuth, requireRole("librarian"), async (req, res) => {
-  try {
-    const { data: requests, error } = await supabase
-      .from("requests")
-      .select(
-        `
+      const { data: currentApproval, error: fetchErr } = await supabase
+        .from("professor_approvals")
+        .select("id, request_id")
+        .eq("id", approval_id)
+        .eq("professor_id", professor_id)
+        .single();
+
+      if (fetchErr || !currentApproval) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Approval record not found" });
+      }
+
+      const preSnapshot = await snapshotApprovals(currentApproval.request_id);
+
+      const { data, error } = await supabase
+        .from("professor_approvals")
+        .update({
+          status: "rejected",
+          comments,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", approval_id)
+        .eq("professor_id", professor_id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      const updatedSnapshot = preSnapshot.map((s) =>
+        s.id === approval_id ? { ...s, status: "rejected", comments } : s,
+      );
+
+      await restoreApprovals(data.request_id, updatedSnapshot);
+
+      res.json({
+        success: true,
+        approval: data,
+        message: "Student rejected with comments",
+      });
+
+      logAction(professor_id, ACTIONS.CLEARANCE_PROFESSOR_REJECTED, {
+        targetId: data.request_id,
+        targetType: "request",
+        metadata: { approval_id, comments },
+      });
+
+      const { data: profProfile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", professor_id)
+        .single();
+      const stageName = profProfile?.full_name || "Professor/Signatory";
+      notifyClearanceStatusChange(
+        data.request_id,
+        "rejected",
+        stageName,
+        comments,
+      );
+      logStatusChange(
+        data.request_id,
+        `signatory`,
+        "pending",
+        "rejected",
+        professor_id,
+        comments,
+      );
+    } catch (error) {
+      console.error("Error rejecting student:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  },
+);
+
+router.get(
+  "/library/pending",
+  requireAuth,
+  requireRole("librarian"),
+  async (req, res) => {
+    try {
+      const { data: requests, error } = await supabase
+        .from("requests")
+        .select(
+          `
         id,
         created_at,
         portion,
@@ -1289,166 +1483,225 @@ router.get("/library/pending", requireAuth, requireRole("librarian"), async (req
         ),
         professor_approvals(id, status, approved_at, professor_id, professor:professor_id(full_name))
       `,
-      )
-      .eq("clearance_type", "graduation")
-      .eq("library_status", "pending")
-      .order("created_at", { ascending: true });
+        )
+        .eq("clearance_type", "graduation")
+        .eq("library_status", "pending")
+        .order("created_at", { ascending: true });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    // Heal any professor approvals that were reset by a DB trigger
-    for (const req of requests || []) {
-      if (req.professor_approvals) {
-        req.professor_approvals = await healApprovals(req.professor_approvals, req.id);
+      for (const req of requests || []) {
+        if (req.professor_approvals) {
+          req.professor_approvals = await healApprovals(
+            req.professor_approvals,
+            req.id,
+          );
+        }
       }
-    }
 
-    // Filter by REG Form 07 prerequisites
-    const UNDERGRAD_NAMES = ["Department Chairman", "College Dean", "Director Student Affairs", "NSTP Director", "Executive Officer"];
-    const eligible = (requests || []).filter((req) => {
-      const approvals = req.professor_approvals || [];
-      // Use stored portion column; fall back to professor-name inference for legacy requests
-      const isUndergrad = req.portion === "undergraduate" ||
-        (!req.portion && approvals.some((a) => UNDERGRAD_NAMES.includes(a.professor?.full_name)));
-      if (isUndergrad) {
-        // Undergrad: Library unlocks after Director Student Affairs approves
-        const dsa = approvals.find((a) => a.professor?.full_name === "Director Student Affairs");
-        return dsa?.status === "approved";
-      } else {
-        // Graduate: Library unlocks after Chief Accountant (cashier) approves
-        return req.cashier_status === "approved";
-      }
-    });
+      const UNDERGRAD_NAMES = [
+        "Department Chairman",
+        "College Dean",
+        "Director Student Affairs",
+        "NSTP Director",
+        "Executive Officer",
+      ];
+      const eligible = (requests || []).filter((req) => {
+        const approvals = req.professor_approvals || [];
 
-    const cleanRequests = eligible.map(({ professor_approvals, ...rest }) => rest);
-    res.json({
-      success: true,
-      requests: cleanRequests,
-    });
-  } catch (error) {
-    console.error("Error getting library pending:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
+        const isUndergrad =
+          req.portion === "undergraduate" ||
+          (!req.portion &&
+            approvals.some((a) =>
+              UNDERGRAD_NAMES.includes(a.professor?.full_name),
+            ));
+        if (isUndergrad) {
+          const dsa = approvals.find(
+            (a) => a.professor?.full_name === "Director Student Affairs",
+          );
+          return dsa?.status === "approved";
+        } else {
+          return req.cashier_status === "approved";
+        }
+      });
 
-router.post("/library/approve", requireAuth, requireRole("librarian"), async (req, res) => {
-  try {
-    const { request_id, admin_id, comments } = req.body;
-
-    // S8 FIX: Comment length validation
-    if (comments && comments.length > MAX_COMMENT_LENGTH) {
-      return res.status(400).json({ success: false, error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less` });
-    }
-
-    // Snapshot professor approvals before updating requests table
-    const preSnapshot = await snapshotApprovals(request_id);
-
-    const { data, error } = await supabase
-      .from("requests")
-      .update({
-        library_status: "approved",
-        library_approved_by: admin_id,
-        library_approved_at: new Date().toISOString(),
-        library_comments: comments || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", request_id)
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    // Restore any professor approvals that a DB trigger may have reset
-    await restoreApprovals(request_id, preSnapshot);
-
-    // B3 FIX: Check if this was the last stage needed for completion
-    await tryCompleteRequest(request_id);
-
-    res.json({
-      success: true,
-      request: data,
-      message: "Library clearance approved",
-    });
-
-    logAction(admin_id, ACTIONS.CLEARANCE_LIBRARY_APPROVED, {
-      targetId: request_id, targetType: "request", metadata: { comments },
-    });
-    notifyClearanceStatusChange(request_id, "approved", "Campus Librarian", comments);
-    logStatusChange(request_id, "library", "pending", "approved", admin_id, comments);
-  } catch (error) {
-    console.error("Error approving library:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-router.post("/library/reject", requireAuth, requireRole("librarian"), async (req, res) => {
-  try {
-    const { request_id, admin_id, comments } = req.body;
-
-    if (!comments || comments.trim() === "") {
-      return res.status(400).json({
+      const cleanRequests = eligible.map(
+        ({ professor_approvals, ...rest }) => rest,
+      );
+      res.json({
+        success: true,
+        requests: cleanRequests,
+      });
+    } catch (error) {
+      console.error("Error getting library pending:", error);
+      res.status(500).json({
         success: false,
-        error: "Comments are required when rejecting",
+        error: error.message,
       });
     }
+  },
+);
 
-    // S8 FIX: Comment length validation
-    if (comments.length > MAX_COMMENT_LENGTH) {
-      return res.status(400).json({ success: false, error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less` });
+router.post(
+  "/library/approve",
+  requireAuth,
+  requireRole("librarian"),
+  async (req, res) => {
+    try {
+      const { request_id, admin_id, comments } = req.body;
+
+      if (comments && comments.length > MAX_COMMENT_LENGTH) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less`,
+          });
+      }
+
+      const preSnapshot = await snapshotApprovals(request_id);
+
+      const { data, error } = await supabase
+        .from("requests")
+        .update({
+          library_status: "approved",
+          library_approved_by: admin_id,
+          library_approved_at: new Date().toISOString(),
+          library_comments: comments || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", request_id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      await restoreApprovals(request_id, preSnapshot);
+
+      await tryCompleteRequest(request_id);
+
+      res.json({
+        success: true,
+        request: data,
+        message: "Library clearance approved",
+      });
+
+      logAction(admin_id, ACTIONS.CLEARANCE_LIBRARY_APPROVED, {
+        targetId: request_id,
+        targetType: "request",
+        metadata: { comments },
+      });
+      notifyClearanceStatusChange(
+        request_id,
+        "approved",
+        "Campus Librarian",
+        comments,
+      );
+      logStatusChange(
+        request_id,
+        "library",
+        "pending",
+        "approved",
+        admin_id,
+        comments,
+      );
+    } catch (error) {
+      console.error("Error approving library:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
     }
+  },
+);
 
-    // Snapshot professor approvals before updating requests table
-    const preSnapshot = await snapshotApprovals(request_id);
+router.post(
+  "/library/reject",
+  requireAuth,
+  requireRole("librarian"),
+  async (req, res) => {
+    try {
+      const { request_id, admin_id, comments } = req.body;
 
-    const { data, error } = await supabase
-      .from("requests")
-      .update({
-        library_status: "rejected",
-        library_approved_by: admin_id,
-        library_comments: comments,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", request_id)
-      .select()
-      .single();
+      if (!comments || comments.trim() === "") {
+        return res.status(400).json({
+          success: false,
+          error: "Comments are required when rejecting",
+        });
+      }
 
-    if (error) throw error;
+      if (comments.length > MAX_COMMENT_LENGTH) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less`,
+          });
+      }
 
-    // Restore any professor approvals that a DB trigger may have reset
-    await restoreApprovals(request_id, preSnapshot);
+      const preSnapshot = await snapshotApprovals(request_id);
 
-    res.json({
-      success: true,
-      request: data,
-      message: "Library clearance rejected",
-    });
+      const { data, error } = await supabase
+        .from("requests")
+        .update({
+          library_status: "rejected",
+          library_approved_by: admin_id,
+          library_comments: comments,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", request_id)
+        .select()
+        .single();
 
-    logAction(admin_id, ACTIONS.CLEARANCE_LIBRARY_REJECTED, {
-      targetId: request_id, targetType: "request", metadata: { comments },
-    });
-    notifyClearanceStatusChange(request_id, "rejected", "Campus Librarian", comments);
-    logStatusChange(request_id, "library", "pending", "rejected", admin_id, comments);
-  } catch (error) {
-    console.error("Error rejecting library:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
+      if (error) throw error;
 
-router.get("/cashier/pending", requireAuth, requireRole("cashier"), async (req, res) => {
-  try {
-    const { data: requests, error } = await supabase
-      .from("requests")
-      .select(
-        `
+      await restoreApprovals(request_id, preSnapshot);
+
+      res.json({
+        success: true,
+        request: data,
+        message: "Library clearance rejected",
+      });
+
+      logAction(admin_id, ACTIONS.CLEARANCE_LIBRARY_REJECTED, {
+        targetId: request_id,
+        targetType: "request",
+        metadata: { comments },
+      });
+      notifyClearanceStatusChange(
+        request_id,
+        "rejected",
+        "Campus Librarian",
+        comments,
+      );
+      logStatusChange(
+        request_id,
+        "library",
+        "pending",
+        "rejected",
+        admin_id,
+        comments,
+      );
+    } catch (error) {
+      console.error("Error rejecting library:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  },
+);
+
+router.get(
+  "/cashier/pending",
+  requireAuth,
+  requireRole("cashier"),
+  async (req, res) => {
+    try {
+      const { data: requests, error } = await supabase
+        .from("requests")
+        .select(
+          `
         id,
         created_at,
         portion,
@@ -1465,164 +1718,221 @@ router.get("/cashier/pending", requireAuth, requireRole("cashier"), async (req, 
         ),
         professor_approvals(id, status, approved_at, professor_id, professor:professor_id(full_name))
       `,
-      )
-      .eq("clearance_type", "graduation")
-      .eq("cashier_status", "pending")
-      .order("created_at", { ascending: true });
+        )
+        .eq("clearance_type", "graduation")
+        .eq("cashier_status", "pending")
+        .order("created_at", { ascending: true });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    // Heal any professor approvals that were reset by a DB trigger
-    for (const req of requests || []) {
-      if (req.professor_approvals) {
-        req.professor_approvals = await healApprovals(req.professor_approvals, req.id);
+      for (const req of requests || []) {
+        if (req.professor_approvals) {
+          req.professor_approvals = await healApprovals(
+            req.professor_approvals,
+            req.id,
+          );
+        }
       }
-    }
 
-    // Filter by REG Form 07 prerequisites
-    const UNDERGRAD_NAMES = ["Department Chairman", "College Dean", "Director Student Affairs", "NSTP Director", "Executive Officer"];
-    const eligible = (requests || []).filter((req) => {
-      const approvals = req.professor_approvals || [];
-      const isUndergrad = req.portion === "undergraduate" ||
-        (!req.portion && approvals.some((a) => UNDERGRAD_NAMES.includes(a.professor?.full_name)));
-      if (isUndergrad) {
-        // Undergrad: Cashier unlocks after Campus Librarian (library) approves
-        return req.library_status === "approved";
-      } else {
-        // Graduate: Cashier is the first step, always available
-        return true;
-      }
-    });
+      const UNDERGRAD_NAMES = [
+        "Department Chairman",
+        "College Dean",
+        "Director Student Affairs",
+        "NSTP Director",
+        "Executive Officer",
+      ];
+      const eligible = (requests || []).filter((req) => {
+        const approvals = req.professor_approvals || [];
+        const isUndergrad =
+          req.portion === "undergraduate" ||
+          (!req.portion &&
+            approvals.some((a) =>
+              UNDERGRAD_NAMES.includes(a.professor?.full_name),
+            ));
+        if (isUndergrad) {
+          return req.library_status === "approved";
+        } else {
+          return true;
+        }
+      });
 
-    const cleanRequests = eligible.map(({ professor_approvals, ...rest }) => rest);
-    res.json({
-      success: true,
-      requests: cleanRequests,
-    });
-  } catch (error) {
-    console.error("Error getting cashier pending:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-router.post("/cashier/approve", requireAuth, requireRole("cashier"), async (req, res) => {
-  try {
-    const { request_id, admin_id, comments } = req.body;
-
-    // S8 FIX: Comment length validation
-    if (comments && comments.length > MAX_COMMENT_LENGTH) {
-      return res.status(400).json({ success: false, error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less` });
-    }
-
-    // Snapshot professor approvals before updating requests table
-    const preSnapshot = await snapshotApprovals(request_id);
-
-    const { data, error } = await supabase
-      .from("requests")
-      .update({
-        cashier_status: "approved",
-        cashier_approved_by: admin_id,
-        cashier_approved_at: new Date().toISOString(),
-        cashier_comments: comments || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", request_id)
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    // Restore any professor approvals that a DB trigger may have reset
-    await restoreApprovals(request_id, preSnapshot);
-
-    // B3 FIX: Check if this was the last stage needed for completion
-    await tryCompleteRequest(request_id);
-
-    res.json({
-      success: true,
-      request: data,
-      message: "Cashier clearance approved",
-    });
-
-    logAction(admin_id, ACTIONS.CLEARANCE_CASHIER_APPROVED, {
-      targetId: request_id, targetType: "request", metadata: { comments },
-    });
-    notifyClearanceStatusChange(request_id, "approved", "Chief Accountant", comments);
-    logStatusChange(request_id, "cashier", "pending", "approved", admin_id, comments);
-  } catch (error) {
-    console.error("Error approving cashier:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-router.post("/cashier/reject", requireAuth, requireRole("cashier"), async (req, res) => {
-  try {
-    const { request_id, admin_id, comments } = req.body;
-
-    if (!comments || comments.trim() === "") {
-      return res.status(400).json({
+      const cleanRequests = eligible.map(
+        ({ professor_approvals, ...rest }) => rest,
+      );
+      res.json({
+        success: true,
+        requests: cleanRequests,
+      });
+    } catch (error) {
+      console.error("Error getting cashier pending:", error);
+      res.status(500).json({
         success: false,
-        error: "Comments are required when rejecting",
+        error: error.message,
       });
     }
+  },
+);
 
-    // S8 FIX: Comment length validation
-    if (comments.length > MAX_COMMENT_LENGTH) {
-      return res.status(400).json({ success: false, error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less` });
+router.post(
+  "/cashier/approve",
+  requireAuth,
+  requireRole("cashier"),
+  async (req, res) => {
+    try {
+      const { request_id, admin_id, comments } = req.body;
+
+      if (comments && comments.length > MAX_COMMENT_LENGTH) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less`,
+          });
+      }
+
+      const preSnapshot = await snapshotApprovals(request_id);
+
+      const { data, error } = await supabase
+        .from("requests")
+        .update({
+          cashier_status: "approved",
+          cashier_approved_by: admin_id,
+          cashier_approved_at: new Date().toISOString(),
+          cashier_comments: comments || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", request_id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      await restoreApprovals(request_id, preSnapshot);
+
+      await tryCompleteRequest(request_id);
+
+      res.json({
+        success: true,
+        request: data,
+        message: "Cashier clearance approved",
+      });
+
+      logAction(admin_id, ACTIONS.CLEARANCE_CASHIER_APPROVED, {
+        targetId: request_id,
+        targetType: "request",
+        metadata: { comments },
+      });
+      notifyClearanceStatusChange(
+        request_id,
+        "approved",
+        "Chief Accountant",
+        comments,
+      );
+      logStatusChange(
+        request_id,
+        "cashier",
+        "pending",
+        "approved",
+        admin_id,
+        comments,
+      );
+    } catch (error) {
+      console.error("Error approving cashier:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
     }
+  },
+);
 
-    // Snapshot professor approvals before updating requests table
-    const preSnapshot = await snapshotApprovals(request_id);
+router.post(
+  "/cashier/reject",
+  requireAuth,
+  requireRole("cashier"),
+  async (req, res) => {
+    try {
+      const { request_id, admin_id, comments } = req.body;
 
-    const { data, error } = await supabase
-      .from("requests")
-      .update({
-        cashier_status: "rejected",
-        cashier_approved_by: admin_id,
-        cashier_comments: comments,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", request_id)
-      .select()
-      .single();
+      if (!comments || comments.trim() === "") {
+        return res.status(400).json({
+          success: false,
+          error: "Comments are required when rejecting",
+        });
+      }
 
-    if (error) throw error;
+      if (comments.length > MAX_COMMENT_LENGTH) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less`,
+          });
+      }
 
-    // Restore any professor approvals that a DB trigger may have reset
-    await restoreApprovals(request_id, preSnapshot);
+      const preSnapshot = await snapshotApprovals(request_id);
 
-    res.json({
-      success: true,
-      request: data,
-      message: "Cashier clearance rejected",
-    });
+      const { data, error } = await supabase
+        .from("requests")
+        .update({
+          cashier_status: "rejected",
+          cashier_approved_by: admin_id,
+          cashier_comments: comments,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", request_id)
+        .select()
+        .single();
 
-    logAction(admin_id, ACTIONS.CLEARANCE_CASHIER_REJECTED, {
-      targetId: request_id, targetType: "request", metadata: { comments },
-    });
-    notifyClearanceStatusChange(request_id, "rejected", "Chief Accountant", comments);
-    logStatusChange(request_id, "cashier", "pending", "rejected", admin_id, comments);
-  } catch (error) {
-    console.error("Error rejecting cashier:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
+      if (error) throw error;
 
-router.get("/registrar/pending", requireAuth, requireRole("registrar"), async (req, res) => {
-  try {
-    const { data: requests, error } = await supabase
-      .from("requests")
-      .select(
-        `
+      await restoreApprovals(request_id, preSnapshot);
+
+      res.json({
+        success: true,
+        request: data,
+        message: "Cashier clearance rejected",
+      });
+
+      logAction(admin_id, ACTIONS.CLEARANCE_CASHIER_REJECTED, {
+        targetId: request_id,
+        targetType: "request",
+        metadata: { comments },
+      });
+      notifyClearanceStatusChange(
+        request_id,
+        "rejected",
+        "Chief Accountant",
+        comments,
+      );
+      logStatusChange(
+        request_id,
+        "cashier",
+        "pending",
+        "rejected",
+        admin_id,
+        comments,
+      );
+    } catch (error) {
+      console.error("Error rejecting cashier:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  },
+);
+
+router.get(
+  "/registrar/pending",
+  requireAuth,
+  requireRole("registrar"),
+  async (req, res) => {
+    try {
+      const { data: requests, error } = await supabase
+        .from("requests")
+        .select(
+          `
         id,
         created_at,
         portion,
@@ -1648,346 +1958,501 @@ router.get("/registrar/pending", requireAuth, requireRole("registrar"), async (r
         ),
         professor_approvals(id, status, approved_at, professor_id, professor:professor_id(full_name))
       `,
-      )
-      .eq("clearance_type", "graduation")
-      .eq("registrar_status", "pending")
-      .order("created_at", { ascending: true });
+        )
+        .eq("clearance_type", "graduation")
+        .eq("registrar_status", "pending")
+        .order("created_at", { ascending: true });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    // Heal any professor approvals that were reset by a DB trigger
-    for (const req of requests || []) {
-      if (req.professor_approvals) {
-        req.professor_approvals = await healApprovals(req.professor_approvals, req.id);
+      for (const req of requests || []) {
+        if (req.professor_approvals) {
+          req.professor_approvals = await healApprovals(
+            req.professor_approvals,
+            req.id,
+          );
+        }
       }
-    }
 
-    // Filter by REG Form 07 prerequisites
-    const UNDERGRAD_NAMES = ["Department Chairman", "College Dean", "Director Student Affairs", "NSTP Director", "Executive Officer"];
-    const eligible = (requests || []).filter((req) => {
-      const approvals = req.professor_approvals || [];
-      const isUndergrad = req.portion === "undergraduate" ||
-        (!req.portion && approvals.some((a) => UNDERGRAD_NAMES.includes(a.professor?.full_name)));
-      if (isUndergrad) {
-        // Undergrad: Registrar unlocks after NSTP Director professor approves
-        const nstp = approvals.find((a) => a.professor?.full_name === "NSTP Director");
-        return nstp?.status === "approved";
-      } else {
-        // Graduate: Registrar unlocks after Campus Librarian (library) approves
-        return req.library_status === "approved";
-      }
-    });
+      const UNDERGRAD_NAMES = [
+        "Department Chairman",
+        "College Dean",
+        "Director Student Affairs",
+        "NSTP Director",
+        "Executive Officer",
+      ];
+      const eligible = (requests || []).filter((req) => {
+        const approvals = req.professor_approvals || [];
+        const isUndergrad =
+          req.portion === "undergraduate" ||
+          (!req.portion &&
+            approvals.some((a) =>
+              UNDERGRAD_NAMES.includes(a.professor?.full_name),
+            ));
+        if (isUndergrad) {
+          const nstp = approvals.find(
+            (a) => a.professor?.full_name === "NSTP Director",
+          );
+          return nstp?.status === "approved";
+        } else {
+          return req.library_status === "approved";
+        }
+      });
 
-    const cleanRequests = eligible.map(({ professor_approvals, ...rest }) => rest);
-    res.json({
-      success: true,
-      requests: cleanRequests,
-    });
-  } catch (error) {
-    console.error("Error getting registrar pending:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-router.post("/registrar/approve", requireAuth, requireRole("registrar"), async (req, res) => {
-  try {
-    const { request_id, admin_id, comments } = req.body;
-
-    // S8 FIX: Comment length validation
-    if (comments && comments.length > MAX_COMMENT_LENGTH) {
-      return res.status(400).json({ success: false, error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less` });
-    }
-
-    // Snapshot professor approvals before updating requests table
-    const preSnapshot = await snapshotApprovals(request_id);
-
-    const { data, error } = await supabase
-      .from("requests")
-      .update({
-        registrar_status: "approved",
-        registrar_approved_by: admin_id,
-        registrar_approved_at: new Date().toISOString(),
-        registrar_comments: comments || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", request_id)
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    // Restore any professor approvals that a DB trigger may have reset
-    await restoreApprovals(request_id, preSnapshot);
-
-    // B3 FIX: Use shared completion check
-    await tryCompleteRequest(request_id);
-
-    // Re-fetch to get updated is_completed status
-    const { data: updated } = await supabase
-      .from("requests")
-      .select("is_completed, certificate_number")
-      .eq("id", request_id)
-      .single();
-
-    const completed = updated?.is_completed || false;
-
-    res.json({
-      success: true,
-      request: data,
-      certificateNumber: updated?.certificate_number || null,
-      message: completed
-        ? "Graduation clearance completed and certificate generated"
-        : "Registrar approved. Waiting for remaining approvals to complete clearance.",
-    });
-
-    logAction(admin_id, ACTIONS.CLEARANCE_REGISTRAR_APPROVED, {
-      targetId: request_id, targetType: "request", metadata: { comments, completed, certificateNumber: updated?.certificate_number },
-    });
-    notifyClearanceStatusChange(request_id, completed ? "completed" : "approved", "Record Evaluator", comments);
-    logStatusChange(request_id, "registrar", "pending", "approved", admin_id, comments);
-  } catch (error) {
-    console.error("Error approving registrar:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-router.post("/registrar/reject", requireAuth, requireRole("registrar"), async (req, res) => {
-  try {
-    const { request_id, admin_id, comments } = req.body;
-
-    if (!comments || comments.trim() === "") {
-      return res.status(400).json({
+      const cleanRequests = eligible.map(
+        ({ professor_approvals, ...rest }) => rest,
+      );
+      res.json({
+        success: true,
+        requests: cleanRequests,
+      });
+    } catch (error) {
+      console.error("Error getting registrar pending:", error);
+      res.status(500).json({
         success: false,
-        error: "Comments are required when rejecting",
+        error: error.message,
       });
     }
+  },
+);
 
-    // S8 FIX: Comment length validation
-    if (comments.length > MAX_COMMENT_LENGTH) {
-      return res.status(400).json({ success: false, error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less` });
+router.post(
+  "/registrar/approve",
+  requireAuth,
+  requireRole("registrar"),
+  async (req, res) => {
+    try {
+      const { request_id, admin_id, comments } = req.body;
+
+      if (comments && comments.length > MAX_COMMENT_LENGTH) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less`,
+          });
+      }
+
+      const preSnapshot = await snapshotApprovals(request_id);
+
+      const { data, error } = await supabase
+        .from("requests")
+        .update({
+          registrar_status: "approved",
+          registrar_approved_by: admin_id,
+          registrar_approved_at: new Date().toISOString(),
+          registrar_comments: comments || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", request_id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      await restoreApprovals(request_id, preSnapshot);
+
+      await tryCompleteRequest(request_id);
+
+      const { data: updated } = await supabase
+        .from("requests")
+        .select("is_completed, certificate_number")
+        .eq("id", request_id)
+        .single();
+
+      const completed = updated?.is_completed || false;
+
+      res.json({
+        success: true,
+        request: data,
+        certificateNumber: updated?.certificate_number || null,
+        message: completed
+          ? "Graduation clearance completed and certificate generated"
+          : "Registrar approved. Waiting for remaining approvals to complete clearance.",
+      });
+
+      logAction(admin_id, ACTIONS.CLEARANCE_REGISTRAR_APPROVED, {
+        targetId: request_id,
+        targetType: "request",
+        metadata: {
+          comments,
+          completed,
+          certificateNumber: updated?.certificate_number,
+        },
+      });
+      notifyClearanceStatusChange(
+        request_id,
+        completed ? "completed" : "approved",
+        "Record Evaluator",
+        comments,
+      );
+      logStatusChange(
+        request_id,
+        "registrar",
+        "pending",
+        "approved",
+        admin_id,
+        comments,
+      );
+    } catch (error) {
+      console.error("Error approving registrar:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
     }
+  },
+);
 
-    // Snapshot professor approvals before updating requests table
-    const preSnapshot = await snapshotApprovals(request_id);
+router.post(
+  "/registrar/reject",
+  requireAuth,
+  requireRole("registrar"),
+  async (req, res) => {
+    try {
+      const { request_id, admin_id, comments } = req.body;
 
-    const { data, error } = await supabase
-      .from("requests")
-      .update({
-        registrar_status: "rejected",
-        registrar_approved_by: admin_id,
-        registrar_comments: comments,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", request_id)
-      .select()
-      .single();
+      if (!comments || comments.trim() === "") {
+        return res.status(400).json({
+          success: false,
+          error: "Comments are required when rejecting",
+        });
+      }
 
-    if (error) throw error;
+      if (comments.length > MAX_COMMENT_LENGTH) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less`,
+          });
+      }
 
-    // Restore any professor approvals that a DB trigger may have reset
-    await restoreApprovals(request_id, preSnapshot);
+      const preSnapshot = await snapshotApprovals(request_id);
 
-    res.json({
-      success: true,
-      request: data,
-      message: "Registrar clearance rejected",
-    });
+      const { data, error } = await supabase
+        .from("requests")
+        .update({
+          registrar_status: "rejected",
+          registrar_approved_by: admin_id,
+          registrar_comments: comments,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", request_id)
+        .select()
+        .single();
 
-    logAction(admin_id, ACTIONS.CLEARANCE_REGISTRAR_REJECTED, {
-      targetId: request_id, targetType: "request", metadata: { comments },
-    });
-    notifyClearanceStatusChange(request_id, "rejected", "Record Evaluator", comments);
-    logStatusChange(request_id, "registrar", "pending", "rejected", admin_id, comments);
-  } catch (error) {
-    console.error("Error rejecting registrar:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
+      if (error) throw error;
 
-router.post("/admin/assign-professor", requireAuth, requireRole("super_admin"), async (req, res) => {
-  try {
-    const {
-      student_id,
-      professor_id,
-      course_code,
-      course_name,
-      semester,
-      academic_year,
-    } = req.body;
+      await restoreApprovals(request_id, preSnapshot);
 
-    const { data, error } = await supabase
-      .from("student_professors")
-      .insert({
+      res.json({
+        success: true,
+        request: data,
+        message: "Registrar clearance rejected",
+      });
+
+      logAction(admin_id, ACTIONS.CLEARANCE_REGISTRAR_REJECTED, {
+        targetId: request_id,
+        targetType: "request",
+        metadata: { comments },
+      });
+      notifyClearanceStatusChange(
+        request_id,
+        "rejected",
+        "Record Evaluator",
+        comments,
+      );
+      logStatusChange(
+        request_id,
+        "registrar",
+        "pending",
+        "rejected",
+        admin_id,
+        comments,
+      );
+    } catch (error) {
+      console.error("Error rejecting registrar:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  },
+);
+
+router.post(
+  "/admin/assign-professor",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req, res) => {
+    try {
+      const {
         student_id,
         professor_id,
         course_code,
         course_name,
         semester,
         academic_year,
-        is_active: true,
-      })
-      .select()
-      .single();
+      } = req.body;
 
-    if (error) throw error;
-
-    res.json({
-      success: true,
-      assignment: data,
-      message: "Professor assigned successfully",
-    });
-  } catch (error) {
-    console.error("Error assigning professor:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-router.get("/admin/professors", requireAuth, requireRole("super_admin"), async (req, res) => {
-  try {
-    const { data: professors, error } = await supabase
-      .from("profiles")
-      .select("id, full_name, email, account_enabled")
-      .eq("role", "signatory")
-      .order("full_name");
-
-    if (error) throw error;
-
-    res.json({
-      success: true,
-      professors: professors || [],
-    });
-  } catch (error) {
-    console.error("Error getting professors:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-// ── G5: Bulk approve/reject for admin stages ─────────────────────────────────
-router.post("/bulk-approve", requireAuth, requireRole("librarian", "cashier", "registrar"), async (req, res) => {
-  try {
-    const { request_ids, admin_id, stage, comments } = req.body;
-    // stage must be one of: library, cashier, registrar
-    const statusField = { library: "library_status", cashier: "cashier_status", registrar: "registrar_status" }[stage];
-    const approvedByField = { library: "library_approved_by", cashier: "cashier_approved_by", registrar: "registrar_approved_by" }[stage];
-    const approvedAtField = { library: "library_approved_at", cashier: "cashier_approved_at", registrar: "registrar_approved_at" }[stage];
-    const commentField = { library: "library_comments", cashier: "cashier_comments", registrar: "registrar_comments" }[stage];
-    const stageDisplayName = { library: "Campus Librarian", cashier: "Chief Accountant", registrar: "Record Evaluator" }[stage] || stage;
-
-    if (!statusField || !Array.isArray(request_ids) || request_ids.length === 0) {
-      return res.status(400).json({ success: false, error: "Invalid stage or empty request list" });
-    }
-    if (req.user.id !== admin_id) {
-      return res.status(403).json({ success: false, error: "You can only approve as yourself" });
-    }
-
-    const results = { approved: [], failed: [] };
-    for (const rid of request_ids) {
-      // Snapshot professor approvals before updating requests table
-      const preSnapshot = await snapshotApprovals(rid);
-
-      const { error } = await supabase
-        .from("requests")
-        .update({
-          [statusField]: "approved",
-          [approvedByField]: admin_id,
-          [approvedAtField]: new Date().toISOString(),
-          [commentField]: comments || null,
-          updated_at: new Date().toISOString(),
+      const { data, error } = await supabase
+        .from("student_professors")
+        .insert({
+          student_id,
+          professor_id,
+          course_code,
+          course_name,
+          semester,
+          academic_year,
+          is_active: true,
         })
-        .eq("id", rid)
-        .eq(statusField, "pending");
+        .select()
+        .single();
 
-      if (error) {
-        results.failed.push(rid);
-      } else {
-        // Restore any professor approvals that a DB trigger may have reset
-        await restoreApprovals(rid, preSnapshot);
-        results.approved.push(rid);
-        tryCompleteRequest(rid);
-        logStatusChange(rid, stage, "pending", "approved", admin_id, comments);
+      if (error) throw error;
+
+      res.json({
+        success: true,
+        assignment: data,
+        message: "Professor assigned successfully",
+      });
+    } catch (error) {
+      console.error("Error assigning professor:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  },
+);
+
+router.get(
+  "/admin/professors",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req, res) => {
+    try {
+      const { data: professors, error } = await supabase
+        .from("profiles")
+        .select("id, full_name, email, account_enabled")
+        .eq("role", "signatory")
+        .order("full_name");
+
+      if (error) throw error;
+
+      res.json({
+        success: true,
+        professors: professors || [],
+      });
+    } catch (error) {
+      console.error("Error getting professors:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  },
+);
+
+router.post(
+  "/bulk-approve",
+  requireAuth,
+  requireRole("librarian", "cashier", "registrar"),
+  async (req, res) => {
+    try {
+      const { request_ids, admin_id, stage, comments } = req.body;
+
+      const statusField = {
+        library: "library_status",
+        cashier: "cashier_status",
+        registrar: "registrar_status",
+      }[stage];
+      const approvedByField = {
+        library: "library_approved_by",
+        cashier: "cashier_approved_by",
+        registrar: "registrar_approved_by",
+      }[stage];
+      const approvedAtField = {
+        library: "library_approved_at",
+        cashier: "cashier_approved_at",
+        registrar: "registrar_approved_at",
+      }[stage];
+      const commentField = {
+        library: "library_comments",
+        cashier: "cashier_comments",
+        registrar: "registrar_comments",
+      }[stage];
+      const stageDisplayName =
+        {
+          library: "Campus Librarian",
+          cashier: "Chief Accountant",
+          registrar: "Record Evaluator",
+        }[stage] || stage;
+
+      if (
+        !statusField ||
+        !Array.isArray(request_ids) ||
+        request_ids.length === 0
+      ) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: "Invalid stage or empty request list",
+          });
       }
-    }
-
-    // Single digest notification instead of one per request
-    notifyBulkAction(results.approved, "approved", stageDisplayName);
-
-    res.json({ success: true, results });
-  } catch (error) {
-    console.error("Bulk approve error:", error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-router.post("/bulk-reject", requireAuth, requireRole("librarian", "cashier", "registrar"), async (req, res) => {
-  try {
-    const { request_ids, admin_id, stage, comments } = req.body;
-    const statusField = { library: "library_status", cashier: "cashier_status", registrar: "registrar_status" }[stage];
-    const approvedByField = { library: "library_approved_by", cashier: "cashier_approved_by", registrar: "registrar_approved_by" }[stage];
-    const commentField = { library: "library_comments", cashier: "cashier_comments", registrar: "registrar_comments" }[stage];
-    const stageDisplayName = { library: "Campus Librarian", cashier: "Chief Accountant", registrar: "Record Evaluator" }[stage] || stage;
-
-    if (!statusField || !Array.isArray(request_ids) || request_ids.length === 0) {
-      return res.status(400).json({ success: false, error: "Invalid stage or empty request list" });
-    }
-    if (!comments || !comments.trim()) {
-      return res.status(400).json({ success: false, error: "Comments are required for bulk rejection" });
-    }
-    if (comments.length > MAX_COMMENT_LENGTH) {
-      return res.status(400).json({ success: false, error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less` });
-    }
-    if (req.user.id !== admin_id) {
-      return res.status(403).json({ success: false, error: "You can only reject as yourself" });
-    }
-
-    const results = { rejected: [], failed: [] };
-    for (const rid of request_ids) {
-      // Snapshot professor approvals before updating requests table
-      const preSnapshot = await snapshotApprovals(rid);
-
-      const { error } = await supabase
-        .from("requests")
-        .update({
-          [statusField]: "rejected",
-          [approvedByField]: admin_id,
-          [commentField]: comments,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", rid)
-        .eq(statusField, "pending");
-
-      if (error) {
-        results.failed.push(rid);
-      } else {
-        // Restore any professor approvals that a DB trigger may have reset
-        await restoreApprovals(rid, preSnapshot);
-        results.rejected.push(rid);
-        logStatusChange(rid, stage, "pending", "rejected", admin_id, comments);
+      if (req.user.id !== admin_id) {
+        return res
+          .status(403)
+          .json({ success: false, error: "You can only approve as yourself" });
       }
+
+      const results = { approved: [], failed: [] };
+      for (const rid of request_ids) {
+        const preSnapshot = await snapshotApprovals(rid);
+
+        const { error } = await supabase
+          .from("requests")
+          .update({
+            [statusField]: "approved",
+            [approvedByField]: admin_id,
+            [approvedAtField]: new Date().toISOString(),
+            [commentField]: comments || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", rid)
+          .eq(statusField, "pending");
+
+        if (error) {
+          results.failed.push(rid);
+        } else {
+          await restoreApprovals(rid, preSnapshot);
+          results.approved.push(rid);
+          tryCompleteRequest(rid);
+          logStatusChange(
+            rid,
+            stage,
+            "pending",
+            "approved",
+            admin_id,
+            comments,
+          );
+        }
+      }
+
+      notifyBulkAction(results.approved, "approved", stageDisplayName);
+
+      res.json({ success: true, results });
+    } catch (error) {
+      console.error("Bulk approve error:", error);
+      res.status(500).json({ success: false, error: error.message });
     }
+  },
+);
 
-    // Single digest notification instead of one per request
-    notifyBulkAction(results.rejected, "rejected", stageDisplayName);
+router.post(
+  "/bulk-reject",
+  requireAuth,
+  requireRole("librarian", "cashier", "registrar"),
+  async (req, res) => {
+    try {
+      const { request_ids, admin_id, stage, comments } = req.body;
+      const statusField = {
+        library: "library_status",
+        cashier: "cashier_status",
+        registrar: "registrar_status",
+      }[stage];
+      const approvedByField = {
+        library: "library_approved_by",
+        cashier: "cashier_approved_by",
+        registrar: "registrar_approved_by",
+      }[stage];
+      const commentField = {
+        library: "library_comments",
+        cashier: "cashier_comments",
+        registrar: "registrar_comments",
+      }[stage];
+      const stageDisplayName =
+        {
+          library: "Campus Librarian",
+          cashier: "Chief Accountant",
+          registrar: "Record Evaluator",
+        }[stage] || stage;
 
-    res.json({ success: true, results });
-  } catch (error) {
-    console.error("Bulk reject error:", error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+      if (
+        !statusField ||
+        !Array.isArray(request_ids) ||
+        request_ids.length === 0
+      ) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: "Invalid stage or empty request list",
+          });
+      }
+      if (!comments || !comments.trim()) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: "Comments are required for bulk rejection",
+          });
+      }
+      if (comments.length > MAX_COMMENT_LENGTH) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less`,
+          });
+      }
+      if (req.user.id !== admin_id) {
+        return res
+          .status(403)
+          .json({ success: false, error: "You can only reject as yourself" });
+      }
+
+      const results = { rejected: [], failed: [] };
+      for (const rid of request_ids) {
+        const preSnapshot = await snapshotApprovals(rid);
+
+        const { error } = await supabase
+          .from("requests")
+          .update({
+            [statusField]: "rejected",
+            [approvedByField]: admin_id,
+            [commentField]: comments,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", rid)
+          .eq(statusField, "pending");
+
+        if (error) {
+          results.failed.push(rid);
+        } else {
+          await restoreApprovals(rid, preSnapshot);
+          results.rejected.push(rid);
+          logStatusChange(
+            rid,
+            stage,
+            "pending",
+            "rejected",
+            admin_id,
+            comments,
+          );
+        }
+      }
+
+      notifyBulkAction(results.rejected, "rejected", stageDisplayName);
+
+      res.json({ success: true, results });
+    } catch (error) {
+      console.error("Bulk reject error:", error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  },
+);
 
 module.exports = router;

@@ -1,7 +1,3 @@
-/**
- * Escape HTML special characters to prevent XSS in email templates.
- * Converts &, <, >, ", ' to their HTML entity equivalents.
- */
 function escapeHtml(str) {
   if (typeof str !== "string") return "";
   return str

@@ -28,7 +28,6 @@ export async function loadFaceModels() {
   }
 }
 
-// Yield control back to the browser so it can paint frames and stay responsive
 function yieldToMain() {
   return new Promise((resolve) => {
     if (typeof requestIdleCallback === "function") {
@@ -45,13 +44,12 @@ export async function detectFace(input) {
       await loadFaceModels();
     }
 
-    // Yield before heavy image processing
     await yieldToMain();
 
     let imageElement = input;
     if (input instanceof File || input instanceof Blob) {
       const img = await faceapi.bufferToImage(input);
-      // Preserve more detail from ID photos so descriptors are more stable.
+
       const maxDim = 960;
       const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
       const canvas = document.createElement("canvas");
@@ -62,16 +60,16 @@ export async function detectFace(input) {
       imageElement = canvas;
     }
 
-    // Yield before the heavy ML inference so the browser can paint
     await yieldToMain();
 
-    // Run face detection with a higher minConfidence to skip low-quality passes faster
     const detection = await faceapi
-      .detectSingleFace(imageElement, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+      .detectSingleFace(
+        imageElement,
+        new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }),
+      )
       .withFaceLandmarks()
       .withFaceDescriptor();
 
-    // Yield after inference so any pending UI updates flush
     await yieldToMain();
 
     if (!detection) {
@@ -106,14 +104,14 @@ export function compareFaces(descriptor1, descriptor2) {
 
     const distance = faceapi.euclideanDistance(descriptor1, descriptor2);
 
-    // Map face-api distance to a calibrated similarity score where
-    // 90% corresponds to the strict match distance threshold (0.5).
     let similarity;
     if (distance <= FACE_DISTANCE_THRESHOLD) {
-      const closeness = (FACE_DISTANCE_THRESHOLD - distance) / FACE_DISTANCE_THRESHOLD;
+      const closeness =
+        (FACE_DISTANCE_THRESHOLD - distance) / FACE_DISTANCE_THRESHOLD;
       similarity = 90 + closeness * 10;
     } else {
-      const over = (distance - FACE_DISTANCE_THRESHOLD) / (1 - FACE_DISTANCE_THRESHOLD);
+      const over =
+        (distance - FACE_DISTANCE_THRESHOLD) / (1 - FACE_DISTANCE_THRESHOLD);
       similarity = 90 - over * 90;
     }
     similarity = Math.max(0, Math.min(100, similarity));

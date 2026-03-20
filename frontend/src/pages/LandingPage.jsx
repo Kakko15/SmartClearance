@@ -316,9 +316,9 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
         <div
           className={`absolute top-[40%] -left-[20%] w-[60vw] h-[60vw] max-w-[700px] max-h-[700px] rounded-full opacity-30 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] ${isDark ? "from-secondary-900/40 via-secondary-900/10 to-transparent" : "from-secondary-300/40 via-secondary-300/10 to-transparent"}`}
         />
-      <div
-        className={`absolute inset-0 bg-[url('/noise.png')] opacity-[0.03]`}
-      />
+        <div
+          className={`absolute inset-0 bg-[url('/noise.png')] opacity-[0.03]`}
+        />
       </div>
 
       <header
@@ -427,11 +427,13 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
                 <div
                   className={`absolute inset-0 w-full h-full -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent`}
                 />
-                  <span className="flex items-center gap-3">
-                    ACCESS SYSTEM
-                    <span className="material-symbols-rounded transition-transform group-hover:translate-x-1">arrow_forward</span>
+                <span className="flex items-center gap-3">
+                  ACCESS SYSTEM
+                  <span className="material-symbols-rounded transition-transform group-hover:translate-x-1">
+                    arrow_forward
                   </span>
-                </button>
+                </span>
+              </button>
             </motion.div>
 
             <motion.div
@@ -477,7 +479,9 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
                 >
                   <div className="flex gap-4 items-center">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-primary-500 to-primary-700 flex items-center justify-center shadow-m3-2">
-                      <span className="material-symbols-rounded text-white">verified_user</span>
+                      <span className="material-symbols-rounded text-white">
+                        verified_user
+                      </span>
                     </div>
                     <div>
                       <div
@@ -521,7 +525,9 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
                         100%
                       </p>
                     </div>
-                    <span className="material-symbols-rounded text-primary-500 text-[32px]">check_circle</span>
+                    <span className="material-symbols-rounded text-primary-500 text-[32px]">
+                      check_circle
+                    </span>
                   </div>
                   <div
                     className={`h-2 w-full rounded-full overflow-hidden ${isDark ? "bg-slate-800" : "bg-slate-200"}`}
@@ -603,7 +609,9 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
                 title: "Login Authentication",
                 text: "Securely sign in using your portal credentials.",
                 icon: (
-                  <span className="material-symbols-rounded text-[32px]">login</span>
+                  <span className="material-symbols-rounded text-[32px]">
+                    login
+                  </span>
                 ),
               },
               {
@@ -611,7 +619,9 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
                 title: "Digital Processing",
                 text: "Offices verify your clearance in real-time.",
                 icon: (
-                  <span className="material-symbols-rounded text-[32px]">manage_history</span>
+                  <span className="material-symbols-rounded text-[32px]">
+                    manage_history
+                  </span>
                 ),
               },
               {
@@ -619,7 +629,9 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
                 title: "Instant Verification",
                 text: "Generate your secure digital clearance.",
                 icon: (
-                  <span className="material-symbols-rounded text-[32px]">verified</span>
+                  <span className="material-symbols-rounded text-[32px]">
+                    verified
+                  </span>
                 ),
               },
             ].map((item, idx) => (
@@ -701,7 +713,9 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
               desc="Eliminate physical forms and reduce campus waste. Help build our Smart-Green University vision while saving your time."
               color="bg-primary-500"
               icon={
-                <span className="material-symbols-rounded text-[32px]">nature</span>
+                <span className="material-symbols-rounded text-[32px]">
+                  nature
+                </span>
               }
             />
             <FeatureCard
@@ -752,7 +766,7 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
         </div>
       </section>
 
-      {/* BUG 1 FIX: Added #about section so the SlideTabs "About ISUE" link has a target */}
+      {}
       <section
         id="about"
         className={`scroll-mt-32 py-24 relative z-10 ${isDark ? "bg-[#030712]" : "bg-[#FAFAFA]"}`}
@@ -766,16 +780,29 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
             className="flex flex-col md:flex-row items-center gap-12"
           >
             <div className="flex-shrink-0">
-              <img src={isuLogo} alt="Isabela State University" className="w-32 h-32 md:w-40 md:h-40 rounded-full shadow-2xl object-cover" />
+              <img
+                src={isuLogo}
+                alt="Isabela State University"
+                className="w-32 h-32 md:w-40 md:h-40 rounded-full shadow-2xl object-cover"
+              />
             </div>
             <div>
-              <h2 className={`text-3xl md:text-4xl font-black tracking-tight mb-4 ${isDark ? "text-white" : "text-slate-900"}`}>
+              <h2
+                className={`text-3xl md:text-4xl font-black tracking-tight mb-4 ${isDark ? "text-white" : "text-slate-900"}`}
+              >
                 Isabela State University
               </h2>
-              <p className={`text-lg leading-relaxed mb-4 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
-                Echague Campus — pioneering digital transformation in academic services through the Smart Clearance System. Our mission is to deliver seamless, paperless, and secure clearance processing for every student.
+              <p
+                className={`text-lg leading-relaxed mb-4 ${isDark ? "text-slate-400" : "text-slate-600"}`}
+              >
+                Echague Campus — pioneering digital transformation in academic
+                services through the Smart Clearance System. Our mission is to
+                deliver seamless, paperless, and secure clearance processing for
+                every student.
               </p>
-              <p className={`text-sm ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+              <p
+                className={`text-sm ${isDark ? "text-slate-500" : "text-slate-400"}`}
+              >
                 San Fabian, Echague, Isabela 3309, Philippines
               </p>
             </div>

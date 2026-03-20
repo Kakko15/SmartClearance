@@ -5,15 +5,12 @@ const supabase = require("../supabaseClient");
 const { escapeHtml } = require("../utils/escapeHtml");
 
 function generateCertificateNumber() {
-  // B2 FIX: Use crypto.randomBytes for collision-proof certificate numbers.
-  // Format: CERT-{year}-{8 hex chars} → 4 billion+ possible values per year.
   const year = new Date().getFullYear();
   const random = crypto.randomBytes(4).toString("hex").toUpperCase();
   return `CERT-${year}-${random}`;
 }
 
 function generateVerificationCode() {
-  // Use crypto for verification codes too — 8 alphanumeric chars.
   return crypto.randomBytes(5).toString("hex").substring(0, 8).toUpperCase();
 }
 
@@ -66,7 +63,6 @@ async function generateCertificate(requestId) {
       day: "numeric",
     });
 
-    // S10 FIX: Sanitize user-controlled values before writing to PDF
     const safeName = escapeHtml(student.full_name || "");
     const safeStudentNumber = escapeHtml(student.student_number || "");
     const safeCourseYear = escapeHtml(student.course_year || "");
@@ -81,8 +77,10 @@ async function generateCertificate(requestId) {
     doc.on("data", (chunk) => chunks.push(chunk));
 
     const apiUrl = process.env.API_URL || "http://localhost:5000/api";
-    // G10: QR code points to frontend verification page, not raw API
-    const frontendUrl = (process.env.ALLOWED_ORIGINS || "http://localhost:5173").split(",")[0].trim();
+
+    const frontendUrl = (process.env.ALLOWED_ORIGINS || "http://localhost:5173")
+      .split(",")[0]
+      .trim();
     const qrCodeData = `${frontendUrl}/verify/${verificationCode}`;
     const qrCodeImage = await QRCode.toDataURL(qrCodeData);
 

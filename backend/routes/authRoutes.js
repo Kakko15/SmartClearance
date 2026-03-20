@@ -9,15 +9,17 @@ const twoFactorRoutes = require("./twoFactorRoutes");
 const { validatePassword } = require("../utils/validatePassword");
 
 const crypto = require("crypto");
-const { TOKEN_TYPES, setToken, getToken, incrementAttempts, deleteToken } = require("../services/otpStore");
+const {
+  TOKEN_TYPES,
+  setToken,
+  getToken,
+  incrementAttempts,
+  deleteToken,
+} = require("../services/otpStore");
 
-const EMAIL_VERIFY_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
-const EMAIL_VERIFY_TOKEN_EXPIRY_MS = 30 * 60 * 1000; // 30 minutes
+const EMAIL_VERIFY_EXPIRY_MS = 10 * 60 * 1000;
+const EMAIL_VERIFY_TOKEN_EXPIRY_MS = 30 * 60 * 1000;
 
-/**
- * Generate a short-lived token that authorizes email verification requests.
- * Issued after signup or when an unverified user attempts login.
- */
 async function generateEmailVerifyToken(userId) {
   const token = crypto.randomBytes(32).toString("hex");
   await setToken(userId, TOKEN_TYPES.EMAIL_VERIFY_TOKEN, {
@@ -36,11 +38,9 @@ async function validateEmailVerifyToken(userId, token) {
   }
   return stored.tokenValue === token;
 }
-const EMAIL_VERIFY_COOLDOWN_MS = 60 * 1000; // 60 seconds between resends
+const EMAIL_VERIFY_COOLDOWN_MS = 60 * 1000;
 const EMAIL_VERIFY_MAX_ATTEMPTS = 5;
 
-// B9 FIX: Singleton transporter — reuse SMTP connection across all emails.
-// Lazy-initialized on first use so env vars are available.
 let _emailTransporter = null;
 function getEmailTransporter() {
   if (!_emailTransporter) {
@@ -90,19 +90,13 @@ const LOGIN_ACCOUNT_MAX = getEnvInt(
   DEFAULT_LOGIN_ACCOUNT_MAX,
 );
 const LOGIN_IP_MAX = getEnvInt("LOGIN_RATE_LIMIT_IP_MAX", DEFAULT_LOGIN_IP_MAX);
-const LOGIN_ACCOUNT_LIMIT_ERROR =
-  `Too many failed sign-in attempts for this account. Please try again in ${LOGIN_WINDOW_MINUTES} minutes or reset your password.`;
-const LOGIN_IP_LIMIT_ERROR =
-  `Too many login attempts from this network. Please try again in ${LOGIN_WINDOW_MINUTES} minutes.`;
+const LOGIN_ACCOUNT_LIMIT_ERROR = `Too many failed sign-in attempts for this account. Please try again in ${LOGIN_WINDOW_MINUTES} minutes or reset your password.`;
+const LOGIN_IP_LIMIT_ERROR = `Too many login attempts from this network. Please try again in ${LOGIN_WINDOW_MINUTES} minutes.`;
 const STUDENT_NUMBER_PATTERN = /^\d{2}-\d{3,5}(?:-[A-Z]{1,3})?$/;
 
 function normalizeStudentNumber(value) {
   if (typeof value !== "string") return "";
-  return value
-    .trim()
-    .toUpperCase()
-    .replace(/[–—]/g, "-")
-    .replace(/\s+/g, "");
+  return value.trim().toUpperCase().replace(/[–—]/g, "-").replace(/\s+/g, "");
 }
 
 function getResetInSeconds(resetTime) {
@@ -118,7 +112,12 @@ function getResetInSeconds(resetTime) {
   return Math.max(0, Math.ceil((resetAt - Date.now()) / 1000));
 }
 
-function createRateLimitPayload(rateLimit, fallbackLimit, scope, blocked = false) {
+function createRateLimitPayload(
+  rateLimit,
+  fallbackLimit,
+  scope,
+  blocked = false,
+) {
   return {
     scope,
     limit: Number.isFinite(rateLimit?.limit) ? rateLimit.limit : fallbackLimit,
@@ -169,7 +168,12 @@ function createLoginLimiterHandler(scope, fallbackLimit, errorMessage) {
     return res.status(options.statusCode).json({
       success: false,
       error: errorMessage,
-      rateLimit: createRateLimitPayload(req.rateLimit, fallbackLimit, scope, true),
+      rateLimit: createRateLimitPayload(
+        req.rateLimit,
+        fallbackLimit,
+        scope,
+        true,
+      ),
     });
   };
 }
@@ -206,7 +210,8 @@ const signupLimiter = rateLimit({
   max: isDev ? 100 : 5,
   message: {
     success: false,
-    error: "Too many signup attempts from this IP. Please try again in an hour.",
+    error:
+      "Too many signup attempts from this IP. Please try again in an hour.",
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -237,95 +242,96 @@ router.post(
   captureRateLimit("loginIpRateLimit", loginIpLimiter),
   captureRateLimit("loginAccountRateLimit", loginAccountLimiter),
   async (req, res) => {
-  try {
-    const email = normalizeEmail(req.body?.email);
-    const { password } = req.body;
+    try {
+      const email = normalizeEmail(req.body?.email);
+      const { password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        error: "Email and password are required",
-        rateLimit: getMostRestrictiveRateLimit(req),
-      });
-    }
-
-    // Use a disposable client for signInWithPassword so the shared
-    // service-role client's auth state is never mutated. Mutating it
-    // causes all subsequent DB queries to run under the logged-in
-    // user's RLS context instead of the service-role bypass.
-    const loginClient = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY,
-      { auth: { autoRefreshToken: false, persistSession: false } },
-    );
-
-    const { data, error } = await loginClient.auth.signInWithPassword({ email, password });
-
-    if (error) {
-      // Supabase may reject the login itself when email isn't confirmed.
-      // Detect this and return the same 403 emailNotVerified response so
-      // the frontend can redirect to the verification flow.
-      const isEmailNotConfirmed =
-        error.message?.toLowerCase().includes("email not confirmed");
-
-      if (isEmailNotConfirmed) {
-        // Look up the user via admin API so we can return their id.
-        // listUsers is acceptable here because this is an infrequent
-        // error-recovery path, not a hot path.
-        const { data: userList } = await supabase.auth.admin.listUsers();
-        const unverifiedUser = userList?.users?.find(
-          (u) => u.email?.toLowerCase() === email,
-        );
-
-        if (unverifiedUser) {
-          const verifyToken = await generateEmailVerifyToken(unverifiedUser.id);
-          return res.status(403).json({
-            success: false,
-            error: "Please verify your email before signing in. Check your inbox for the verification code.",
-            emailNotVerified: true,
-            userId: unverifiedUser.id,
-            email: unverifiedUser.email,
-            verifyToken,
-          });
-        }
+      if (!email || !password) {
+        return res.status(400).json({
+          success: false,
+          error: "Email and password are required",
+          rateLimit: getMostRestrictiveRateLimit(req),
+        });
       }
 
-      return res.status(401).json({
-        success: false,
-        error: error.message,
-        rateLimit: getMostRestrictiveRateLimit(req),
+      const loginClient = createClient(
+        process.env.SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_KEY,
+        { auth: { autoRefreshToken: false, persistSession: false } },
+      );
+
+      const { data, error } = await loginClient.auth.signInWithPassword({
+        email,
+        password,
       });
-    }
 
-    // Check if email is verified
-    const user = data.user;
-    if (!user.email_confirmed_at) {
-      // Generate a short-lived token so the frontend can request
-      // verification emails without a full session.
-      const verifyToken = await generateEmailVerifyToken(user.id);
+      if (error) {
+        const isEmailNotConfirmed = error.message
+          ?.toLowerCase()
+          .includes("email not confirmed");
 
-      return res.status(403).json({
-        success: false,
-        error: "Please verify your email before signing in. Check your inbox for the verification code.",
-        emailNotVerified: true,
-        userId: user.id,
-        email: user.email,
-        verifyToken,
+        if (isEmailNotConfirmed) {
+          const { data: userList } = await supabase.auth.admin.listUsers();
+          const unverifiedUser = userList?.users?.find(
+            (u) => u.email?.toLowerCase() === email,
+          );
+
+          if (unverifiedUser) {
+            const verifyToken = await generateEmailVerifyToken(
+              unverifiedUser.id,
+            );
+            return res.status(403).json({
+              success: false,
+              error:
+                "Please verify your email before signing in. Check your inbox for the verification code.",
+              emailNotVerified: true,
+              userId: unverifiedUser.id,
+              email: unverifiedUser.email,
+              verifyToken,
+            });
+          }
+        }
+
+        return res.status(401).json({
+          success: false,
+          error: error.message,
+          rateLimit: getMostRestrictiveRateLimit(req),
+        });
+      }
+
+      const user = data.user;
+      if (!user.email_confirmed_at) {
+        const verifyToken = await generateEmailVerifyToken(user.id);
+
+        return res.status(403).json({
+          success: false,
+          error:
+            "Please verify your email before signing in. Check your inbox for the verification code.",
+          emailNotVerified: true,
+          userId: user.id,
+          email: user.email,
+          verifyToken,
+        });
+      }
+
+      res.json({
+        success: true,
+        session: {
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        },
       });
+    } catch (error) {
+      console.error("Login error:", error);
+      res
+        .status(500)
+        .json({
+          success: false,
+          error: "An error occurred during login. Please try again.",
+        });
     }
-
-    res.json({
-      success: true,
-      session: {
-        access_token: data.session.access_token,
-        refresh_token: data.session.refresh_token,
-      },
-    });
-  } catch (error) {
-    console.error("Login error:", error);
-    res.status(500).json({ success: false, error: "An error occurred during login. Please try again." });
-  }
-});
+  },
+);
 
 const checkEmailLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -337,20 +343,20 @@ const checkEmailLimiter = rateLimit({
 
 router.post("/check-email", checkEmailLimiter, async (req, res) => {
   const start = Date.now();
-  // Constant-time floor: every response takes at least this many ms,
-  // preventing timing-based email enumeration.
+
   const MIN_RESPONSE_MS = 200;
 
   try {
     const email = normalizeEmail(req.body?.email);
     if (!email) {
-      return res.status(400).json({ success: false, error: "Email is required" });
+      return res
+        .status(400)
+        .json({ success: false, error: "Email is required" });
     }
 
-    // O(1) lookup via Postgres function on auth.users (indexed by email).
-    // Requires migration: backend/migrations/add_check_email_function.sql
-    const { data, error } = await supabase
-      .rpc("check_email_exists", { email_input: email });
+    const { data, error } = await supabase.rpc("check_email_exists", {
+      email_input: email,
+    });
 
     if (error) {
       console.error("check_email_exists RPC error:", error.message);
@@ -359,18 +365,16 @@ router.post("/check-email", checkEmailLimiter, async (req, res) => {
 
     const exists = !!data;
 
-    // Pad response time to a constant floor so "exists" vs "not exists"
-    // can't be distinguished by network timing.
     const elapsed = Date.now() - start;
     if (elapsed < MIN_RESPONSE_MS) {
       await new Promise((r) => setTimeout(r, MIN_RESPONSE_MS - elapsed));
     }
 
-    // Never return an explicit exists boolean — that's an enumeration vector.
-    // Instead, return a validation message only when the email is taken.
-    // The response shape is identical either way (success: true + optional message).
     if (exists) {
-      return res.json({ success: true, message: "This email is already registered." });
+      return res.json({
+        success: true,
+        message: "This email is already registered.",
+      });
     }
     return res.json({ success: true });
   } catch (error) {
@@ -553,19 +557,20 @@ router.post("/signup", signupLimiter, async (req, res) => {
       );
     }
 
-    // Send email verification code — non-blocking.
-    // The account is already created; if the email fails the user can
-    // request a new code from the login "verify email" flow.
     let emailSent = true;
     try {
       await sendVerificationEmail(authData.user.id, email);
     } catch (emailErr) {
-      console.error("Verification email failed (admin signup):", emailErr.message);
+      console.error(
+        "Verification email failed (admin signup):",
+        emailErr.message,
+      );
       emailSent = false;
     }
 
-    // Generate a short-lived signup token for 2FA setup authentication
-    const signupToken = await twoFactorRoutes.generateSignupToken(authData.user.id);
+    const signupToken = await twoFactorRoutes.generateSignupToken(
+      authData.user.id,
+    );
 
     res.json({
       success: true,
@@ -684,7 +689,8 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
     if (!STUDENT_NUMBER_PATTERN.test(normalizedStudentNumber)) {
       return res.status(400).json({
         success: false,
-        error: "Invalid student number format. Use format: [Year]-[Digits] (e.g., 23-1234 or 23-1234-TS)",
+        error:
+          "Invalid student number format. Use format: [Year]-[Digits] (e.g., 23-1234 or 23-1234-TS)",
       });
     }
 
@@ -693,8 +699,6 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
       return res.status(400).json({ success: false, error: pwCheck.error });
     }
 
-    // Pre-check: ensure student number and email aren't already taken BEFORE
-    // creating the auth user. This avoids creating orphan auth users.
     const { data: existingProfile } = await supabase
       .from("profiles")
       .select("id, student_number")
@@ -704,7 +708,8 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
     if (existingProfile) {
       return res.status(409).json({
         success: false,
-        error: "This student number is already registered. If this is your account, please sign in instead. Otherwise, contact the registrar.",
+        error:
+          "This student number is already registered. If this is your account, please sign in instead. Otherwise, contact the registrar.",
       });
     }
 
@@ -795,19 +800,20 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
       );
     }
 
-    // Send email verification code — non-blocking.
-    // The account is already created; if the email fails the user can
-    // request a new code from the login "verify email" flow.
     let emailSent = true;
     try {
       await sendVerificationEmail(authData.user.id, email);
     } catch (emailErr) {
-      console.error("Verification email failed (student signup):", emailErr.message);
+      console.error(
+        "Verification email failed (student signup):",
+        emailErr.message,
+      );
       emailSent = false;
     }
 
-    // Generate a short-lived signup token for 2FA setup authentication
-    const signupToken = await twoFactorRoutes.generateSignupToken(authData.user.id);
+    const signupToken = await twoFactorRoutes.generateSignupToken(
+      authData.user.id,
+    );
 
     res.json({
       success: true,
@@ -817,8 +823,12 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
       emailSent,
       signupToken,
       message: isAutoApproved
-        ? (emailSent ? "Account approved! Please verify your email." : "Account approved, but we couldn't send the verification email. You can request a new code later.")
-        : (emailSent ? "Account pending review. Please verify your email." : "Account pending review. We couldn't send the verification email — you can request a new code later."),
+        ? emailSent
+          ? "Account approved! Please verify your email."
+          : "Account approved, but we couldn't send the verification email. You can request a new code later."
+        : emailSent
+          ? "Account pending review. Please verify your email."
+          : "Account pending review. We couldn't send the verification email — you can request a new code later.",
       user: {
         id: authData.user.id,
         email: authData.user.email,
@@ -836,8 +846,6 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
   }
 });
 
-// ── Email Verification ──────────────────────────────────────────────────────
-
 async function sendVerificationEmail(userId, email) {
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -849,15 +857,19 @@ async function sendVerificationEmail(userId, email) {
   });
 
   const transporter = getEmailTransporter();
-  const { buildGoogleEmail, getLogoAttachment } = require("../utils/emailTemplate");
+  const {
+    buildGoogleEmail,
+    getLogoAttachment,
+  } = require("../utils/emailTemplate");
   const htmlBody = buildGoogleEmail(
     "Verify Your Email",
     "Verify Your Email Address",
     "Use the code below to verify your email and activate your account:",
     {
       code: otp,
-      footerNote: "This code expires in 10 minutes. If you didn't create an account, you can safely ignore this email."
-    }
+      footerNote:
+        "This code expires in 10 minutes. If you didn't create an account, you can safely ignore this email.",
+    },
   );
 
   await transporter.sendMail({
@@ -872,7 +884,10 @@ async function sendVerificationEmail(userId, email) {
 const verifyEmailLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: isDev ? 30 : 10,
-  message: { success: false, error: "Too many attempts. Please try again later." },
+  message: {
+    success: false,
+    error: "Too many attempts. Please try again later.",
+  },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -880,102 +895,157 @@ const verifyEmailLimiter = rateLimit({
 const sendVerifyEmailLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: isDev ? 20 : 3,
-  message: { success: false, error: "Too many requests. Please try again later." },
+  message: {
+    success: false,
+    error: "Too many requests. Please try again later.",
+  },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-// Per-userId rate limit to prevent distributed email bombing targeting one user
 const sendVerifyEmailUserLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: isDev ? 20 : 3,
   keyGenerator: (req) => req.body?.userId || "unknown",
-  message: { success: false, error: "Too many verification requests for this account." },
+  message: {
+    success: false,
+    error: "Too many verification requests for this account.",
+  },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-router.post("/send-verification-email", sendVerifyEmailLimiter, sendVerifyEmailUserLimiter, async (req, res) => {
-  try {
-    const { userId, email, signupToken, verifyToken } = req.body;
+router.post(
+  "/send-verification-email",
+  sendVerifyEmailLimiter,
+  sendVerifyEmailUserLimiter,
+  async (req, res) => {
+    try {
+      const { userId, email, signupToken, verifyToken } = req.body;
 
-    if (!userId || !email) {
-      return res.status(400).json({ success: false, error: "User ID and email are required" });
-    }
-
-    // Require proof of identity: either a signup token (post-signup flow)
-    // or a verify token (login flow for unverified users).
-    let authorized = false;
-
-    if (signupToken) {
-      if (typeof twoFactorRoutes.validateSignupToken === "function") {
-        const check = await twoFactorRoutes.validateSignupToken(userId, signupToken);
-        authorized = check.valid;
+      if (!userId || !email) {
+        return res
+          .status(400)
+          .json({ success: false, error: "User ID and email are required" });
       }
-    }
 
-    if (!authorized && verifyToken) {
-      authorized = await validateEmailVerifyToken(userId, verifyToken);
-    }
+      let authorized = false;
 
-    if (!authorized) {
-      return res.status(401).json({ success: false, error: "Unauthorized. Please sign up or log in again." });
-    }
+      if (signupToken) {
+        if (typeof twoFactorRoutes.validateSignupToken === "function") {
+          const check = await twoFactorRoutes.validateSignupToken(
+            userId,
+            signupToken,
+          );
+          authorized = check.valid;
+        }
+      }
 
-    // Enforce cooldown
-    const existing = await getToken(userId, TOKEN_TYPES.EMAIL_VERIFY);
-    if (existing && (Date.now() - existing.createdAt) < EMAIL_VERIFY_COOLDOWN_MS) {
-      const waitSec = Math.ceil((EMAIL_VERIFY_COOLDOWN_MS - (Date.now() - existing.createdAt)) / 1000);
-      return res.status(429).json({
-        success: false,
-        error: `Please wait ${waitSec} seconds before requesting a new code.`,
-      });
-    }
+      if (!authorized && verifyToken) {
+        authorized = await validateEmailVerifyToken(userId, verifyToken);
+      }
 
-    // Verify the user actually exists and email matches
-    const { data: { user }, error } = await supabase.auth.admin.getUserById(userId);
-    if (error || !user || user.email?.toLowerCase() !== email.trim().toLowerCase()) {
-      return res.status(400).json({ success: false, error: "Invalid request" });
-    }
+      if (!authorized) {
+        return res
+          .status(401)
+          .json({
+            success: false,
+            error: "Unauthorized. Please sign up or log in again.",
+          });
+      }
 
-    // Already verified
-    if (user.email_confirmed_at) {
-      return res.json({ success: true, alreadyVerified: true, message: "Email is already verified. You can sign in." });
-    }
+      const existing = await getToken(userId, TOKEN_TYPES.EMAIL_VERIFY);
+      if (
+        existing &&
+        Date.now() - existing.createdAt < EMAIL_VERIFY_COOLDOWN_MS
+      ) {
+        const waitSec = Math.ceil(
+          (EMAIL_VERIFY_COOLDOWN_MS - (Date.now() - existing.createdAt)) / 1000,
+        );
+        return res.status(429).json({
+          success: false,
+          error: `Please wait ${waitSec} seconds before requesting a new code.`,
+        });
+      }
 
-    await sendVerificationEmail(userId, email);
-    res.json({ success: true, message: "Verification code sent" });
-  } catch (error) {
-    console.error("Send verification email error:", error);
-    res.status(500).json({ success: false, error: "Failed to send verification email" });
-  }
-});
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.admin.getUserById(userId);
+      if (
+        error ||
+        !user ||
+        user.email?.toLowerCase() !== email.trim().toLowerCase()
+      ) {
+        return res
+          .status(400)
+          .json({ success: false, error: "Invalid request" });
+      }
+
+      if (user.email_confirmed_at) {
+        return res.json({
+          success: true,
+          alreadyVerified: true,
+          message: "Email is already verified. You can sign in.",
+        });
+      }
+
+      await sendVerificationEmail(userId, email);
+      res.json({ success: true, message: "Verification code sent" });
+    } catch (error) {
+      console.error("Send verification email error:", error);
+      res
+        .status(500)
+        .json({ success: false, error: "Failed to send verification email" });
+    }
+  },
+);
 
 router.post("/verify-email", verifyEmailLimiter, async (req, res) => {
   try {
     const { userId, code } = req.body;
 
     if (!userId || !code) {
-      return res.status(400).json({ success: false, error: "User ID and code are required" });
+      return res
+        .status(400)
+        .json({ success: false, error: "User ID and code are required" });
     }
 
     const stored = await getToken(userId, TOKEN_TYPES.EMAIL_VERIFY);
     if (!stored) {
-      return res.status(400).json({ success: false, error: "No verification code found. Please request a new one." });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          error: "No verification code found. Please request a new one.",
+        });
     }
 
     if (Date.now() > stored.expiresAt) {
       await deleteToken(userId, TOKEN_TYPES.EMAIL_VERIFY);
-      return res.status(400).json({ success: false, error: "Code expired. Please request a new one." });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          error: "Code expired. Please request a new one.",
+        });
     }
 
     if (stored.attempts >= EMAIL_VERIFY_MAX_ATTEMPTS) {
       await deleteToken(userId, TOKEN_TYPES.EMAIL_VERIFY);
-      return res.status(429).json({ success: false, error: "Too many failed attempts. Please request a new code." });
+      return res
+        .status(429)
+        .json({
+          success: false,
+          error: "Too many failed attempts. Please request a new code.",
+        });
     }
 
     if (stored.tokenValue !== code.toString().trim()) {
-      const newAttempts = await incrementAttempts(userId, TOKEN_TYPES.EMAIL_VERIFY);
+      const newAttempts = await incrementAttempts(
+        userId,
+        TOKEN_TYPES.EMAIL_VERIFY,
+      );
       const remaining = EMAIL_VERIFY_MAX_ATTEMPTS - newAttempts;
       if (remaining <= 0) {
         await deleteToken(userId, TOKEN_TYPES.EMAIL_VERIFY);
@@ -986,19 +1056,25 @@ router.post("/verify-email", verifyEmailLimiter, async (req, res) => {
       });
     }
 
-    // Code is correct — confirm the email in Supabase
-    const { error: updateError } = await supabase.auth.admin.updateUserById(userId, {
-      email_confirm: true,
-    });
+    const { error: updateError } = await supabase.auth.admin.updateUserById(
+      userId,
+      {
+        email_confirm: true,
+      },
+    );
 
     if (updateError) {
       console.error("Email confirm error:", updateError);
-      return res.status(500).json({ success: false, error: "Failed to verify email. Please try again." });
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: "Failed to verify email. Please try again.",
+        });
     }
 
     await deleteToken(userId, TOKEN_TYPES.EMAIL_VERIFY);
 
-    // Audit log
     try {
       await supabase.from("auth_audit_log").insert({
         user_id: userId,
@@ -1010,23 +1086,27 @@ router.post("/verify-email", verifyEmailLimiter, async (req, res) => {
       console.warn("Auth audit log insert failed:", logError.message);
     }
 
-    res.json({ success: true, message: "Email verified successfully! You can now sign in." });
+    res.json({
+      success: true,
+      message: "Email verified successfully! You can now sign in.",
+    });
   } catch (error) {
     console.error("Verify email error:", error);
     res.status(500).json({ success: false, error: "Verification failed" });
   }
 });
 
-// ── Forgot Password ─────────────────────────────────────────────────────────
-
 router.post("/forgot-password", async (req, res) => {
   try {
-    const email = typeof req.body?.email === "string"
-      ? req.body.email.trim().toLowerCase()
-      : "";
+    const email =
+      typeof req.body?.email === "string"
+        ? req.body.email.trim().toLowerCase()
+        : "";
 
     if (!email) {
-      return res.status(400).json({ success: false, error: "Email is required" });
+      return res
+        .status(400)
+        .json({ success: false, error: "Email is required" });
     }
 
     const { data, error } = await supabase.auth.admin.generateLink({
@@ -1038,24 +1118,34 @@ router.post("/forgot-password", async (req, res) => {
     });
 
     if (error) {
-      return res.json({ success: true, message: "If an account exists, a reset link has been sent." });
+      return res.json({
+        success: true,
+        message: "If an account exists, a reset link has been sent.",
+      });
     }
 
     const resetLink = data?.properties?.action_link;
     if (!resetLink) {
-      return res.json({ success: true, message: "If an account exists, a reset link has been sent." });
+      return res.json({
+        success: true,
+        message: "If an account exists, a reset link has been sent.",
+      });
     }
 
     const transporter = getEmailTransporter();
-    const { buildGoogleEmail, getLogoAttachment } = require("../utils/emailTemplate");
+    const {
+      buildGoogleEmail,
+      getLogoAttachment,
+    } = require("../utils/emailTemplate");
     const htmlBody = buildGoogleEmail(
       "Password Reset",
       "Reset Your Password",
       "We received a request to reset your password. Click the button below to create a new password:",
       {
         button: { text: "Reset Password", url: resetLink },
-        footerNote: "If you didn't request this, you can safely ignore this email. This link will expire in 24 hours."
-      }
+        footerNote:
+          "If you didn't request this, you can safely ignore this email. This link will expire in 24 hours.",
+      },
     );
 
     await transporter.sendMail({
@@ -1066,10 +1156,16 @@ router.post("/forgot-password", async (req, res) => {
       attachments: getLogoAttachment(),
     });
 
-    res.json({ success: true, message: "Password reset link sent to your email." });
+    res.json({
+      success: true,
+      message: "Password reset link sent to your email.",
+    });
   } catch (error) {
     console.error("Forgot password error:", error);
-    res.json({ success: true, message: "If an account exists, a reset link has been sent." });
+    res.json({
+      success: true,
+      message: "If an account exists, a reset link has been sent.",
+    });
   }
 });
 

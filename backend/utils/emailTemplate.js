@@ -1,7 +1,7 @@
 function buildGoogleEmail(title, headerText, contentHtml, options = {}) {
   const { code = null, button = null, footerNote = null } = options;
-  const logoUrl = "cid:isu-logo"; // Uses inline CID attachment
-  
+  const logoUrl = "cid:isu-logo";
+
   let codeBlock = "";
   if (code) {
     codeBlock = `
@@ -40,7 +40,7 @@ function buildGoogleEmail(title, headerText, contentHtml, options = {}) {
           </table>
         </div>
         <div style="padding: 32px 40px 32px;">
-          ${headerText ? `<h2 style="color: #1F1F1F; font-size: 20px; font-weight: 400; margin: 0 0 16px;">${headerText}</h2>` : ''}
+          ${headerText ? `<h2 style="color: #1F1F1F; font-size: 20px; font-weight: 400; margin: 0 0 16px;">${headerText}</h2>` : ""}
           <div style="color: #444746; font-size: 14px; line-height: 22px; margin: 0;">
             ${contentHtml}
           </div>
@@ -49,7 +49,7 @@ function buildGoogleEmail(title, headerText, contentHtml, options = {}) {
         </div>
         <div style="background: #F8F9FA; padding: 24px 40px; border-top: 1px solid #E0E0E0;">
           <p style="color: #747775; font-size: 12px; line-height: 18px; margin: 0;">
-            ${footerNote ? footerNote + '<br>' : ''}
+            ${footerNote ? footerNote + "<br>" : ""}
             This email was sent by the SmartClearance System. <br>
             Isabela State University &mdash; Echague Campus
           </p>

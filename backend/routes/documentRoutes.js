@@ -24,7 +24,6 @@ router.post("/upload", requireAuth, upload.single("file"), async (req, res) => {
       });
     }
 
-    // Verify the authenticated user matches the claimed user_id
     if (req.user.id !== user_id) {
       return res.status(403).json({
         success: false,
@@ -52,7 +51,8 @@ router.post("/upload", requireAuth, upload.single("file"), async (req, res) => {
       .single();
 
     const isOwner = request.student_id === user_id;
-    const isAdmin = isStaffRole(userProfile?.role) || isManagementRole(userProfile?.role);
+    const isAdmin =
+      isStaffRole(userProfile?.role) || isManagementRole(userProfile?.role);
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({
@@ -142,7 +142,8 @@ router.get("/request/:request_id", requireAuth, async (req, res) => {
       .single();
 
     const isOwner = request.student_id === user_id;
-    const isAdmin = isStaffRole(userProfile?.role) || isManagementRole(userProfile?.role);
+    const isAdmin =
+      isStaffRole(userProfile?.role) || isManagementRole(userProfile?.role);
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({
@@ -197,7 +198,8 @@ router.delete("/:id", requireAuth, async (req, res) => {
       .single();
 
     const isUploader = document.uploaded_by === user_id;
-    const isAdmin = isStaffRole(userProfile?.role) || isManagementRole(userProfile?.role);
+    const isAdmin =
+      isStaffRole(userProfile?.role) || isManagementRole(userProfile?.role);
 
     if (!isUploader && !isAdmin) {
       return res.status(403).json({

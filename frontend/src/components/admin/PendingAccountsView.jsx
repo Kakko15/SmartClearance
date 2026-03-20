@@ -65,7 +65,9 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
         adminId,
       });
       if (response.data.success) {
-        toast.success(`${response.data.results.approved.length} accounts approved`);
+        toast.success(
+          `${response.data.results.approved.length} accounts approved`,
+        );
         setSelectedIds(new Set());
         setBulkMode(false);
         fetchPendingAccounts();
@@ -87,7 +89,9 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
         reason: bulkRejectReason,
       });
       if (response.data.success) {
-        toast.success(`${response.data.results.rejected.length} accounts rejected`);
+        toast.success(
+          `${response.data.results.rejected.length} accounts rejected`,
+        );
         setSelectedIds(new Set());
         setBulkMode(false);
         setShowBulkReject(false);
@@ -152,30 +156,51 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
 
   const getSimilarityBgColor = (similarity) => {
     if (similarity >= 90)
-      return isDark ? "bg-green-500/10 border-green-500/30" : "bg-green-50 border-green-200";
+      return isDark
+        ? "bg-green-500/10 border-green-500/30"
+        : "bg-green-50 border-green-200";
     if (similarity >= 80)
-      return isDark ? "bg-yellow-500/10 border-yellow-500/30" : "bg-yellow-50 border-yellow-200";
-    return isDark ? "bg-red-500/10 border-red-500/30" : "bg-red-50 border-red-200";
+      return isDark
+        ? "bg-yellow-500/10 border-yellow-500/30"
+        : "bg-yellow-50 border-yellow-200";
+    return isDark
+      ? "bg-red-500/10 border-red-500/30"
+      : "bg-red-50 border-red-200";
   };
 
   const renderSkeleton = () => (
     <div className="space-y-6 animate-pulse">
       <div className="flex items-center justify-between">
-        <div className={`h-8 w-64 rounded-lg ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`}></div>
-        <div className={`h-10 w-32 rounded-full ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`}></div>
+        <div
+          className={`h-8 w-64 rounded-lg ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`}
+        ></div>
+        <div
+          className={`h-10 w-32 rounded-full ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`}
+        ></div>
       </div>
       <div className="grid gap-6">
-        {[1, 2, 3].map(i => (
-          <div key={i} className={`p-6 rounded-2xl border ${isDark ? "bg-[#282a2d] border-[#3c4043]" : "bg-white border-gray-200"}`}>
+        {[1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className={`p-6 rounded-2xl border ${isDark ? "bg-[#282a2d] border-[#3c4043]" : "bg-white border-gray-200"}`}
+          >
             <div className="flex items-start justify-between mb-4">
               <div className="flex gap-4">
-                <div className={`w-16 h-16 rounded-full ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`}></div>
+                <div
+                  className={`w-16 h-16 rounded-full ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`}
+                ></div>
                 <div className="space-y-2 py-1">
-                  <div className={`h-5 w-40 rounded ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`}></div>
-                  <div className={`h-3 w-32 rounded bg-opacity-50 ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`}></div>
+                  <div
+                    className={`h-5 w-40 rounded ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`}
+                  ></div>
+                  <div
+                    className={`h-3 w-32 rounded bg-opacity-50 ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`}
+                  ></div>
                 </div>
               </div>
-              <div className={`h-8 w-24 rounded-full ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`}></div>
+              <div
+                className={`h-8 w-24 rounded-full ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`}
+              ></div>
             </div>
           </div>
         ))}
@@ -189,36 +214,68 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
 
   if (pendingAccounts.length === 0) {
     return (
-      <div className={`text-center py-12 rounded-2xl ${isDark ? "bg-slate-800/50" : "bg-gray-50"}`}>
-        <div className={`w-20 h-20 rounded-full ${isDark ? "bg-green-500/20" : "bg-green-100"} flex items-center justify-center mx-auto mb-4`}>
-          <svg className={`w-10 h-10 ${isDark ? "text-green-400" : "text-green-600"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      <div
+        className={`text-center py-12 rounded-2xl ${isDark ? "bg-slate-800/50" : "bg-gray-50"}`}
+      >
+        <div
+          className={`w-20 h-20 rounded-full ${isDark ? "bg-green-500/20" : "bg-green-100"} flex items-center justify-center mx-auto mb-4`}
+        >
+          <svg
+            className={`w-10 h-10 ${isDark ? "text-green-400" : "text-green-600"}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
           </svg>
         </div>
-        <h3 className={`text-xl font-bold mb-2 ${isDark ? "text-white" : "text-gray-900"}`}>All Caught Up!</h3>
-        <p className={isDark ? "text-gray-400" : "text-gray-600"}>No pending account verifications at the moment.</p>
+        <h3
+          className={`text-xl font-bold mb-2 ${isDark ? "text-white" : "text-gray-900"}`}
+        >
+          All Caught Up!
+        </h3>
+        <p className={isDark ? "text-gray-400" : "text-gray-600"}>
+          No pending account verifications at the moment.
+        </p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Header with bulk toggle */}
+      {}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className={`text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>
+        <h2
+          className={`text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}
+        >
           Pending Account Verifications
         </h2>
         <div className="flex items-center gap-3">
-          <span className={`px-4 py-2 rounded-full font-semibold ${isDark ? "bg-yellow-500/20 text-yellow-400" : "bg-yellow-100 text-yellow-800"}`}>
+          <span
+            className={`px-4 py-2 rounded-full font-semibold ${isDark ? "bg-yellow-500/20 text-yellow-400" : "bg-yellow-100 text-yellow-800"}`}
+          >
             {pendingAccounts.length} Pending
           </span>
           {pendingAccounts.length > 1 && (
             <button
-              onClick={() => { setBulkMode(!bulkMode); setSelectedIds(new Set()); setShowBulkReject(false); }}
+              onClick={() => {
+                setBulkMode(!bulkMode);
+                setSelectedIds(new Set());
+                setShowBulkReject(false);
+              }}
               className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
                 bulkMode
-                  ? isDark ? "bg-blue-500 text-white" : "bg-blue-600 text-white"
-                  : isDark ? "bg-slate-700 text-gray-300 hover:bg-slate-600" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  ? isDark
+                    ? "bg-blue-500 text-white"
+                    : "bg-blue-600 text-white"
+                  : isDark
+                    ? "bg-slate-700 text-gray-300 hover:bg-slate-600"
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
               }`}
             >
               {bulkMode ? "Cancel Bulk" : "Bulk Actions"}
@@ -227,7 +284,7 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
         </div>
       </div>
 
-      {/* Bulk action bar */}
+      {}
       <AnimatePresence>
         {bulkMode && (
           <motion.div
@@ -244,7 +301,9 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
                   onChange={toggleSelectAll}
                   className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className={`text-sm font-medium ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+                <span
+                  className={`text-sm font-medium ${isDark ? "text-gray-300" : "text-gray-700"}`}
+                >
                   Select All ({selectedIds.size}/{pendingAccounts.length})
                 </span>
               </label>
@@ -254,13 +313,17 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
                   disabled={selectedIds.size === 0 || bulkLoading}
                   className="px-4 py-2 rounded-xl text-sm font-semibold bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
-                  {bulkLoading ? "Processing..." : `✓ Approve ${selectedIds.size > 0 ? `(${selectedIds.size})` : ""}`}
+                  {bulkLoading
+                    ? "Processing..."
+                    : `✓ Approve ${selectedIds.size > 0 ? `(${selectedIds.size})` : ""}`}
                 </button>
                 <button
                   onClick={() => setShowBulkReject(!showBulkReject)}
                   disabled={selectedIds.size === 0 || bulkLoading}
                   className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                    isDark ? "bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white" : "bg-red-50 text-red-600 hover:bg-red-600 hover:text-white"
+                    isDark
+                      ? "bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white"
+                      : "bg-red-50 text-red-600 hover:bg-red-600 hover:text-white"
                   }`}
                 >
                   ✗ Reject {selectedIds.size > 0 ? `(${selectedIds.size})` : ""}
@@ -281,7 +344,9 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
                     onChange={(e) => setBulkRejectReason(e.target.value)}
                     placeholder="Enter rejection reason for all selected accounts..."
                     className={`w-full p-3 rounded-xl border ${
-                      isDark ? "bg-slate-900 border-slate-700 text-white" : "bg-white border-gray-200 text-gray-900"
+                      isDark
+                        ? "bg-slate-900 border-slate-700 text-white"
+                        : "bg-white border-gray-200 text-gray-900"
                     } focus:outline-none focus:border-red-500`}
                     rows={2}
                   />
@@ -299,7 +364,7 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
         )}
       </AnimatePresence>
 
-      {/* Account cards */}
+      {}
       <div className="grid gap-6">
         <AnimatePresence mode="popLayout">
           {pendingAccounts.map((account) => (
@@ -311,7 +376,11 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
               exit={{ opacity: 0, scale: 0.95, x: -40 }}
               transition={{ type: "spring", stiffness: 350, damping: 30 }}
               className={`p-6 rounded-2xl border ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"} shadow-lg ${
-                bulkMode && selectedIds.has(account.id) ? (isDark ? "ring-2 ring-blue-500" : "ring-2 ring-blue-400") : ""
+                bulkMode && selectedIds.has(account.id)
+                  ? isDark
+                    ? "ring-2 ring-blue-500"
+                    : "ring-2 ring-blue-400"
+                  : ""
               }`}
             >
               <div className="flex items-start justify-between mb-4">
@@ -324,63 +393,145 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
                       className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-3"
                     />
                   )}
-                  <div className={`w-16 h-16 rounded-full ${isDark ? "bg-blue-500/20" : "bg-blue-100"} flex items-center justify-center`}>
-                    <span className={`text-2xl font-bold ${isDark ? "text-blue-400" : "text-blue-600"}`}>
+                  <div
+                    className={`w-16 h-16 rounded-full ${isDark ? "bg-blue-500/20" : "bg-blue-100"} flex items-center justify-center`}
+                  >
+                    <span
+                      className={`text-2xl font-bold ${isDark ? "text-blue-400" : "text-blue-600"}`}
+                    >
                       {account.full_name?.charAt(0) || "?"}
                     </span>
                   </div>
                   <div>
-                    <h3 className={`text-xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>{account.full_name}</h3>
-                    <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{account.email}</p>
-                    <p className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"} mt-1`}>Student #: {account.student_number}</p>
+                    <h3
+                      className={`text-xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}
+                    >
+                      {account.full_name}
+                    </h3>
+                    <p
+                      className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                    >
+                      {account.email}
+                    </p>
+                    <p
+                      className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"} mt-1`}
+                    >
+                      Student #: {account.student_number}
+                    </p>
                   </div>
                 </div>
-                <div className={`px-4 py-2 rounded-full border ${getSimilarityBgColor(account.face_similarity ?? 0)}`}>
-                  <span className={`font-bold ${getSimilarityColor(account.face_similarity ?? 0)}`}>
-                    {account.face_similarity != null ? `${account.face_similarity.toFixed(1)}%` : "N/A"} Match
+                <div
+                  className={`px-4 py-2 rounded-full border ${getSimilarityBgColor(account.face_similarity ?? 0)}`}
+                >
+                  <span
+                    className={`font-bold ${getSimilarityColor(account.face_similarity ?? 0)}`}
+                  >
+                    {account.face_similarity != null
+                      ? `${account.face_similarity.toFixed(1)}%`
+                      : "N/A"}{" "}
+                    Match
                   </span>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4 mb-4">
-                <div className={`p-3 rounded-xl ${isDark ? "bg-slate-900/50" : "bg-gray-50"}`}>
-                  <p className={`text-xs font-semibold ${isDark ? "text-gray-400" : "text-gray-600"} mb-1`}>Course & Year</p>
-                  <p className={`text-sm font-medium ${isDark ? "text-white" : "text-gray-900"}`}>{account.course_year || "N/A"}</p>
+                <div
+                  className={`p-3 rounded-xl ${isDark ? "bg-slate-900/50" : "bg-gray-50"}`}
+                >
+                  <p
+                    className={`text-xs font-semibold ${isDark ? "text-gray-400" : "text-gray-600"} mb-1`}
+                  >
+                    Course & Year
+                  </p>
+                  <p
+                    className={`text-sm font-medium ${isDark ? "text-white" : "text-gray-900"}`}
+                  >
+                    {account.course_year || "N/A"}
+                  </p>
                 </div>
-                <div className={`p-3 rounded-xl ${isDark ? "bg-slate-900/50" : "bg-gray-50"}`}>
-                  <p className={`text-xs font-semibold ${isDark ? "text-gray-400" : "text-gray-600"} mb-1`}>Registered</p>
-                  <p className={`text-sm font-medium ${isDark ? "text-white" : "text-gray-900"}`}>{new Date(account.created_at).toLocaleDateString()}</p>
+                <div
+                  className={`p-3 rounded-xl ${isDark ? "bg-slate-900/50" : "bg-gray-50"}`}
+                >
+                  <p
+                    className={`text-xs font-semibold ${isDark ? "text-gray-400" : "text-gray-600"} mb-1`}
+                  >
+                    Registered
+                  </p>
+                  <p
+                    className={`text-sm font-medium ${isDark ? "text-white" : "text-gray-900"}`}
+                  >
+                    {new Date(account.created_at).toLocaleDateString()}
+                  </p>
                 </div>
               </div>
 
-              <div className={`p-4 rounded-xl mb-4 ${isDark ? "bg-slate-900/50" : "bg-gray-50"}`}>
-                <p className={`text-sm font-semibold mb-2 ${isDark ? "text-gray-300" : "text-gray-700"}`}>Face Verification Analysis</p>
+              <div
+                className={`p-4 rounded-xl mb-4 ${isDark ? "bg-slate-900/50" : "bg-gray-50"}`}
+              >
+                <p
+                  className={`text-sm font-semibold mb-2 ${isDark ? "text-gray-300" : "text-gray-700"}`}
+                >
+                  Face Verification Analysis
+                </p>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className={isDark ? "text-gray-400" : "text-gray-600"}>ID Verified:</span>
-                    <span className={account.face_verified ? "text-green-500" : "text-red-500"}>
+                    <span
+                      className={isDark ? "text-gray-400" : "text-gray-600"}
+                    >
+                      ID Verified:
+                    </span>
+                    <span
+                      className={
+                        account.face_verified
+                          ? "text-green-500"
+                          : "text-red-500"
+                      }
+                    >
                       {account.face_verified ? "✓ Yes" : "✗ No"}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className={isDark ? "text-gray-400" : "text-gray-600"}>Similarity Score:</span>
-                    <span className={`font-bold ${getSimilarityColor(account.face_similarity ?? 0)}`}>
-                      {account.face_similarity != null ? `${account.face_similarity.toFixed(2)}%` : "N/A"}
+                    <span
+                      className={isDark ? "text-gray-400" : "text-gray-600"}
+                    >
+                      Similarity Score:
+                    </span>
+                    <span
+                      className={`font-bold ${getSimilarityColor(account.face_similarity ?? 0)}`}
+                    >
+                      {account.face_similarity != null
+                        ? `${account.face_similarity.toFixed(2)}%`
+                        : "N/A"}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className={isDark ? "text-gray-400" : "text-gray-600"}>Threshold:</span>
-                    <span className={isDark ? "text-gray-300" : "text-gray-700"}>90% (Auto-approve)</span>
+                    <span
+                      className={isDark ? "text-gray-400" : "text-gray-600"}
+                    >
+                      Threshold:
+                    </span>
+                    <span
+                      className={isDark ? "text-gray-300" : "text-gray-700"}
+                    >
+                      90% (Auto-approve)
+                    </span>
                   </div>
                 </div>
                 <div className="mt-3">
-                  <div className={`w-full rounded-full h-2 overflow-hidden ${isDark ? "bg-slate-700" : "bg-gray-200"}`}>
+                  <div
+                    className={`w-full rounded-full h-2 overflow-hidden ${isDark ? "bg-slate-700" : "bg-gray-200"}`}
+                  >
                     <div
                       className={`h-full rounded-full transition-all ${
-                        (account.face_similarity ?? 0) >= 90 ? "bg-green-500"
-                          : (account.face_similarity ?? 0) >= 80 ? "bg-yellow-500" : "bg-red-500"
+                        (account.face_similarity ?? 0) >= 90
+                          ? "bg-green-500"
+                          : (account.face_similarity ?? 0) >= 80
+                            ? "bg-yellow-500"
+                            : "bg-red-500"
                       }`}
-                      style={{ width: `${Math.min(account.face_similarity ?? 0, 100)}%` }}
+                      style={{
+                        width: `${Math.min(account.face_similarity ?? 0, 100)}%`,
+                      }}
                     />
                   </div>
                 </div>
@@ -393,18 +544,25 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
                       onClick={() => handleApprove(account.id)}
                       disabled={actionLoading === account.id}
                       className={`flex-1 py-3 rounded-xl font-semibold transition-all ${
-                        actionLoading === account.id ? "bg-gray-400 cursor-not-allowed"
-                          : isDark ? "bg-green-500 hover:bg-green-600 text-white" : "bg-green-600 hover:bg-green-700 text-white"
+                        actionLoading === account.id
+                          ? "bg-gray-400 cursor-not-allowed"
+                          : isDark
+                            ? "bg-green-500 hover:bg-green-600 text-white"
+                            : "bg-green-600 hover:bg-green-700 text-white"
                       }`}
                     >
-                      {actionLoading === account.id ? "Processing..." : "✓ Approve"}
+                      {actionLoading === account.id
+                        ? "Processing..."
+                        : "✓ Approve"}
                     </button>
                     <button
                       onClick={() => setSelectedAccount(account.id)}
                       disabled={actionLoading === account.id}
                       className={`flex-1 py-3 rounded-xl font-semibold transition-all ${
-                        actionLoading === account.id ? "bg-gray-400 cursor-not-allowed"
-                          : isDark ? "bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/30"
+                        actionLoading === account.id
+                          ? "bg-gray-400 cursor-not-allowed"
+                          : isDark
+                            ? "bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/30"
                             : "bg-red-50 hover:bg-red-600 text-red-600 hover:text-white border border-red-200"
                       }`}
                     >
@@ -413,28 +571,41 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
                   </div>
 
                   {selectedAccount === account.id && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mt-4 space-y-3">
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      className="mt-4 space-y-3"
+                    >
                       <textarea
                         value={rejectReason}
                         onChange={(e) => setRejectReason(e.target.value)}
                         placeholder="Enter rejection reason..."
                         className={`w-full p-3 rounded-xl border ${
-                          isDark ? "bg-slate-900 border-slate-700 text-white" : "bg-white border-gray-200 text-gray-900"
+                          isDark
+                            ? "bg-slate-900 border-slate-700 text-white"
+                            : "bg-white border-gray-200 text-gray-900"
                         } focus:outline-none focus:border-red-500`}
                         rows={3}
                       />
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleReject(account.id)}
-                          disabled={!rejectReason.trim() || actionLoading === account.id}
+                          disabled={
+                            !rejectReason.trim() || actionLoading === account.id
+                          }
                           className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Confirm Rejection
                         </button>
                         <button
-                          onClick={() => { setSelectedAccount(null); setRejectReason(""); }}
+                          onClick={() => {
+                            setSelectedAccount(null);
+                            setRejectReason("");
+                          }}
                           className={`flex-1 py-2 rounded-xl font-semibold ${
-                            isDark ? "bg-slate-700 hover:bg-slate-600 text-white" : "bg-gray-200 hover:bg-gray-300 text-gray-800"
+                            isDark
+                              ? "bg-slate-700 hover:bg-slate-600 text-white"
+                              : "bg-gray-200 hover:bg-gray-300 text-gray-800"
                           }`}
                         >
                           Cancel

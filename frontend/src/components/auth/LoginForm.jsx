@@ -20,9 +20,7 @@ function getSavedLoginEmails(role) {
   if (!role) return [];
   try {
     const key = `${SAVED_LOGIN_EMAILS_KEY}_${role}`;
-    let storedEmails = JSON.parse(
-      localStorage.getItem(key) || "[]",
-    );
+    let storedEmails = JSON.parse(localStorage.getItem(key) || "[]");
 
     if (!Array.isArray(storedEmails)) return [];
 
@@ -44,7 +42,12 @@ function persistSavedLoginEmails(emails, role) {
   );
 }
 
-export default function LoginForm({ isDark, onLoginSuccess, selectedRole, initialView }) {
+export default function LoginForm({
+  isDark,
+  onLoginSuccess,
+  selectedRole,
+  initialView,
+}) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -73,9 +76,7 @@ export default function LoginForm({ isDark, onLoginSuccess, selectedRole, initia
   const [showSavedEmails, setShowSavedEmails] = useState(false);
   const [activeSavedEmailIndex, setActiveSavedEmailIndex] = useState(-1);
 
-  // Update saved emails when role changes or mounts
   useEffect(() => {
-    // Small delay to ensure role is completely set
     const timer = setTimeout(() => {
       setSavedEmails(getSavedLoginEmails(selectedRole));
       setShowSavedEmails(false);
@@ -120,7 +121,10 @@ export default function LoginForm({ isDark, onLoginSuccess, selectedRole, initia
     }, 1000);
 
     return () => window.clearInterval(timer);
-  }, [loginFeedback?.rateLimit?.blocked, loginFeedback?.rateLimit?.resetInSeconds]);
+  }, [
+    loginFeedback?.rateLimit?.blocked,
+    loginFeedback?.rateLimit?.resetInSeconds,
+  ]);
 
   useEffect(() => {
     const handlePointerDown = (event) => {
@@ -261,7 +265,8 @@ export default function LoginForm({ isDark, onLoginSuccess, selectedRole, initia
     setLoginFeedback(null);
     setLoading(true);
     try {
-      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+      const API_URL =
+        import.meta.env.VITE_API_URL || "http://localhost:5000/api";
       const res = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -276,8 +281,7 @@ export default function LoginForm({ isDark, onLoginSuccess, selectedRole, initia
           setLoginFeedback({
             tone: "blocked",
             message:
-              data.error ||
-              "Too many login attempts. Please try again later.",
+              data.error || "Too many login attempts. Please try again later.",
             detail:
               rateLimit?.resetInSeconds > 0
                 ? `Try again in ${formatRetryTime(rateLimit.resetInSeconds)}.`
@@ -291,7 +295,8 @@ export default function LoginForm({ isDark, onLoginSuccess, selectedRole, initia
           setLoginFeedback({
             tone: "warning",
             message: "Email not verified",
-            detail: "Check your inbox for the verification code, or request a new one.",
+            detail:
+              "Check your inbox for the verification code, or request a new one.",
             rateLimit: null,
             emailNotVerified: true,
             unverifiedUserId: data.userId,
@@ -655,7 +660,6 @@ export default function LoginForm({ isDark, onLoginSuccess, selectedRole, initia
                   id="saved-login-email-list"
                   role="listbox"
                   onMouseLeave={() => setActiveSavedEmailIndex(-1)}
-                  // BUG 4 FIX: Use theme-aware classes instead of hardcoded dark colors
                   className={`absolute left-0 right-0 top-full z-30 mt-2 max-h-60 overflow-y-auto overflow-x-hidden rounded-2xl border shadow-[0_18px_50px_rgba(15,23,42,0.45)] backdrop-blur-xl ${isDark ? "border-slate-700 bg-slate-950/95" : "border-gray-200 bg-white/95"}`}
                 >
                   {filteredSavedEmails.map((savedEmail, index) => (
@@ -664,11 +668,17 @@ export default function LoginForm({ isDark, onLoginSuccess, selectedRole, initia
                       onMouseEnter={() => setActiveSavedEmailIndex(index)}
                       className={`group flex items-center transition-colors ${
                         activeSavedEmailIndex === index
-                          ? (isDark ? "bg-white/10" : "bg-gray-100")
-                          : (isDark ? "hover:bg-white/5" : "hover:bg-gray-50")
+                          ? isDark
+                            ? "bg-white/10"
+                            : "bg-gray-100"
+                          : isDark
+                            ? "hover:bg-white/5"
+                            : "hover:bg-gray-50"
                       } ${
                         index < filteredSavedEmails.length - 1
-                          ? (isDark ? "border-b border-white/5" : "border-b border-gray-100")
+                          ? isDark
+                            ? "border-b border-white/5"
+                            : "border-b border-gray-100"
                           : ""
                       }`}
                     >
@@ -683,11 +693,17 @@ export default function LoginForm({ isDark, onLoginSuccess, selectedRole, initia
                         }}
                         className={`min-w-0 flex-1 px-5 py-4 text-left text-base font-semibold transition-colors ${
                           activeSavedEmailIndex === index
-                            ? (isDark ? "text-white" : "text-gray-900")
-                            : (isDark ? "text-slate-100 group-hover:text-white" : "text-gray-700 group-hover:text-gray-900")
+                            ? isDark
+                              ? "text-white"
+                              : "text-gray-900"
+                            : isDark
+                              ? "text-slate-100 group-hover:text-white"
+                              : "text-gray-700 group-hover:text-gray-900"
                         }`}
                       >
-                        <span className="block truncate pr-3">{savedEmail}</span>
+                        <span className="block truncate pr-3">
+                          {savedEmail}
+                        </span>
                       </button>
                       <div className="mr-3 flex-shrink-0">
                         <button
@@ -865,10 +881,13 @@ export default function LoginForm({ isDark, onLoginSuccess, selectedRole, initia
               <p className="font-semibold">{loginFeedback.message}</p>
               {loginFeedback.tone === "blocked" && retryCountdown > 0 ? (
                 <p className="mt-1 text-xs font-medium">
-                  Login is temporarily locked for {formatRetryTime(retryCountdown)}.
+                  Login is temporarily locked for{" "}
+                  {formatRetryTime(retryCountdown)}.
                 </p>
               ) : loginFeedback.detail ? (
-                <p className="mt-1 text-xs font-medium">{loginFeedback.detail}</p>
+                <p className="mt-1 text-xs font-medium">
+                  {loginFeedback.detail}
+                </p>
               ) : null}
               {loginFeedback.emailNotVerified && (
                 <button
@@ -876,11 +895,22 @@ export default function LoginForm({ isDark, onLoginSuccess, selectedRole, initia
                   onClick={() => {
                     setUnverifiedUserId(loginFeedback.unverifiedUserId);
                     setUnverifiedEmail(loginFeedback.unverifiedEmail);
-                    setUnverifiedVerifyToken(loginFeedback.unverifiedVerifyToken);
-                    sessionStorage.setItem("unverified_user_id", loginFeedback.unverifiedUserId);
-                    sessionStorage.setItem("unverified_email", loginFeedback.unverifiedEmail);
+                    setUnverifiedVerifyToken(
+                      loginFeedback.unverifiedVerifyToken,
+                    );
+                    sessionStorage.setItem(
+                      "unverified_user_id",
+                      loginFeedback.unverifiedUserId,
+                    );
+                    sessionStorage.setItem(
+                      "unverified_email",
+                      loginFeedback.unverifiedEmail,
+                    );
                     if (loginFeedback.unverifiedVerifyToken) {
-                      sessionStorage.setItem("unverified_verify_token", loginFeedback.unverifiedVerifyToken);
+                      sessionStorage.setItem(
+                        "unverified_verify_token",
+                        loginFeedback.unverifiedVerifyToken,
+                      );
                     }
                     setShowEmailVerification(true);
                   }}

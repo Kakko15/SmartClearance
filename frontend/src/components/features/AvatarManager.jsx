@@ -8,7 +8,9 @@ import { CameraIcon, PhotoIcon, XMarkIcon } from "../ui/Icons";
 const getCroppedImg = async (imageSrc, pixelCrop, rotation = 0) => {
   const image = new Image();
   image.src = imageSrc;
-  await new Promise((resolve) => { image.onload = resolve; });
+  await new Promise((resolve) => {
+    image.onload = resolve;
+  });
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
 
@@ -25,39 +27,53 @@ const getCroppedImg = async (imageSrc, pixelCrop, rotation = 0) => {
   ctx.drawImage(
     image,
     safeArea / 2 - image.width * 0.5,
-    safeArea / 2 - image.height * 0.5
+    safeArea / 2 - image.height * 0.5,
   );
 
   const data = ctx.getImageData(0, 0, safeArea, safeArea);
-  
+
   canvas.width = pixelCrop.width;
   canvas.height = pixelCrop.height;
 
   ctx.putImageData(
     data,
     Math.round(0 - safeArea / 2 + image.width * 0.5 - pixelCrop.x),
-    Math.round(0 - safeArea / 2 + image.height * 0.5 - pixelCrop.y)
+    Math.round(0 - safeArea / 2 + image.height * 0.5 - pixelCrop.y),
   );
 
   const finalCanvas = document.createElement("canvas");
   finalCanvas.width = 300;
   finalCanvas.height = 300;
   const finalCtx = finalCanvas.getContext("2d");
-  finalCtx.drawImage(canvas, 0, 0, pixelCrop.width, pixelCrop.height, 0, 0, 300, 300);
+  finalCtx.drawImage(
+    canvas,
+    0,
+    0,
+    pixelCrop.width,
+    pixelCrop.height,
+    0,
+    0,
+    300,
+    300,
+  );
 
   return finalCanvas.toDataURL("image/jpeg", 0.85);
 };
 
-export default function AvatarManager({ user, profile, isDark, onAvatarUpdate }) {
+export default function AvatarManager({
+  user,
+  profile,
+  isDark,
+  onAvatarUpdate,
+}) {
   const [avatar, setAvatar] = useState(user?.user_metadata?.avatar_url || null);
-  const [mode, setMode] = useState("view"); // view, camera, edit
+  const [mode, setMode] = useState("view");
   const [loading, setLoading] = useState(false);
   const videoRef = useRef(null);
   const fileInputRef = useRef(null);
   const [stream, setStream] = useState(null);
   const [capturedDataUrl, setCapturedDataUrl] = useState(null);
 
-  // Cropper states
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
@@ -73,8 +89,8 @@ export default function AvatarManager({ user, profile, isDark, onAvatarUpdate })
 
   const startCamera = async () => {
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: "user" }
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user" },
       });
       setStream(mediaStream);
       setCapturedDataUrl(null);
@@ -116,8 +132,7 @@ export default function AvatarManager({ user, profile, isDark, onAvatarUpdate })
   const capturePhoto = () => {
     if (!videoRef.current) return;
     const video = videoRef.current;
-    
-    // Capture uncropped source image
+
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
@@ -127,7 +142,7 @@ export default function AvatarManager({ user, profile, isDark, onAvatarUpdate })
       ctx.scale(-1, 1);
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
-      
+
       setCapturedDataUrl(dataUrl);
       setCrop({ x: 0, y: 0 });
       setZoom(1);
@@ -164,7 +179,11 @@ export default function AvatarManager({ user, profile, isDark, onAvatarUpdate })
 
   const saveEditedPhoto = async () => {
     try {
-      const croppedImage = await getCroppedImg(capturedDataUrl, croppedAreaPixels, rotation);
+      const croppedImage = await getCroppedImg(
+        capturedDataUrl,
+        croppedAreaPixels,
+        rotation,
+      );
       await uploadAvatar(croppedImage);
       closeAll();
     } catch (e) {
@@ -177,13 +196,16 @@ export default function AvatarManager({ user, profile, isDark, onAvatarUpdate })
     setLoading(true);
     try {
       const { error } = await supabase.auth.updateUser({
-        data: { avatar_url: dataUrl }
+        data: { avatar_url: dataUrl },
       });
       if (error) throw error;
 
       // Sync to profiles table so other users can see it
-      await supabase.from("profiles").update({ avatar_url: dataUrl }).eq("id", user.id);
-      
+      await supabase
+        .from("profiles")
+        .update({ avatar_url: dataUrl })
+        .eq("id", user.id);
+
       setAvatar(dataUrl);
       toast.success("Avatar updated successfully!");
       if (onAvatarUpdate) onAvatarUpdate(dataUrl);
@@ -199,13 +221,15 @@ export default function AvatarManager({ user, profile, isDark, onAvatarUpdate })
     setLoading(true);
     try {
       const { error } = await supabase.auth.updateUser({
-        data: { avatar_url: null }
+        data: { avatar_url: null },
       });
       if (error) throw error;
 
-      // Sync to profiles table
-      await supabase.from("profiles").update({ avatar_url: null }).eq("id", user.id);
-      
+      await supabase
+        .from("profiles")
+        .update({ avatar_url: null })
+        .eq("id", user.id);
+
       setAvatar(null);
       toast.success("Avatar removed successfully!");
       if (onAvatarUpdate) onAvatarUpdate(null);
@@ -219,18 +243,22 @@ export default function AvatarManager({ user, profile, isDark, onAvatarUpdate })
 
   const textPrimary = isDark ? "text-[#e8eaed]" : "text-[#202124]";
   const textSecondary = isDark ? "text-[#9aa0a6]" : "text-[#5f6368]";
-  const bgCard = isDark ? "bg-[#303134] border-[#5f6368]" : "bg-white border-[#dadce0]";
+  const bgCard = isDark
+    ? "bg-[#303134] border-[#5f6368]"
+    : "bg-white border-[#dadce0]";
 
   return (
-    <div className={`p-6 rounded-2xl border ${bgCard} mb-8 flex flex-col md:flex-row items-center gap-6`}>
+    <div
+      className={`p-6 rounded-2xl border ${bgCard} mb-8 flex flex-col md:flex-row items-center gap-6`}
+    >
       <div className="relative group shrink-0">
         {loading ? (
           <div className="w-24 h-24 rounded-full border-2 border-primary-500 border-t-transparent animate-spin" />
         ) : avatar ? (
-          <img 
-            src={avatar} 
-            alt="Profile Avatar" 
-            className="w-24 h-24 rounded-full object-cover shadow-sm bg-gray-100" 
+          <img
+            src={avatar}
+            alt="Profile Avatar"
+            className="w-24 h-24 rounded-full object-cover shadow-sm bg-gray-100"
           />
         ) : (
           <div className="w-24 h-24 rounded-full bg-primary-600 flex items-center justify-center font-bold text-3xl text-white shadow-sm">
@@ -240,9 +268,12 @@ export default function AvatarManager({ user, profile, isDark, onAvatarUpdate })
       </div>
 
       <div className="flex-1 text-center md:text-left">
-        <h4 className={`text-base font-medium mb-1 ${textPrimary}`}>Profile Picture</h4>
+        <h4 className={`text-base font-medium mb-1 ${textPrimary}`}>
+          Profile Picture
+        </h4>
         <p className={`text-sm mb-4 ${textSecondary}`}>
-          A picture helps people recognize you and lets you know when you're signed in to your account.
+          A picture helps people recognize you and lets you know when you're
+          signed in to your account.
         </p>
 
         <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
@@ -255,7 +286,7 @@ export default function AvatarManager({ user, profile, isDark, onAvatarUpdate })
             <PhotoIcon className="w-4 h-4" />
             Upload Photo
           </button>
-          
+
           <button
             type="button"
             onClick={startCamera}
@@ -265,25 +296,25 @@ export default function AvatarManager({ user, profile, isDark, onAvatarUpdate })
             <CameraIcon className="w-4 h-4" />
             Take Photo
           </button>
-          
+
           {avatar && (
             <button
               type="button"
               onClick={removeAvatar}
               disabled={loading}
-              className={`flex items-center gap-2 px-4 py-2 font-medium text-sm rounded-full transition-colors disabled:opacity-50 ${isDark ? 'text-red-400 hover:bg-red-400/10' : 'text-red-600 hover:bg-red-50'}`}
+              className={`flex items-center gap-2 px-4 py-2 font-medium text-sm rounded-full transition-colors disabled:opacity-50 ${isDark ? "text-red-400 hover:bg-red-400/10" : "text-red-600 hover:bg-red-50"}`}
             >
               Remove
             </button>
           )}
         </div>
 
-        <input 
+        <input
           type="file"
           ref={fileInputRef}
           onChange={handleFileUpload}
           accept="image/*"
-          className="hidden" 
+          className="hidden"
         />
       </div>
 
@@ -294,7 +325,7 @@ export default function AvatarManager({ user, profile, isDark, onAvatarUpdate })
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className={`fixed inset-0 z-[200] flex items-center justify-center backdrop-blur-xl px-4 md:px-0 ${isDark ? 'bg-black/90' : 'bg-[#202124]/80'}`}
+            className={`fixed inset-0 z-[200] flex items-center justify-center backdrop-blur-xl px-4 md:px-0 ${isDark ? "bg-black/90" : "bg-[#202124]/80"}`}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 10 }}
@@ -320,38 +351,52 @@ export default function AvatarManager({ user, profile, isDark, onAvatarUpdate })
                   muted
                   className="absolute inset-0 w-full h-full object-cover transform -scale-x-100"
                 ></video>
-                
-                <div 
-                  className="absolute z-10 pointer-events-none rounded-full" 
-                  style={{ 
+
+                <div
+                  className="absolute z-10 pointer-events-none rounded-full"
+                  style={{
                     width: "80%",
                     height: "80%",
-                    boxShadow: "0 0 0 2000px rgba(0,0,0,0.55)", 
-                    border: "2px solid rgba(255,255,255,0.85)"
-                  }} 
+                    boxShadow: "0 0 0 2000px rgba(0,0,0,0.55)",
+                    border: "2px solid rgba(255,255,255,0.85)",
+                  }}
                 />
-                <div className="absolute z-10 text-white/50 text-xs font-medium tracking-widest uppercase bottom-4" style={{ fontFamily: 'Google Sans, sans-serif' }}>
+                <div
+                  className="absolute z-10 text-white/50 text-xs font-medium tracking-widest uppercase bottom-4"
+                  style={{ fontFamily: "Google Sans, sans-serif" }}
+                >
                   Align Face in Circle
                 </div>
               </div>
 
-              <div className={`p-8 flex flex-col items-center justify-center gap-6 ${isDark ? "bg-[#202124]" : "bg-white"}`}>
+              <div
+                className={`p-8 flex flex-col items-center justify-center gap-6 ${isDark ? "bg-[#202124]" : "bg-white"}`}
+              >
                 <div className="text-center space-y-1">
-                  <h3 className={`text-[20px] font-medium tracking-tight ${isDark ? "text-white" : "text-[#202124]"}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
+                  <h3
+                    className={`text-[20px] font-medium tracking-tight ${isDark ? "text-white" : "text-[#202124]"}`}
+                    style={{ fontFamily: "Google Sans, sans-serif" }}
+                  >
                     Capture Avatar
                   </h3>
-                  <p className={`text-sm ${isDark ? 'text-[#9aa0a6]' : 'text-[#5f6368]'}`}>
+                  <p
+                    className={`text-sm ${isDark ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}
+                  >
                     Ensure good lighting and centered face.
                   </p>
                 </div>
-                
+
                 <button
                   type="button"
                   onClick={capturePhoto}
-                  className="relative flex items-center justify-center w-[76px] h-[76px] rounded-full border-[3px] border-[#dadce0] dark:border-[#5f6368] active:scale-[0.97] transition-all group outline-none focus:ring-4 focus:ring-primary-500/30"
+                  className="relative flex items-center justify-center w-[76px] h-[76px] rounded-full border-4 border-[#dadce0] dark:border-[#5f6368] active:scale-[0.97] transition-all group outline-none focus:ring-4 focus:ring-primary-500/30"
                 >
-                  <div className={`w-[60px] h-[60px] ${isDark ? 'bg-[#8ab4f8] group-hover:bg-[#aecbfa]' : 'bg-[#1a73e8] group-hover:bg-[#1557b0]'} rounded-full transition-colors shadow-md flex items-center justify-center`}>
-                    <CameraIcon className={`w-7 h-7 ${isDark ? 'text-[#202124]' : 'text-white'}`} />
+                  <div
+                    className={`w-[60px] h-[60px] ${isDark ? "bg-[#8ab4f8] group-hover:bg-[#aecbfa]" : "bg-[#1a73e8] group-hover:bg-[#1557b0]"} rounded-full transition-colors shadow-md flex items-center justify-center`}
+                  >
+                    <CameraIcon
+                      className={`w-7 h-7 ${isDark ? "text-[#202124]" : "text-white"}`}
+                    />
                   </div>
                 </button>
               </div>
@@ -367,7 +412,7 @@ export default function AvatarManager({ user, profile, isDark, onAvatarUpdate })
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className={`fixed inset-0 z-[200] flex items-center justify-center backdrop-blur-xl px-4 md:px-0 ${isDark ? 'bg-black/90' : 'bg-[#202124]/80'}`}
+            className={`fixed inset-0 z-[200] flex items-center justify-center backdrop-blur-xl px-4 md:px-0 ${isDark ? "bg-black/90" : "bg-[#202124]/80"}`}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 10 }}
@@ -376,8 +421,13 @@ export default function AvatarManager({ user, profile, isDark, onAvatarUpdate })
               transition={{ type: "spring", stiffness: 350, damping: 30 }}
               className={`relative w-full max-w-[420px] rounded-[32px] overflow-hidden shadow-[0_24px_60px_rgba(0,0,0,0.4)] border ${isDark ? "border-[#3c4043] bg-[#292a2d]" : "border-[#dadce0] bg-white"} flex flex-col`}
             >
-              <div className={`flex items-center justify-between px-6 py-4 border-b ${isDark ? "border-[#3c4043]" : "border-[#dadce0]"}`}>
-                <h3 className={`text-[16px] font-medium tracking-wide ${isDark ? "text-white" : "text-[#202124]"}`} style={{ fontFamily: 'Google Sans, sans-serif' }}>
+              <div
+                className={`flex items-center justify-between px-6 py-4 border-b ${isDark ? "border-[#3c4043]" : "border-[#dadce0]"}`}
+              >
+                <h3
+                  className={`text-[16px] font-medium tracking-wide ${isDark ? "text-white" : "text-[#202124]"}`}
+                  style={{ fontFamily: "Google Sans, sans-serif" }}
+                >
                   Edit Image
                 </h3>
                 <button
@@ -402,17 +452,29 @@ export default function AvatarManager({ user, profile, isDark, onAvatarUpdate })
                   onRotationChange={setRotation}
                   onCropComplete={onCropComplete}
                   style={{
-                    containerStyle: { backgroundColor: '#202124' },
-                    cropAreaStyle: { border: '3px solid white', boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.6)' }
+                    containerStyle: { backgroundColor: "#202124" },
+                    cropAreaStyle: {
+                      border: "3px solid white",
+                      boxShadow: "0 0 0 9999px rgba(0, 0, 0, 0.6)",
+                    },
                   }}
                 />
               </div>
 
-              <div className={`px-6 py-6 pb-8 ${isDark ? "bg-[#292a2d]" : "bg-white"}`}>
-                
+              <div
+                className={`px-6 py-6 pb-8 ${isDark ? "bg-[#292a2d]" : "bg-white"}`}
+              >
                 <div className="flex items-center gap-4 mb-8">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className={isDark ? "text-[#9aa0a6]" : "text-[#5f6368]"}><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5.04-6.71l-2.75 3.54-1.96-2.36L6.5 17h11l-3.54-4.71z"/></svg>
-                  
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className={isDark ? "text-[#9aa0a6]" : "text-[#5f6368]"}
+                  >
+                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5.04-6.71l-2.75 3.54-1.96-2.36L6.5 17h11l-3.54-4.71z" />
+                  </svg>
+
                   <input
                     type="range"
                     value={zoom}
@@ -422,18 +484,33 @@ export default function AvatarManager({ user, profile, isDark, onAvatarUpdate })
                     aria-label="Zoom"
                     onChange={(e) => setZoom(Number(e.target.value))}
                     className={`flex-1 h-1 rounded-lg appearance-none cursor-pointer outline-none ${isDark ? "bg-[#4a4d51] accent-white" : "bg-gray-200 accent-[#1a73e8]"}`}
-                    style={{ WebkitAppearance: 'none' }}
+                    style={{ WebkitAppearance: "none" }}
                   />
-                  
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" className={isDark ? "text-[#9aa0a6]" : "text-[#5f6368]"}><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5.04-6.71l-2.75 3.54-1.96-2.36L6.5 17h11l-3.54-4.71z"/></svg>
+
+                  <svg
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className={isDark ? "text-[#9aa0a6]" : "text-[#5f6368]"}
+                  >
+                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5.04-6.71l-2.75 3.54-1.96-2.36L6.5 17h11l-3.54-4.71z" />
+                  </svg>
 
                   <div className="ml-auto flex items-center">
-                    <button 
-                      onClick={() => setRotation(r => r + 90)}
+                    <button
+                      onClick={() => setRotation((r) => r + 90)}
                       className={`p-2 -mr-2 rounded-full transition-colors ${isDark ? "text-[#9aa0a6] hover:bg-[#3c4043] hover:text-white" : "text-[#5f6368] hover:bg-[#f1f3f4] hover:text-[#202124]"}`}
                       aria-label="Rotate"
                     >
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M15.55 5.55L11 1v3C6.03 4 2 8.03 2 13s4.03 9 9 9 9-4.03 9-9h-2c0 3.86-3.14 7-7 7s-7-3.14-7-7 3.14-7 7-7v3l4.55-4.45z"/></svg>
+                      <svg
+                        width="22"
+                        height="22"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                      >
+                        <path d="M15.55 5.55L11 1v3C6.03 4 2 8.03 2 13s4.03 9 9 9 9-4.03 9-9h-2c0 3.86-3.14 7-7 7s-7-3.14-7-7 3.14-7 7-7v3l4.55-4.45z" />
+                      </svg>
                     </button>
                   </div>
                 </div>
@@ -441,9 +518,9 @@ export default function AvatarManager({ user, profile, isDark, onAvatarUpdate })
                 <div className="flex gap-3">
                   <button
                     onClick={() => {
-                        setCapturedDataUrl(null);
-                        setMode("camera");
-                        startCamera();
+                      setCapturedDataUrl(null);
+                      setMode("camera");
+                      startCamera();
                     }}
                     className={`flex-1 py-2.5 rounded-full font-medium transition-all duration-200 ${
                       isDark
@@ -464,7 +541,6 @@ export default function AvatarManager({ user, profile, isDark, onAvatarUpdate })
                     Apply
                   </button>
                 </div>
-
               </div>
             </motion.div>
           </motion.div>

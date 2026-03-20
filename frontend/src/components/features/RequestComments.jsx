@@ -149,7 +149,7 @@ export default function RequestComments({
           <div className="text-left flex-1">
             <h4
               className={`font-medium text-[16px] leading-tight ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}
-              style={{ fontFamily: 'Google Sans, sans-serif' }}
+              style={{ fontFamily: "Google Sans, sans-serif" }}
             >
               Comments & Discussion
             </h4>
@@ -164,9 +164,13 @@ export default function RequestComments({
         <div className="flex items-center gap-3 flex-shrink-0">
           <span
             className={`text-[12px] font-medium px-2.5 py-0.5 rounded-full ${
-              comments.length === 0 
-                ? (isDarkMode ? "bg-[#3c4043] text-[#9aa0a6]" : "bg-[#f1f3f4] text-[#5f6368]") 
-                : (isDarkMode ? "bg-[#8ab4f8] text-[#202124]" : "bg-[#1a73e8] text-white")
+              comments.length === 0
+                ? isDarkMode
+                  ? "bg-[#3c4043] text-[#9aa0a6]"
+                  : "bg-[#f1f3f4] text-[#5f6368]"
+                : isDarkMode
+                  ? "bg-[#8ab4f8] text-[#202124]"
+                  : "bg-[#1a73e8] text-white"
             }`}
           >
             {comments.length === 0 ? "0" : comments.length}
@@ -201,8 +205,6 @@ export default function RequestComments({
               />
             </div>
           )}
-
-
 
           {loading ? (
             <div className="text-center py-8">

@@ -183,8 +183,10 @@ async function logAIDecision(decisionData) {
       timestamp: decisionData.timestamp,
     });
     if (error) {
-      // Table may not exist yet — see migrations/add_ai_routing_logs.sql
-      console.warn("AI routing log skipped (table may not exist):", error.message);
+      console.warn(
+        "AI routing log skipped (table may not exist):",
+        error.message,
+      );
     }
   } catch (error) {
     console.warn("AI routing log skipped:", error.message);
@@ -207,7 +209,10 @@ async function getRoutingStatistics(timeRange = "7d") {
       urgencyDistribution: getUrgencyDistribution(data),
     };
   } catch (error) {
-    console.warn("Routing statistics unavailable (table may not exist):", error.message);
+    console.warn(
+      "Routing statistics unavailable (table may not exist):",
+      error.message,
+    );
     return null;
   }
 }

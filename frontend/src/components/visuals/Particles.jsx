@@ -267,10 +267,7 @@ const Particles = ({
   ]);
 
   return (
-    <div
-      ref={containerRef}
-      className={`relative w-full h-full ${className}`}
-    />
+    <div ref={containerRef} className={`relative w-full h-full ${className}`} />
   );
 };
 

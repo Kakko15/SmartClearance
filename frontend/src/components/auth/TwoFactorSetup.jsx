@@ -5,7 +5,14 @@ import { supabase } from "../../lib/supabase";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
-export default function TwoFactorSetup({ userId, email, signupToken, isDark, onComplete, onSkip }) {
+export default function TwoFactorSetup({
+  userId,
+  email,
+  signupToken,
+  isDark,
+  onComplete,
+  onSkip,
+}) {
   const [qrCode, setQrCode] = useState(null);
   const [manualKey, setManualKey] = useState("");
   const [loading, setLoading] = useState(true);
@@ -18,7 +25,9 @@ export default function TwoFactorSetup({ userId, email, signupToken, isDark, onC
   useEffect(() => {
     const setup = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
         const headers = { "Content-Type": "application/json" };
         if (session?.access_token) {
           headers["Authorization"] = `Bearer ${session.access_token}`;
@@ -65,7 +74,10 @@ export default function TwoFactorSetup({ userId, email, signupToken, isDark, onC
 
   const handlePaste = (e) => {
     e.preventDefault();
-    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    const pasted = e.clipboardData
+      .getData("text")
+      .replace(/\D/g, "")
+      .slice(0, 6);
     setVerifyCode(pasted);
     const nextIdx = Math.min(pasted.length, 5);
     inputRefs.current[nextIdx]?.focus();
@@ -79,7 +91,9 @@ export default function TwoFactorSetup({ userId, email, signupToken, isDark, onC
     }
     setVerifying(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const headers = { "Content-Type": "application/json" };
       if (session?.access_token) {
         headers["Authorization"] = `Bearer ${session.access_token}`;
@@ -116,11 +130,28 @@ export default function TwoFactorSetup({ userId, email, signupToken, isDark, onC
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
-        <svg className="animate-spin h-12 w-12 text-green-500 mb-4" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+        <svg
+          className="animate-spin h-12 w-12 text-green-500 mb-4"
+          viewBox="0 0 24 24"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+            fill="none"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          />
         </svg>
-        <p className={isDark ? "text-gray-400" : "text-gray-600"}>Setting up 2FA...</p>
+        <p className={isDark ? "text-gray-400" : "text-gray-600"}>
+          Setting up 2FA...
+        </p>
       </div>
     );
   }
@@ -132,12 +163,26 @@ export default function TwoFactorSetup({ userId, email, signupToken, isDark, onC
       className="w-full max-w-md mx-auto"
     >
       <div className="text-center mb-6">
-        <div className={`w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center ${isDark ? "bg-green-500/20" : "bg-green-100"}`}>
-          <svg className={`w-8 h-8 ${isDark ? "text-green-400" : "text-green-600"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+        <div
+          className={`w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center ${isDark ? "bg-green-500/20" : "bg-green-100"}`}
+        >
+          <svg
+            className={`w-8 h-8 ${isDark ? "text-green-400" : "text-green-600"}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+            />
           </svg>
         </div>
-        <h2 className={`text-2xl font-bold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}>
+        <h2
+          className={`text-2xl font-bold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}
+        >
           Set Up Two-Factor Authentication
         </h2>
         <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>
@@ -146,7 +191,9 @@ export default function TwoFactorSetup({ userId, email, signupToken, isDark, onC
       </div>
 
       {qrCode && (
-        <div className={`p-6 rounded-2xl border mb-5 ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"} shadow-lg`}>
+        <div
+          className={`p-6 rounded-2xl border mb-5 ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"} shadow-lg`}
+        >
           <div className="flex justify-center mb-4">
             <div className="bg-white p-3 rounded-xl">
               <img src={qrCode} alt="2FA QR Code" className="w-48 h-48" />
@@ -154,11 +201,17 @@ export default function TwoFactorSetup({ userId, email, signupToken, isDark, onC
           </div>
 
           <div className="text-center mb-4">
-            <p className={`text-xs font-semibold uppercase tracking-wider mb-2 ${isDark ? "text-gray-500" : "text-gray-400"}`}>
+            <p
+              className={`text-xs font-semibold uppercase tracking-wider mb-2 ${isDark ? "text-gray-500" : "text-gray-400"}`}
+            >
               Or enter this key manually
             </p>
-            <div className={`flex items-center justify-center gap-2 p-3 rounded-xl ${isDark ? "bg-slate-900 border border-slate-700" : "bg-gray-50 border border-gray-200"}`}>
-              <code className={`text-sm font-mono font-bold tracking-wider select-none ${isDark ? "text-green-400" : "text-green-700"}`}>
+            <div
+              className={`flex items-center justify-center gap-2 p-3 rounded-xl ${isDark ? "bg-slate-900 border border-slate-700" : "bg-gray-50 border border-gray-200"}`}
+            >
+              <code
+                className={`text-sm font-mono font-bold tracking-wider select-none ${isDark ? "text-green-400" : "text-green-700"}`}
+              >
                 {showKey ? manualKey : "••••  ••••  ••••  ••••"}
               </code>
               <button
@@ -169,13 +222,38 @@ export default function TwoFactorSetup({ userId, email, signupToken, isDark, onC
                 className={`p-1.5 rounded-lg transition-colors ${isDark ? "hover:bg-slate-700 text-gray-400 hover:text-white" : "hover:bg-gray-200 text-gray-500 hover:text-gray-900"}`}
               >
                 {showKey ? (
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-5 0-9.27-3.11-11-7.5a11.72 11.72 0 013.168-4.477M6.343 6.343A9.97 9.97 0 0112 5c5 0 9.27 3.11 11 7.5a11.72 11.72 0 01-4.168 4.477M6.343 6.343L3 3m3.343 3.343l2.829 2.829m4.243 4.243l2.829 2.829M6.343 6.343l11.314 11.314M14.121 14.121A3 3 0 009.879 9.879" />
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13.875 18.825A10.05 10.05 0 0112 19c-5 0-9.27-3.11-11-7.5a11.72 11.72 0 013.168-4.477M6.343 6.343A9.97 9.97 0 0112 5c5 0 9.27 3.11 11 7.5a11.72 11.72 0 01-4.168 4.477M6.343 6.343L3 3m3.343 3.343l2.829 2.829m4.243 4.243l2.829 2.829M6.343 6.343l11.314 11.314M14.121 14.121A3 3 0 009.879 9.879"
+                    />
                   </svg>
                 ) : (
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                    />
                   </svg>
                 )}
               </button>
@@ -187,12 +265,32 @@ export default function TwoFactorSetup({ userId, email, signupToken, isDark, onC
                 className={`p-1.5 rounded-lg transition-colors ${isDark ? "hover:bg-slate-700 text-gray-400 hover:text-white" : "hover:bg-gray-200 text-gray-500 hover:text-gray-900"}`}
               >
                 {copied ? (
-                  <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  <svg
+                    className="w-4 h-4 text-green-500"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
                   </svg>
                 ) : (
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                    />
                   </svg>
                 )}
               </button>
@@ -203,7 +301,9 @@ export default function TwoFactorSetup({ userId, email, signupToken, isDark, onC
 
       <form onSubmit={handleVerify}>
         <div className="mb-5">
-          <label className={`block text-sm font-bold mb-3 text-center ${isDark ? "text-slate-300" : "text-gray-700"}`}>
+          <label
+            className={`block text-sm font-bold mb-3 text-center ${isDark ? "text-slate-300" : "text-gray-700"}`}
+          >
             Enter the 6-digit code from your app
           </label>
           <div className="flex justify-center gap-2" onPaste={handlePaste}>

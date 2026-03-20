@@ -21,13 +21,14 @@ export default function DelegationManager({ isDarkMode = false }) {
       if (delRes.data.success) setDelegation(delRes.data.delegation);
       if (sigRes.data.success) setSignatories(sigRes.data.signatories);
     } catch {
-      // silent
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchDelegation(); }, [fetchDelegation]);
+  useEffect(() => {
+    fetchDelegation();
+  }, [fetchDelegation]);
 
   const handleSet = async (e) => {
     e.preventDefault();
@@ -69,33 +70,50 @@ export default function DelegationManager({ isDarkMode = false }) {
     }
   };
 
-  const isExpired = delegation?.delegation_expires_at && new Date(delegation.delegation_expires_at) < new Date();
+  const isExpired =
+    delegation?.delegation_expires_at &&
+    new Date(delegation.delegation_expires_at) < new Date();
   const hasActive = delegation?.delegated_to && !isExpired;
 
-  // Minimum date for the picker (tomorrow)
   const minDate = new Date(Date.now() + 86400000).toISOString().split("T")[0];
 
   if (loading) {
     return (
-      <div className={`rounded-2xl p-6 animate-pulse ${isDarkMode ? "bg-[#282a2d]" : "bg-white border border-[#dadce0]"}`}>
-        <div className={`h-5 w-48 rounded ${isDarkMode ? "bg-[#3c4043]" : "bg-[#e8eaed]"}`} />
-        <div className={`h-4 w-64 rounded mt-3 ${isDarkMode ? "bg-[#3c4043]" : "bg-[#e8eaed]"}`} />
+      <div
+        className={`rounded-2xl p-6 animate-pulse ${isDarkMode ? "bg-[#282a2d]" : "bg-white border border-[#dadce0]"}`}
+      >
+        <div
+          className={`h-5 w-48 rounded ${isDarkMode ? "bg-[#3c4043]" : "bg-[#e8eaed]"}`}
+        />
+        <div
+          className={`h-4 w-64 rounded mt-3 ${isDarkMode ? "bg-[#3c4043]" : "bg-[#e8eaed]"}`}
+        />
       </div>
     );
   }
 
   return (
-    <div className={`rounded-2xl p-5 ${isDarkMode ? "bg-[#282a2d]" : "bg-white border border-[#dadce0]"}`}>
+    <div
+      className={`rounded-2xl p-5 ${isDarkMode ? "bg-[#282a2d]" : "bg-white border border-[#dadce0]"}`}
+    >
       <div className="flex items-center gap-3 mb-4">
-        <div className={`p-2 rounded-xl ${isDarkMode ? "bg-[#3c4043]" : "bg-[#f1f3f4]"}`}>
-          <UsersIcon className={`w-5 h-5 ${isDarkMode ? "text-[#8ab4f8]" : "text-[#1a73e8]"}`} />
+        <div
+          className={`p-2 rounded-xl ${isDarkMode ? "bg-[#3c4043]" : "bg-[#f1f3f4]"}`}
+        >
+          <UsersIcon
+            className={`w-5 h-5 ${isDarkMode ? "text-[#8ab4f8]" : "text-[#1a73e8]"}`}
+          />
         </div>
         <div>
-          <h3 className={`text-lg font-medium ${isDarkMode ? "text-white" : "text-[#202124]"}`}
-              style={{ fontFamily: "Google Sans, sans-serif" }}>
+          <h3
+            className={`text-lg font-medium ${isDarkMode ? "text-white" : "text-[#202124]"}`}
+            style={{ fontFamily: "Google Sans, sans-serif" }}
+          >
             Delegation
           </h3>
-          <p className={`text-xs ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>
+          <p
+            className={`text-xs ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}
+          >
             Designate a temporary substitute while you're away
           </p>
         </div>
@@ -103,17 +121,32 @@ export default function DelegationManager({ isDarkMode = false }) {
 
       {hasActive ? (
         <div className="space-y-3">
-          <div className={`flex items-center justify-between p-4 rounded-xl ${isDarkMode ? "bg-[#1a73e8]/10 border border-[#1a73e8]/20" : "bg-[#e8f0fe] border border-[#c2e7ff]"}`}>
+          <div
+            className={`flex items-center justify-between p-4 rounded-xl ${isDarkMode ? "bg-[#1a73e8]/10 border border-[#1a73e8]/20" : "bg-[#e8f0fe] border border-[#c2e7ff]"}`}
+          >
             <div>
-              <p className={`text-sm font-medium ${isDarkMode ? "text-[#8ab4f8]" : "text-[#1a73e8]"}`}>
+              <p
+                className={`text-sm font-medium ${isDarkMode ? "text-[#8ab4f8]" : "text-[#1a73e8]"}`}
+              >
                 Active Delegation
               </p>
-              <p className={`text-sm mt-1 ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}>
-                Delegated to <span className="font-semibold">{delegation.delegate?.full_name}</span>
+              <p
+                className={`text-sm mt-1 ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}
+              >
+                Delegated to{" "}
+                <span className="font-semibold">
+                  {delegation.delegate?.full_name}
+                </span>
               </p>
-              <div className={`flex items-center gap-1 mt-1 text-xs ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>
+              <div
+                className={`flex items-center gap-1 mt-1 text-xs ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}
+              >
                 <ClockIcon className="w-3.5 h-3.5" />
-                Expires {new Date(delegation.delegation_expires_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                Expires{" "}
+                {new Date(delegation.delegation_expires_at).toLocaleDateString(
+                  "en-US",
+                  { month: "long", day: "numeric", year: "numeric" },
+                )}
               </div>
             </div>
             <motion.button
@@ -134,7 +167,9 @@ export default function DelegationManager({ isDarkMode = false }) {
       ) : (
         <form onSubmit={handleSet} className="space-y-3">
           {isExpired && (
-            <p className={`text-xs ${isDarkMode ? "text-amber-400" : "text-amber-600"}`}>
+            <p
+              className={`text-xs ${isDarkMode ? "text-amber-400" : "text-amber-600"}`}
+            >
               Previous delegation has expired.
             </p>
           )}
@@ -150,7 +185,9 @@ export default function DelegationManager({ isDarkMode = false }) {
             >
               <option value="">Select signatory...</option>
               {signatories.map((s) => (
-                <option key={s.id} value={s.id}>{s.full_name}</option>
+                <option key={s.id} value={s.id}>
+                  {s.full_name}
+                </option>
               ))}
             </select>
             <input

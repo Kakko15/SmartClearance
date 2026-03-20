@@ -8,9 +8,10 @@ import SpotlightBorder from "../ui/SpotlightBorder";
 import TwoFactorSetup from "./TwoFactorSetup";
 import EmailVerification from "./EmailVerification";
 
-
 const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
-const IS_LOCALHOST = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+const IS_LOCALHOST =
+  window.location.hostname === "localhost" ||
+  window.location.hostname === "127.0.0.1";
 const PENDING_SIGNUP_VERIFICATION_KEY = "pending_signup_email_verification";
 const PENDING_SIGNUP_TWO_FACTOR_KEY = "pending_signup_two_factor_setup";
 const PENDING_VERIFICATION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
@@ -127,10 +128,19 @@ function clearPendingTwoFactorSetup() {
   sessionStorage.removeItem(PENDING_SIGNUP_TWO_FACTOR_KEY);
 }
 
-export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLoginSuccess }) {
+export default function SignupForm({
+  onSwitchMode,
+  isDark,
+  selectedRole,
+  onLoginSuccess,
+}) {
   const roleScope = selectedRole || "staff";
-  const [restoredVerification] = useState(() => getPendingSignupVerification(roleScope));
-  const [restoredTwoFactor] = useState(() => getPendingTwoFactorSetup(roleScope));
+  const [restoredVerification] = useState(() =>
+    getPendingSignupVerification(roleScope),
+  );
+  const [restoredTwoFactor] = useState(() =>
+    getPendingTwoFactorSetup(roleScope),
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -156,13 +166,21 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
     () => restoredTwoFactor?.email || restoredVerification?.email || "",
   );
   const [signupToken, setSignupToken] = useState(
-    () => restoredTwoFactor?.signupToken || restoredVerification?.signupToken || null,
+    () =>
+      restoredTwoFactor?.signupToken ||
+      restoredVerification?.signupToken ||
+      null,
   );
 
   const [signUpData, setSignUpData] = useState({
     firstName: "",
     lastName: "",
-    role: selectedRole === "student" ? "student" : (selectedRole === "signatory" ? "signatory" : "signatory"),
+    role:
+      selectedRole === "student"
+        ? "student"
+        : selectedRole === "signatory"
+          ? "signatory"
+          : "signatory",
   });
 
   const recaptchaRef = useRef(null);
@@ -181,7 +199,7 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
     const trimmed = emailVal.trim().toLowerCase();
     if (!trimmed) {
       setEmailError("Email is required.");
-      return true; // has error
+      return true;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
       setEmailError("Please enter a valid email address.");
@@ -189,11 +207,14 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
     }
     setCheckingEmail(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/check-email`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmed }),
-      });
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/auth/check-email`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: trimmed }),
+        },
+      );
       const data = await res.json();
       if (data.success && data.message) {
         setEmailError(data.message);
@@ -246,7 +267,11 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
 
     if (
       field === "adminSecretCode" &&
-      (selectedRole === "staff" || selectedRole === "librarian" || selectedRole === "cashier" || selectedRole === "registrar" || selectedRole === "signatory") &&
+      (selectedRole === "staff" ||
+        selectedRole === "librarian" ||
+        selectedRole === "cashier" ||
+        selectedRole === "registrar" ||
+        selectedRole === "signatory") &&
       value.length < 8
     ) {
       return "Invalid secret code format.";
@@ -257,7 +282,7 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
 
   const handleSignUp = async (e) => {
     e.preventDefault();
-    // Validate email on submit in case the user never blurred the field
+
     const hasEmailError = await validateAndCheckEmail(email);
     if (hasEmailError) return;
     setLoading(true);
@@ -281,9 +306,16 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
         !/[^A-Za-z0-9]/.test(password)
       )
         throw new Error("Password too weak");
-      if (!recaptchaToken && !IS_LOCALHOST) throw new Error("Please verify reCAPTCHA");
+      if (!recaptchaToken && !IS_LOCALHOST)
+        throw new Error("Please verify reCAPTCHA");
 
-      if (selectedRole === "staff" || selectedRole === "librarian" || selectedRole === "cashier" || selectedRole === "registrar" || selectedRole === "signatory") {
+      if (
+        selectedRole === "staff" ||
+        selectedRole === "librarian" ||
+        selectedRole === "cashier" ||
+        selectedRole === "registrar" ||
+        selectedRole === "signatory"
+      ) {
         if (!adminSecretCode || adminSecretCode.trim().length < 8) {
           throw new Error("Valid secret code is required");
         }
@@ -301,9 +333,7 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
             lastName: signUpData.lastName.trim(),
             role: signUpData.role,
             adminSecretCode:
-              selectedRole !== "student"
-                ? adminSecretCode
-                : null,
+              selectedRole !== "student" ? adminSecretCode : null,
             recaptchaToken: recaptchaToken,
           }),
         },
@@ -341,8 +371,12 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
         signupToken={signupToken}
         isDark={isDark}
         onVerified={() => {
-          toast.success("Email verified! Now set up 2FA to secure your account.");
-          const normalizedEmail = (signupEmail || email || "").trim().toLowerCase();
+          toast.success(
+            "Email verified! Now set up 2FA to secure your account.",
+          );
+          const normalizedEmail = (signupEmail || email || "")
+            .trim()
+            .toLowerCase();
           clearPendingSignupVerification();
           persistPendingTwoFactorSetup({
             scopeRole: roleScope,
@@ -375,16 +409,21 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
           clearPendingSignupVerification();
           toast.success("You're all set! Signing you in...");
           try {
-            const { data: { session } } = await (await import("../../lib/supabase")).supabase.auth.getSession();
+            const {
+              data: { session },
+            } = await (
+              await import("../../lib/supabase")
+            ).supabase.auth.getSession();
             if (session?.user && onLoginSuccess) {
               await onLoginSuccess(session.user);
               return;
             }
-          } catch (_e) { /* fall through to manual login */ }
+          } catch (_e) {}
           toast.success("Please sign in with your new account.");
-          setTimeout(() => { if (onSwitchMode) onSwitchMode(); }, 1000);
+          setTimeout(() => {
+            if (onSwitchMode) onSwitchMode();
+          }, 1000);
         }}
-        // L19 FIX: Removed onSkip — 2FA setup should not be skippable during signup
       />
     );
   }
@@ -406,7 +445,10 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
               type="text"
               value={signUpData.firstName}
               onChange={(e) =>
-                setSignUpData({ ...signUpData, firstName: e.target.value.replace(/[^a-zA-ZÀ-ÿ\s'-]/g, "") })
+                setSignUpData({
+                  ...signUpData,
+                  firstName: e.target.value.replace(/[^a-zA-ZÀ-ÿ\s'-]/g, ""),
+                })
               }
               onBlur={() => handleBlur("firstName")}
               required
@@ -441,7 +483,10 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
               type="text"
               value={signUpData.lastName}
               onChange={(e) =>
-                setSignUpData({ ...signUpData, lastName: e.target.value.replace(/[^a-zA-ZÀ-ÿ\s'-]/g, "") })
+                setSignUpData({
+                  ...signUpData,
+                  lastName: e.target.value.replace(/[^a-zA-ZÀ-ÿ\s'-]/g, ""),
+                })
               }
               onBlur={() => handleBlur("lastName")}
               required
@@ -470,7 +515,10 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
         >
           Email <span className="text-red-500">*</span>
         </label>
-        <SpotlightBorder isDark={isDark} error={getFieldError("email", email) || !!emailError}>
+        <SpotlightBorder
+          isDark={isDark}
+          error={getFieldError("email", email) || !!emailError}
+        >
           <div className="relative">
             <input
               type="email"
@@ -485,9 +533,24 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
             />
             {checkingEmail && (
               <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                <svg className="animate-spin h-5 w-5 text-green-500" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                <svg
+                  className="animate-spin h-5 w-5 text-green-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
                 </svg>
               </div>
             )}
@@ -537,8 +600,7 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
           <label
             className={`block text-sm font-bold mb-1.5 ml-1 ${isDark ? "text-slate-300" : "text-gray-700"}`}
           >
-            Staff Secret Code{" "}
-            <span className="text-red-500">*</span>
+            Staff Secret Code <span className="text-red-500">*</span>
           </label>
           <SpotlightBorder
             isDark={isDark}
@@ -862,7 +924,10 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole, onLogin
             key={isDark ? "dark" : "light"}
             ref={recaptchaRef}
             sitekey={RECAPTCHA_SITE_KEY}
-            onChange={(token) => { setRecaptchaToken(token); setRecaptchaExpired(false); }}
+            onChange={(token) => {
+              setRecaptchaToken(token);
+              setRecaptchaExpired(false);
+            }}
             onExpired={() => {
               setRecaptchaToken(null);
               setRecaptchaExpired(true);

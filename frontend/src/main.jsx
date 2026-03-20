@@ -18,7 +18,7 @@ createRoot(document.getElementById("root")).render(
             <App />
           </BrowserRouter>
         </AuthProvider>
-        {/* BUG 9 FIX: Toaster moved inside ThemeProvider so toasts can adapt to theme */}
+        {}
         <Toaster
           position="bottom-right"
           toastOptions={{

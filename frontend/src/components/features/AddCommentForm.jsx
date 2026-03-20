@@ -53,8 +53,17 @@ export default function AddCommentForm({
             : "border-[#dadce0] text-[#5f6368] hover:bg-[#f1f3f4] hover:border-[#1a73e8] hover:text-[#1a73e8]"
         }`}
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="transition-colors">
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z" fill="currentColor"/>
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          className="transition-colors"
+        >
+          <path
+            d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"
+            fill="currentColor"
+          />
         </svg>
         <span className="font-medium text-[14px]">Add a comment...</span>
       </button>
@@ -72,7 +81,7 @@ export default function AddCommentForm({
     >
       <h4
         className={`text-[15px] font-medium mb-3 ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}
-        style={{ fontFamily: 'Google Sans, sans-serif' }}
+        style={{ fontFamily: "Google Sans, sans-serif" }}
       >
         Write a comment
       </h4>
@@ -113,9 +122,7 @@ export default function AddCommentForm({
                     : "bg-transparent text-[#5f6368] border-[#dadce0] hover:bg-[#f8f9fa] hover:text-[#202124]"
               }`}
             >
-              <div className="flex items-center gap-1.5">
-                {opt.label}
-              </div>
+              <div className="flex items-center gap-1.5">{opt.label}</div>
             </button>
           ))}
         </div>

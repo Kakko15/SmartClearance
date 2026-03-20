@@ -1,7 +1,10 @@
 import { motion, AnimatePresence } from "framer-motion";
 
-export default function PasswordStrengthMeter({ password, isVisible = true, isDark }) {
-  // BUG 3 FIX: Default isVisible to true so it shows when no prop is passed (e.g. in Settings)
+export default function PasswordStrengthMeter({
+  password,
+  isVisible = true,
+  isDark,
+}) {
   const show = isVisible;
 
   const checks = [

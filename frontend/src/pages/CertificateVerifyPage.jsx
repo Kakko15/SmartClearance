@@ -37,9 +37,11 @@ export default function CertificateVerifyPage() {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-lg"
       >
-        {/* Header */}
+        {}
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">ISU Smart Clearance</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            ISU Smart Clearance
+          </h1>
           <p className="text-sm text-gray-500 mt-1">Certificate Verification</p>
         </div>
 
@@ -52,55 +54,98 @@ export default function CertificateVerifyPage() {
           ) : error || !result?.valid ? (
             <div className="p-10 text-center">
               <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  className="w-8 h-8 text-red-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">Invalid Certificate</h2>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">
+                Invalid Certificate
+              </h2>
               <p className="text-gray-500 text-sm">
-                {error || "This certificate could not be verified. It may be invalid or expired."}
+                {error ||
+                  "This certificate could not be verified. It may be invalid or expired."}
               </p>
             </div>
           ) : (
             <>
-              {/* Valid badge */}
+              {}
               <div className="bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-4 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-                  <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  <svg
+                    className="w-6 h-6 text-white"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2.5}
+                      d="M5 13l4 4L19 7"
+                    />
                   </svg>
                 </div>
                 <div>
                   <h2 className="text-white font-bold text-lg">Verified</h2>
-                  <p className="text-green-100 text-xs">This certificate is authentic</p>
+                  <p className="text-green-100 text-xs">
+                    This certificate is authentic
+                  </p>
                 </div>
               </div>
 
-              {/* Details */}
+              {}
               <div className="p-6 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <Detail label="Student Name" value={student?.full_name} />
-                  <Detail label="Student Number" value={student?.student_number} />
+                  <Detail
+                    label="Student Number"
+                    value={student?.student_number}
+                  />
                   <Detail label="Program" value={student?.course_year} />
                   <Detail label="Document Type" value={docType?.name} />
-                  <Detail label="Certificate No." value={cert?.certificate_number} />
+                  <Detail
+                    label="Certificate No."
+                    value={cert?.certificate_number}
+                  />
                   <Detail
                     label="Issued On"
-                    value={cert?.created_at ? new Date(cert.created_at).toLocaleDateString("en-US", {
-                      year: "numeric", month: "long", day: "numeric",
-                    }) : "N/A"}
+                    value={
+                      cert?.created_at
+                        ? new Date(cert.created_at).toLocaleDateString(
+                            "en-US",
+                            {
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            },
+                          )
+                        : "N/A"
+                    }
                   />
                 </div>
               </div>
             </>
           )}
 
-          {/* Footer */}
+          {}
           <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 text-center">
             <p className="text-xs text-gray-400">
               Isabela State University — Echague Campus
             </p>
-            <Link to="/home" className="text-xs text-green-600 hover:underline mt-1 inline-block">
+            <Link
+              to="/home"
+              className="text-xs text-green-600 hover:underline mt-1 inline-block"
+            >
               Go to Smart Clearance
             </Link>
           </div>
@@ -113,8 +158,12 @@ export default function CertificateVerifyPage() {
 function Detail({ label, value }) {
   return (
     <div>
-      <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">{label}</p>
-      <p className="text-sm font-semibold text-gray-900 mt-0.5">{value || "N/A"}</p>
+      <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">
+        {label}
+      </p>
+      <p className="text-sm font-semibold text-gray-900 mt-0.5">
+        {value || "N/A"}
+      </p>
     </div>
   );
 }

@@ -1,4 +1,11 @@
-import { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { supabase } from "../lib/supabase";
@@ -44,14 +51,13 @@ export function AuthProvider({ children }) {
   const roleMismatchRef = useRef(false);
   const sessionValidationPromiseRef = useRef(null);
   const navigateRef = useRef(null);
-  // L4 FIX: Flag to skip re-validation when password change triggers TOKEN_REFRESHED
+
   const skipNextValidationRef = useRef(false);
 
   const [selectedRole, setSelectedRole] = useState(() => {
     return sessionStorage.getItem("selectedRole") || null;
   });
 
-  // We use a NavigateSetter child to grab navigate without AuthProvider itself being inside Router
   const setNavigate = useCallback((nav) => {
     navigateRef.current = nav;
   }, []);
@@ -90,7 +96,9 @@ export function AuthProvider({ children }) {
       if (error && error.message?.includes("totp_enabled")) {
         const fallback = await supabase
           .from("profiles")
-          .select("id, full_name, role, student_number, course_year, account_enabled")
+          .select(
+            "id, full_name, role, student_number, course_year, account_enabled",
+          )
           .eq("id", sessionUser.id)
           .single()
           .abortSignal(AbortSignal.timeout(8000));
@@ -111,7 +119,7 @@ export function AuthProvider({ children }) {
           "Your account is pending approval. Please contact your administrator.",
         );
         roleMismatchRef.current = true;
-        setInitializing(false); // L2 FIX: Prevent infinite loading spinner
+        setInitializing(false);
         await supabase.auth.signOut();
         return;
       }
@@ -124,7 +132,7 @@ export function AuthProvider({ children }) {
         roleMismatchRef.current = true;
         sessionStorage.removeItem("selectedRole");
         setSelectedRole(null);
-        setInitializing(false); // L2 FIX: Prevent infinite loading spinner
+        setInitializing(false);
         await supabase.auth.signOut();
         navigateRef.current?.("/select-role");
         return;
@@ -132,8 +140,6 @@ export function AuthProvider({ children }) {
 
       if (!isMounted) return;
 
-      // L1 FIX: Use sessionStorage instead of localStorage so 2FA verification
-      // doesn't persist across browser restarts
       const twoFAVerified = sessionStorage.getItem("2fa_verified");
       if (data.totp_enabled && twoFAVerified !== sessionUser.id) {
         setPendingUser(sessionUser);
@@ -143,7 +149,13 @@ export function AuthProvider({ children }) {
         return;
       }
 
-      const requires2FA = ["librarian", "cashier", "registrar", "signatory", "super_admin"].includes(data.role);
+      const requires2FA = [
+        "librarian",
+        "cashier",
+        "registrar",
+        "signatory",
+        "super_admin",
+      ].includes(data.role);
       if (requires2FA && !data.totp_enabled) {
         setPendingUser(sessionUser);
         setPendingProfile(data);
@@ -162,9 +174,12 @@ export function AuthProvider({ children }) {
         .then(({ error }) => {
           if (error) {
             console.error("last_login update failed:", error);
-            // Retry once after 2s
+
             setTimeout(() => {
-              supabase.from("profiles").update({ last_login: new Date().toISOString() }).eq("id", sessionUser.id);
+              supabase
+                .from("profiles")
+                .update({ last_login: new Date().toISOString() })
+                .eq("id", sessionUser.id);
             }, 2000);
           }
         });
@@ -182,18 +197,12 @@ export function AuthProvider({ children }) {
 
   const runSessionValidation = (sessionUser, isMounted = true) => {
     if (!sessionUser || !isMounted) return Promise.resolve();
-    // Return the existing promise if a validation is already in flight.
-    // The ref is set synchronously here (before any await) so concurrent
-    // callers in the same microtask always see it — closing the race
-    // window where both onAuthStateChange and handleLoginSuccess could
-    // start duplicate validations.
+
     if (sessionValidationPromiseRef.current) {
       return sessionValidationPromiseRef.current;
     }
     const promise = validateAndSetSession(sessionUser, isMounted).finally(
       () => {
-        // Only clear if we're still the active promise (avoids clearing a
-        // newer validation that started after this one resolved).
         if (sessionValidationPromiseRef.current === promise) {
           sessionValidationPromiseRef.current = null;
         }
@@ -267,14 +276,11 @@ export function AuthProvider({ children }) {
           (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") &&
           session?.user
         ) {
-          // L4 FIX: Skip validation when password change triggers TOKEN_REFRESHED
           if (skipNextValidationRef.current) {
             skipNextValidationRef.current = false;
             return;
           }
-          // Guard: ignore sessions for unverified emails.
-          // The backend signs out unverified users, but this catches the
-          // race where SIGNED_IN fires before the signOut propagates.
+
           if (event === "SIGNED_IN" && !session.user.email_confirmed_at) {
             return;
           }
@@ -357,7 +363,6 @@ export function AuthProvider({ children }) {
   };
 
   const complete2FA = () => {
-    // L1 FIX: Use sessionStorage so 2FA proof expires when browser closes
     sessionStorage.setItem("2fa_verified", pendingUser.id);
     setUser(pendingUser);
     setProfile(pendingProfile);
@@ -372,7 +377,10 @@ export function AuthProvider({ children }) {
         if (error) {
           console.error("last_login update failed:", error);
           setTimeout(() => {
-            supabase.from("profiles").update({ last_login: new Date().toISOString() }).eq("id", pendingUser.id);
+            supabase
+              .from("profiles")
+              .update({ last_login: new Date().toISOString() })
+              .eq("id", pendingUser.id);
           }, 2000);
         }
       });
@@ -388,17 +396,14 @@ export function AuthProvider({ children }) {
     await supabase.auth.signOut();
   };
 
-  // L20 FIX: Removed dead code `completePasswordReset` — it was never called anywhere.
-
-  // ── Idle Timeout ────────────────────────────────────────────────────────
-  // Default: 15 min timeout, 2 min warning. University shared computers need this.
-  const IDLE_TIMEOUT_MS = parseInt(import.meta.env.VITE_IDLE_TIMEOUT_MINUTES || "15", 10) * 60 * 1000;
+  const IDLE_TIMEOUT_MS =
+    parseInt(import.meta.env.VITE_IDLE_TIMEOUT_MINUTES || "15", 10) * 60 * 1000;
   const IDLE_WARNING_MS = 2 * 60 * 1000;
   const isAuthenticated = !!user && !!profile;
   const idleSignOutRef = useRef(false);
 
   const handleIdleSignOut = useCallback(async () => {
-    if (idleSignOutRef.current) return; // prevent double-fire
+    if (idleSignOutRef.current) return;
     idleSignOutRef.current = true;
 
     try {
@@ -444,11 +449,14 @@ export function AuthProvider({ children }) {
   }, []);
 
   const handleIdleWarning = useCallback((secondsLeft) => {
-    toast(`Session expiring in ${Math.ceil(secondsLeft / 60)} min due to inactivity. Move your mouse to stay signed in.`, {
-      icon: "⏳",
-      duration: 10000,
-      id: "idle-warning", // prevent duplicate toasts
-    });
+    toast(
+      `Session expiring in ${Math.ceil(secondsLeft / 60)} min due to inactivity. Move your mouse to stay signed in.`,
+      {
+        icon: "⏳",
+        duration: 10000,
+        id: "idle-warning",
+      },
+    );
   }, []);
 
   const handleIdleActive = useCallback(() => {
@@ -483,13 +491,12 @@ export function AuthProvider({ children }) {
     complete2FA,
     cancel2FA,
     setNavigate,
-    skipNextValidationRef, // L4 FIX: Exposed for Settings password change
+    skipNextValidationRef,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-// Small component placed inside Router to capture navigate function
 export function NavigateSetter() {
   const navigate = useNavigate();
   const { setNavigate } = useAuth();

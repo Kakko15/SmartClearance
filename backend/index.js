@@ -10,7 +10,6 @@ const { allowedOrigins } = require("./constants/allowedOrigins");
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (server-to-server, curl, etc.)
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
@@ -21,10 +20,6 @@ app.use(
   }),
 );
 app.use(express.json({ limit: "10mb" }));
-
-// CSRF protection — validates Origin/Referer on state-changing requests
-const csrfProtection = require("./middleware/csrfProtection");
-app.use(csrfProtection);
 
 const PORT = process.env.PORT || 5000;
 
@@ -47,7 +42,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/auth/2fa", twoFactorRoutes);
 app.use("/api/documents", documentRoutes);
 app.use("/api/comments", commentRoutes);
-// BUG 1 FIX: /api/clearance now uses its own dedicated router
+
 app.use("/api/clearance", clearanceRoutes);
 app.use("/api/certificates", certificateRoutes);
 app.use("/api/escalation", escalationRoutes);
@@ -57,7 +52,7 @@ app.use("/api/admin/secret-codes", secretCodeRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/profile", profileRoutes);
-// Centralized error handler — must be after all routes
+
 const errorHandler = require("./middleware/errorHandler");
 app.use(errorHandler);
 
@@ -67,17 +62,22 @@ app.get("/", (req, res) => {
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
-// Cleanup expired OTP tokens every 15 minutes
 const { cleanupExpired } = require("./services/otpStore");
 setInterval(() => cleanupExpired().catch(() => {}), 15 * 60 * 1000);
 
-// Cleanup unverified accounts every 6 hours (accounts older than 24h with no email confirmation)
-const { cleanupUnverifiedAccounts } = require("./services/unverifiedAccountCleanup");
-setTimeout(() => cleanupUnverifiedAccounts().catch(() => {}), 60 * 1000); // Run once on startup (1 min delay)
-setInterval(() => cleanupUnverifiedAccounts().catch(() => {}), 6 * 60 * 60 * 1000); // Then every 6 hours
+const {
+  cleanupUnverifiedAccounts,
+} = require("./services/unverifiedAccountCleanup");
+setTimeout(() => cleanupUnverifiedAccounts().catch(() => {}), 60 * 1000);
+setInterval(
+  () => cleanupUnverifiedAccounts().catch(() => {}),
+  6 * 60 * 60 * 1000,
+);
 
-// Check deadline reminders once per day (every 24 hours)
 const { checkDeadlineReminders } = require("./services/notificationService");
-// Run once on startup (after a short delay), then every 24 hours
+
 setTimeout(() => checkDeadlineReminders().catch(() => {}), 30 * 1000);
-setInterval(() => checkDeadlineReminders().catch(() => {}), 24 * 60 * 60 * 1000);
+setInterval(
+  () => checkDeadlineReminders().catch(() => {}),
+  24 * 60 * 60 * 1000,
+);
