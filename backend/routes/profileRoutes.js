@@ -11,7 +11,7 @@ router.get("/me", requireAuth, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, full_name, role, student_number, course_year, account_enabled")
+      .select("id, full_name, role, student_number, course_year, account_enabled, nstp_serial_no, major")
       .eq("id", req.user.id)
       .single();
 

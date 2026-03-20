@@ -66,7 +66,16 @@ async function logHistory(
 router.post("/create", requireAuth, async (req, res) => {
   try {
     const student_id = req.user.id;
-    const { doc_type_id, request_details } = req.body;
+    const { 
+      doc_type_id, 
+      request_details,
+      clearance_intent,
+      clearance_intent_others,
+      thesis_title,
+      semesters_enrolled,
+      summers_enrolled,
+      student_agreement_accepted
+    } = req.body;
 
     console.log("Initiating AI request classification...");
 
@@ -97,6 +106,14 @@ router.post("/create", requireAuth, async (req, res) => {
         current_status: "pending",
         current_stage_index: 0,
         is_completed: false,
+        // New Academic / Form 07 Fields
+        clearance_intent: clearance_intent || [],
+        clearance_intent_others: clearance_intent_others || null,
+        thesis_title: thesis_title || null,
+        semesters_enrolled: semesters_enrolled || null,
+        summers_enrolled: summers_enrolled || null,
+        student_agreement_accepted: student_agreement_accepted || false,
+        
         // BUG 4 FIX: Set last_activity_at on creation
         last_activity_at: now,
 

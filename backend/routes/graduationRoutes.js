@@ -362,7 +362,18 @@ async function notifyClearanceStatusChange(requestId, status, stageName, comment
 
 router.post("/apply", requireAuth, requireRole("student"), async (req, res) => {
   try {
-    const { student_id, portion } = req.body;
+    const { 
+      student_id, 
+      portion,
+      clearance_intent,
+      clearance_intent_others,
+      thesis_title,
+      semesters_enrolled,
+      summers_enrolled,
+      student_agreement_accepted,
+      nstp_serial_no,
+      major
+    } = req.body;
 
     // B1 FIX: Ownership check — only the authenticated student can apply for themselves
     if (req.user.id !== student_id) {
@@ -377,6 +388,26 @@ router.post("/apply", requireAuth, requireRole("student"), async (req, res) => {
         success: false,
         error: "Invalid portion. Must be 'undergraduate' or 'graduate'.",
       });
+    }
+
+    // NEW FORM 07 VALIDATION: If Honorable Dismissal, agreement must be checked
+    if (clearance_intent && clearance_intent.includes("Honorable Dismissal") && !student_agreement_accepted) {
+      return res.status(400).json({
+        success: false,
+        error: "You must accept the incomplete grade conversion policy to request Honorable Dismissal."
+      });
+    }
+
+    // UPDATE PROFILE WITH ACADEMIC INFO IF PROVIDED
+    if (nstp_serial_no || major) {
+      const updates = {};
+      if (nstp_serial_no) updates.nstp_serial_no = nstp_serial_no;
+      if (major) updates.major = major;
+      
+      const { error: profileErr } = await supabase
+        .from("profiles")
+        .update(updates)
+        .eq("id", student_id);
     }
 
     const { data: existing, error: checkError } = await supabase
@@ -425,6 +456,13 @@ router.post("/apply", requireAuth, requireRole("student"), async (req, res) => {
         cashier_status: "pending",
         registrar_status: isUndergrad ? "approved" : "pending",
         is_completed: false,
+        // NEW FORM 07 FIELDS
+        clearance_intent: clearance_intent || [],
+        clearance_intent_others: clearance_intent_others || null,
+        thesis_title: thesis_title || null,
+        semesters_enrolled: semesters_enrolled || null,
+        summers_enrolled: summers_enrolled || null,
+        student_agreement_accepted: student_agreement_accepted || false
       })
       .select()
       .single();
@@ -1594,12 +1632,19 @@ router.get("/registrar/pending", requireAuth, requireRole("registrar"), async (r
         registrar_status,
         registrar_comments,
         certificate_generated,
+        clearance_intent,
+        clearance_intent_others,
+        thesis_title,
+        semesters_enrolled,
+        summers_enrolled,
         student:student_id (
           id,
           full_name,
           student_number,
           course_year,
-          email
+          email,
+          nstp_serial_no,
+          major
         ),
         professor_approvals(id, status, approved_at, professor_id, professor:professor_id(full_name))
       `,

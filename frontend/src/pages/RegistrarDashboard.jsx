@@ -48,6 +48,23 @@ export default function RegistrarAdminDashboard({
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
 
+  // Form 07 Strict Checklist State
+  const [reviewChecklist, setReviewChecklist] = useState({
+    academicRecord: false,
+    thesisTitle: false,
+    intentAcknowledged: false
+  });
+
+  // Reset checklist when selected request changes
+  useEffect(() => {
+    setReviewChecklist({
+      academicRecord: false,
+      thesisTitle: false,
+      intentAcknowledged: false
+    });
+    setComments("");
+  }, [selectedRequest]);
+
   const [pendingAccounts, setPendingAccounts] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [accountsLoading, setAccountsLoading] = useState(false);
@@ -141,8 +158,16 @@ export default function RegistrarAdminDashboard({
     }
   };
 
+  const isApproveReady = () => {
+    if (!selectedRequest) return false;
+    const rulesOk = reviewChecklist.academicRecord && 
+                    reviewChecklist.intentAcknowledged &&
+                    (!selectedRequest.thesis_title || reviewChecklist.thesisTitle);
+    return rulesOk;
+  };
+
   const handleApprove = async () => {
-    if (!selectedRequest) return;
+    if (!selectedRequest || !isApproveReady()) return;
     setActionLoading(true);
     try {
       const response = await authAxios.post(
@@ -575,28 +600,83 @@ export default function RegistrarAdminDashboard({
                           placeholder="Comments (required for rejection)..."
                           value={comments}
                           onChange={(e) => setComments(e.target.value)}
-                          rows={3}
+                          rows={2}
                           className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white/60 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all resize-none"
                         />
                       </div>
 
+                      {/* NEW STRICT CHECKLIST (FORM 07) */}
+                      <div className="mb-5 p-4 rounded-xl border border-primary-200 bg-primary-50/50">
+                        <h4 className="text-xs font-bold text-primary-700 uppercase tracking-wider mb-3">Registrar Validation Checklist</h4>
+                        <div className="space-y-3">
+                          <label className="flex items-start gap-3 cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              checked={reviewChecklist.academicRecord}
+                              onChange={(e) => setReviewChecklist({...reviewChecklist, academicRecord: e.target.checked})}
+                              className="mt-0.5 w-4 h-4 rounded text-primary-600 focus:ring-primary-500" 
+                            />
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium text-gray-800">Evaluated Student's Academic Record</span>
+                              <span className="text-xs text-gray-500">Includes {selectedRequest.semesters_enrolled || "N/A"} semesters and {selectedRequest.summers_enrolled || 0} summers enrolled.</span>
+                            </div>
+                          </label>
+
+                          {selectedRequest.thesis_title && (
+                            <label className="flex items-start gap-3 cursor-pointer">
+                              <input 
+                                type="checkbox" 
+                                checked={reviewChecklist.thesisTitle}
+                                onChange={(e) => setReviewChecklist({...reviewChecklist, thesisTitle: e.target.checked})}
+                                className="mt-0.5 w-4 h-4 rounded text-primary-600 focus:ring-primary-500" 
+                              />
+                              <div className="flex flex-col">
+                                <span className="text-sm font-medium text-gray-800">Reviewed Research Title</span>
+                                <span className="text-xs text-gray-500 italic max-w-[280px] break-words">"{selectedRequest.thesis_title}"</span>
+                              </div>
+                            </label>
+                          )}
+
+                          <label className="flex items-start gap-3 cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              checked={reviewChecklist.intentAcknowledged}
+                              onChange={(e) => setReviewChecklist({...reviewChecklist, intentAcknowledged: e.target.checked})}
+                              className="mt-0.5 w-4 h-4 rounded text-primary-600 focus:ring-primary-500" 
+                            />
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium text-gray-800">Verified Clearance Intent(s)</span>
+                              <span className="text-xs text-gray-500">
+                                {Array.isArray(selectedRequest.clearance_intent) && selectedRequest.clearance_intent.length > 0
+                                  ? selectedRequest.clearance_intent.join(", ") + (selectedRequest.clearance_intent_others ? ` (${selectedRequest.clearance_intent_others})` : "")
+                                  : "General Clearance"}
+                              </span>
+                            </div>
+                          </label>
+                        </div>
+                      </div>
+
                       <div className="flex gap-3">
                         <motion.button
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
+                          whileHover={isApproveReady() && !actionLoading ? { scale: 1.02 } : {}}
+                          whileTap={isApproveReady() && !actionLoading ? { scale: 0.98 } : {}}
                           onClick={handleApprove}
-                          disabled={actionLoading}
-                          className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl font-semibold shadow-lg shadow-green-500/20 disabled:opacity-50 transition-all text-sm"
+                          disabled={actionLoading || !isApproveReady()}
+                          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-full font-semibold transition-all text-sm ${
+                            isApproveReady() && !actionLoading
+                              ? "bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-lg shadow-green-500/30 active:scale-95"
+                              : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                          }`}
                         >
-                          <ShieldCheckIcon className="w-4 h-4" />
-                          Approve & Generate Certificate
+                          <ShieldCheckIcon className="w-5 h-5" />
+                          Approve & Generate
                         </motion.button>
                         <motion.button
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
                           onClick={handleReject}
                           disabled={actionLoading}
-                          className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-xl font-semibold shadow-lg shadow-red-500/20 disabled:opacity-50 transition-all text-sm"
+                          className="flex-shrink-0 flex items-center justify-center gap-2 px-6 py-3 bg-red-50 hover:bg-red-100 text-red-600 rounded-full font-medium transition-all text-sm border border-red-200"
                         >
                           <XMarkIcon className="w-4 h-4" />
                           Reject
