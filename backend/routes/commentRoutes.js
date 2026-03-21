@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const supabase = require("../supabaseClient");
 const { requireAuth } = require("../middleware/authMiddleware");
+const { safeErrorResponse } = require("../utils/safeError");
 const { isStaffRole, isManagementRole, ROLES } = require("../constants/roles");
 
 const getUserProfile = async (userId) => {
@@ -111,10 +112,7 @@ router.post("/:clearanceId/comments", requireAuth, async (req, res) => {
     });
   } catch (error) {
     console.error("Error creating comment:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -141,10 +139,7 @@ router.get("/:clearanceId/comments", requireAuth, async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching comments:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -206,10 +201,7 @@ router.put("/comments/:commentId", requireAuth, async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating comment:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -253,10 +245,7 @@ router.delete("/comments/:commentId", requireAuth, async (req, res) => {
     });
   } catch (error) {
     console.error("Error deleting comment:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -309,10 +298,7 @@ router.post("/create", requireAuth, async (req, res) => {
     });
   } catch (error) {
     console.error("Error creating comment (legacy):", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -352,10 +338,7 @@ router.get("/request/:request_id", requireAuth, async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching comments (legacy):", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -399,10 +382,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
     });
   } catch (error) {
     console.error("Error deleting comment (legacy):", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    safeErrorResponse(res, error);
   }
 });
 

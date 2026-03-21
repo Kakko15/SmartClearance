@@ -1,11 +1,12 @@
 const express = require("express");
 const router = express.Router();
 const supabase = require("../supabaseClient");
-const { requireAuth } = require("../middleware/authMiddleware");
+const { requireAuth, requireRole } = require("../middleware/authMiddleware");
+const { safeErrorResponse } = require("../utils/safeError");
 const { ROLES } = require("../constants/roles");
 const { logAction, ACTIONS } = require("../services/auditService");
 
-router.get("/pending-accounts", requireAuth, async (req, res) => {
+router.get("/pending-accounts", requireAuth, requireRole("super_admin"), async (req, res) => {
   try {
     const { data, error } = await supabase
       .from("profiles")
@@ -209,10 +210,7 @@ router.post("/reject-account", requireAuth, async (req, res) => {
     });
   } catch (error) {
     console.error("Error rejecting account:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message || "Failed to reject account",
-    });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -387,7 +385,7 @@ router.post("/bulk-reject", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/account-stats", requireAuth, async (req, res) => {
+router.get("/account-stats", requireAuth, requireRole("super_admin"), async (req, res) => {
   try {
     const { count: pendingCount } = await supabase
       .from("profiles")

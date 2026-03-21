@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const supabase = require("../supabaseClient");
 const { requireAuth, requireRole } = require("../middleware/authMiddleware");
+const { safeErrorResponse } = require("../utils/safeError");
 
 router.get("/", requireAuth, requireRole("signatory"), async (req, res) => {
   try {
@@ -32,7 +33,7 @@ router.get("/", requireAuth, requireRole("signatory"), async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -53,7 +54,7 @@ router.get(
       if (error) throw error;
       res.json({ success: true, signatories: data || [] });
     } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
+      safeErrorResponse(res, error);
     }
   },
 );
@@ -113,7 +114,7 @@ router.post("/set", requireAuth, requireRole("signatory"), async (req, res) => {
 
     res.json({ success: true, message: "Delegation set successfully" });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -131,7 +132,7 @@ router.post(
       if (error) throw error;
       res.json({ success: true, message: "Delegation revoked" });
     } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
+      safeErrorResponse(res, error);
     }
   },
 );

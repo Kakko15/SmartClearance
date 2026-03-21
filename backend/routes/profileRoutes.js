@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const supabase = require("../supabaseClient");
 const { requireAuth, requireRole } = require("../middleware/authMiddleware");
+const { safeErrorResponse } = require("../utils/safeError");
 
 const SENSITIVE_FIELDS = ["full_name", "student_number", "course_year"];
 
@@ -18,7 +19,7 @@ router.get("/me", requireAuth, async (req, res) => {
     if (error) throw error;
     res.json({ success: true, profile: data });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -78,7 +79,7 @@ router.post("/request-edit", requireAuth, async (req, res) => {
     if (error) throw error;
     res.json({ success: true, request: data });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -93,7 +94,7 @@ router.get("/edit-requests", requireAuth, async (req, res) => {
     if (error) throw error;
     res.json({ success: true, requests: data || [] });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -114,7 +115,7 @@ router.get(
       if (error) throw error;
       res.json({ success: true, requests: data || [] });
     } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
+      safeErrorResponse(res, error);
     }
   },
 );
@@ -182,7 +183,7 @@ router.post(
 
       res.json({ success: true, message: `Edit request ${action}` });
     } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
+      safeErrorResponse(res, error);
     }
   },
 );

@@ -64,10 +64,19 @@ class ApiError extends Error {
     this.name = "ApiError";
     this.status = status;
     this.data = data;
+    this.isOffline = !navigator.onLine;
   }
 }
 
 async function apiFetch(url, options = {}, retries = MAX_RETRIES) {
+  if (!navigator.onLine) {
+    throw new ApiError(
+      "You appear to be offline. Please check your connection and try again.",
+      0,
+      null,
+    );
+  }
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -125,6 +134,15 @@ export const createRequest = async (studentId, docTypeId) => {
     method: "POST",
     headers,
     body: JSON.stringify({ student_id: studentId, doc_type_id: docTypeId }),
+  });
+};
+
+export const createGraduationRequest = async (studentId, requestData = {}) => {
+  const headers = await getAuthHeaders();
+  return apiFetch(`${API_URL}/graduation/request`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ student_id: studentId, ...requestData }),
   });
 };
 
@@ -200,12 +218,11 @@ export const getRequestDocuments = async (requestId, userId) => {
   );
 };
 
-export const deleteDocument = async (documentId, userId) => {
+export const deleteDocument = async (documentId) => {
   const headers = await getAuthHeaders();
   return apiFetch(`${API_URL}/documents/${documentId}`, {
     method: "DELETE",
     headers,
-    body: JSON.stringify({ user_id: userId }),
   });
 };
 

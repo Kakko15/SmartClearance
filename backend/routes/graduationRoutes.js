@@ -4,7 +4,14 @@ const crypto = require("crypto");
 const rateLimit = require("express-rate-limit");
 const supabase = require("../supabaseClient");
 const { requireAuth, requireRole } = require("../middleware/authMiddleware");
+const { safeErrorResponse } = require("../utils/safeError");
 const { logAction, ACTIONS } = require("../services/auditService");
+const {
+  DESIGNATIONS,
+  UNDERGRAD_DESIGNATIONS,
+  UNDERGRAD_PREREQS,
+  isUndergradDesignation,
+} = require("../constants/designations");
 const {
   resolveUserEmail,
   sendEmail,
@@ -125,13 +132,12 @@ async function restoreApprovals(requestId, snapshot) {
 
   if (!current) return;
 
+  let restoredCount = 0;
   for (const prev of snapshot) {
     const now = current.find((c) => c.id === prev.id);
 
     if (now && prev.status !== "pending" && now.status === "pending") {
-      console.error(
-        `TRIGGER RESET DETECTED: approval ${prev.id} was "${prev.status}" but got reset to "pending". Restoring.`,
-      );
+      restoredCount++;
       await supabase
         .from("professor_approvals")
         .update({
@@ -143,22 +149,26 @@ async function restoreApprovals(requestId, snapshot) {
         .eq("id", prev.id);
     }
   }
+
+  if (restoredCount > 0) {
+    console.warn(
+      `[restoreApprovals] Restored ${restoredCount} approval(s) for request ${requestId} that were reset by a DB trigger.`,
+    );
+  }
 }
 
 async function healApprovals(approvals, requestId) {
   if (!approvals || approvals.length === 0) return approvals;
 
-  const needsHealing = approvals.some(
+  const hasInconsistentStatus = approvals.some(
     (a) => a.status === "pending" && a.approved_at,
   );
 
-  const allPending = approvals.every((a) => a.status === "pending");
+  const hasPendingWithHistory =
+    requestId && approvals.some((a) => a.status === "pending");
 
-  if (!needsHealing && (!allPending || !requestId)) {
-    const hasPending = approvals.some((a) => a.status === "pending");
-    if (!hasPending || !requestId) {
-      return approvals;
-    }
+  if (!hasInconsistentStatus && !hasPendingWithHistory) {
+    return approvals;
   }
 
   let healed = approvals.map((a) => {
@@ -192,13 +202,15 @@ async function healApprovals(approvals, requestId) {
         });
       }
     } catch (err) {
-      console.warn("healApprovals history lookup failed:", err.message);
+      console.warn("healApprovals: history lookup failed:", err.message);
     }
   }
 
+  const healedIds = [];
   for (const h of healed) {
     const orig = approvals.find((a) => a.id === h.id);
     if (orig && orig.status === "pending" && h.status === "approved") {
+      healedIds.push(h.id);
       try {
         await supabase
           .from("professor_approvals")
@@ -207,19 +219,29 @@ async function healApprovals(approvals, requestId) {
             approved_at: h.approved_at || new Date().toISOString(),
           })
           .eq("id", h.id);
-        console.warn(
-          `healApprovals: persisted fix for approval ${h.id} (professor ${h.professor_id}) back to DB`,
-        );
       } catch (writeErr) {
-        console.warn("healApprovals: DB write-back failed:", writeErr.message);
+        console.warn(
+          `healApprovals: DB write-back failed for ${h.id}:`,
+          writeErr.message,
+        );
       }
     }
+  }
+
+  if (healedIds.length > 0) {
+    console.warn(
+      `[healApprovals] Auto-healed ${healedIds.length} approval(s) for request ${requestId}: [${healedIds.join(", ")}]. This indicates a DB trigger is resetting statuses.`,
+    );
   }
 
   return healed;
 }
 
+const _completionLocks = new Set();
+
 async function tryCompleteRequest(requestId) {
+  if (_completionLocks.has(requestId)) return;
+  _completionLocks.add(requestId);
   try {
     const { data: request } = await supabase
       .from("requests")
@@ -281,6 +303,8 @@ async function tryCompleteRequest(requestId) {
     }
   } catch (err) {
     console.warn("tryCompleteRequest warning:", err.message);
+  } finally {
+    _completionLocks.delete(requestId);
   }
 }
 
@@ -491,25 +515,18 @@ router.post("/apply", requireAuth, requireRole("student"), async (req, res) => {
 
     let { data: allSignatories } = await supabase
       .from("profiles")
-      .select("id, full_name")
+      .select("id, full_name, designation")
       .eq("role", "signatory")
       .eq("account_enabled", true);
 
     let wantedSignatories = allSignatories || [];
     if (portion === "undergraduate") {
-      const undergradNames = [
-        "Department Chairman",
-        "College Dean",
-        "Director Student Affairs",
-        "NSTP Director",
-        "Executive Officer",
-      ];
       wantedSignatories = wantedSignatories.filter((p) =>
-        undergradNames.includes(p.full_name),
+        isUndergradDesignation(p.designation),
       );
     } else if (portion === "graduate") {
       wantedSignatories = wantedSignatories.filter(
-        (p) => p.full_name === "Dean Graduate School",
+        (p) => p.designation === DESIGNATIONS.DEAN_GRADUATE_SCHOOL,
       );
     }
 
@@ -574,31 +591,32 @@ router.post("/apply", requireAuth, requireRole("student"), async (req, res) => {
       message: "Graduation clearance application submitted successfully",
     });
 
-    const { data: studentProfile } = await supabase
-      .from("profiles")
-      .select("full_name")
-      .eq("id", student_id)
-      .single();
-    notifyStaffOfNewApplication(
-      request.id,
-      studentProfile?.full_name || "Student",
-      portion,
-    );
+    try {
+      const { data: studentProfile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", student_id)
+        .single();
+      notifyStaffOfNewApplication(
+        request.id,
+        studentProfile?.full_name || "Student",
+        portion,
+      );
 
-    logStatusChange(
-      request.id,
-      "application",
-      null,
-      "pending",
-      student_id,
-      `${portion} graduation clearance submitted`,
-    );
+      logStatusChange(
+        request.id,
+        "application",
+        null,
+        "pending",
+        student_id,
+        `${portion} graduation clearance submitted`,
+      );
+    } catch (postErr) {
+      console.warn("Post-response side-effect error (apply):", postErr.message);
+    }
   } catch (error) {
     console.error("Error applying for clearance:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -693,10 +711,7 @@ router.delete(
       });
     } catch (error) {
       console.error("Error cancelling clearance:", error);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
+      safeErrorResponse(res, error);
     }
   },
 );
@@ -744,6 +759,7 @@ router.get(
         approved_at,
         professor:professor_id (
           full_name,
+          designation,
           email,
           avatar_url
         )
@@ -761,38 +777,31 @@ router.get(
       const professorsTotalCount = approvals.length;
 
       {
-        const UNDERGRAD_NAMES = [
-          "Department Chairman",
-          "College Dean",
-          "Director Student Affairs",
-          "NSTP Director",
-          "Executive Officer",
-        ];
         const isUndergrad =
           request.portion === "undergraduate" ||
           (!request.portion &&
             approvals.some((a) =>
-              UNDERGRAD_NAMES.includes(a.professor?.full_name),
+              isUndergradDesignation(a.professor?.designation),
             ));
-        const findProfStatus = (name) =>
-          approvals.find((a) => a.professor?.full_name === name)?.status;
+        const findProfStatus = (designation) =>
+          approvals.find((a) => a.professor?.designation === designation)?.status;
 
         if (isUndergrad) {
-          if (findProfStatus("Department Chairman") !== "approved") {
+          if (findProfStatus(DESIGNATIONS.DEPARTMENT_CHAIRMAN) !== "approved") {
             request.current_stage = "Department Chairman";
-          } else if (findProfStatus("College Dean") !== "approved") {
+          } else if (findProfStatus(DESIGNATIONS.COLLEGE_DEAN) !== "approved") {
             request.current_stage = "College Dean/Director";
           } else if (
-            findProfStatus("Director Student Affairs") !== "approved"
+            findProfStatus(DESIGNATIONS.DIRECTOR_STUDENT_AFFAIRS) !== "approved"
           ) {
             request.current_stage = "Director for Student Affairs";
           } else if (request.library_status !== "approved") {
             request.current_stage = "Campus Librarian";
           } else if (request.cashier_status !== "approved") {
             request.current_stage = "Chief Accountant";
-          } else if (findProfStatus("NSTP Director") !== "approved") {
+          } else if (findProfStatus(DESIGNATIONS.NSTP_DIRECTOR) !== "approved") {
             request.current_stage = "NSTP Director";
-          } else if (findProfStatus("Executive Officer") !== "approved") {
+          } else if (findProfStatus(DESIGNATIONS.EXECUTIVE_OFFICER) !== "approved") {
             request.current_stage = "Executive Officer";
           } else {
             request.current_stage = "Completed";
@@ -804,7 +813,7 @@ router.get(
             request.current_stage = "Campus Librarian";
           } else if (request.registrar_status !== "approved") {
             request.current_stage = "Record Evaluator";
-          } else if (findProfStatus("Dean Graduate School") !== "approved") {
+          } else if (findProfStatus(DESIGNATIONS.DEAN_GRADUATE_SCHOOL) !== "approved") {
             request.current_stage = "Dean, Graduate School";
           } else {
             request.current_stage = "Completed";
@@ -816,24 +825,9 @@ router.get(
       request.professors_total_count = professorsTotalCount;
 
       if (!request.is_completed && request.current_stage === "Completed") {
-        const certNum = generateCertificateNumber();
-        const { data: refreshed } = await supabase
-          .from("requests")
-          .update({
-            is_completed: true,
-            professors_status: "approved",
-            certificate_generated: true,
-            certificate_generated_at: new Date().toISOString(),
-            certificate_number: certNum,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", request.request_id || request.id)
-          .select("*")
-          .single();
-        if (refreshed) {
-          Object.assign(request, refreshed);
-          request.request_id = refreshed.id;
-        }
+        tryCompleteRequest(request.request_id || request.id).catch((err) =>
+          console.warn("Auto-complete from status check failed:", err.message),
+        );
       }
 
       let unresolvedCommentCount = 0;
@@ -862,10 +856,7 @@ router.get(
       });
     } catch (error) {
       console.error("Error getting clearance status:", error);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
+      safeErrorResponse(res, error);
     }
   },
 );
@@ -887,7 +878,7 @@ router.get(
         status,
         comments,
         approved_at,
-        professor:professor_id(full_name),
+        professor:professor_id(full_name, designation),
         request:request_id (
           id,
           created_at,
@@ -902,7 +893,7 @@ router.get(
             course_year,
             email
           ),
-          professor_approvals(id, status, approved_at, professor_id, professor:professor_id(full_name))
+          professor_approvals(id, status, approved_at, professor_id, professor:professor_id(full_name, designation))
         )
       `,
         )
@@ -911,13 +902,7 @@ router.get(
 
       if (error) throw error;
 
-      const UNDERGRAD_PROF_PREREQS = {
-        "Department Chairman": [],
-        "College Dean": ["Department Chairman"],
-        "Director Student Affairs": ["College Dean"],
-        "NSTP Director": ["Director Student Affairs"],
-        "Executive Officer": ["NSTP Director"],
-      };
+
 
       const healedRawApprovals = [];
       for (const app of (rawApprovals || []).filter(
@@ -936,13 +921,13 @@ router.get(
 
       const approvals = healedRawApprovals.map((app) => {
         let is_locked = false;
-        const myName = app.professor?.full_name;
+        const myDesignation = app.professor?.designation;
         const otherApps = app.request?.professor_approvals || [];
 
-        const prereqs = UNDERGRAD_PROF_PREREQS[myName] || [];
-        for (const prereqName of prereqs) {
+        const prereqs = UNDERGRAD_PREREQS[myDesignation] || [];
+        for (const prereqDesig of prereqs) {
           const prev = otherApps.find(
-            (oa) => oa.professor?.full_name === prereqName,
+            (oa) => oa.professor?.designation === prereqDesig,
           );
           if (prev && prev.status !== "approved") {
             is_locked = true;
@@ -951,18 +936,18 @@ router.get(
         }
 
         if (!is_locked && app.request) {
-          if (myName === "NSTP Director") {
+          if (myDesignation === DESIGNATIONS.NSTP_DIRECTOR) {
             if (
               app.request.library_status !== "approved" ||
               app.request.cashier_status !== "approved"
             ) {
               is_locked = true;
             }
-          } else if (myName === "Executive Officer") {
+          } else if (myDesignation === DESIGNATIONS.EXECUTIVE_OFFICER) {
             if (app.request.cashier_status !== "approved") {
               is_locked = true;
             }
-          } else if (myName === "Dean Graduate School") {
+          } else if (myDesignation === DESIGNATIONS.DEAN_GRADUATE_SCHOOL) {
             if (
               app.request.cashier_status !== "approved" ||
               app.request.library_status !== "approved" ||
@@ -983,10 +968,7 @@ router.get(
       });
     } catch (error) {
       console.error("Error getting professor students:", error);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
+      safeErrorResponse(res, error);
     }
   },
 );
@@ -1144,7 +1126,7 @@ router.post(
       }
     } catch (error) {
       console.error("Error requesting re-evaluation:", error);
-      res.status(500).json({ success: false, error: error.message });
+      safeErrorResponse(res, error);
     }
   },
 );
@@ -1158,10 +1140,24 @@ router.post(
       const { approval_id, professor_id, comments } = req.body;
 
       if (req.user.id !== professor_id) {
-        return res.status(403).json({
-          success: false,
-          error: "You can only approve as yourself",
-        });
+        const { data: delegator } = await supabase
+          .from("profiles")
+          .select("delegated_to, delegation_expires_at")
+          .eq("id", professor_id)
+          .single();
+
+        const isActiveDelegate =
+          delegator &&
+          delegator.delegated_to === req.user.id &&
+          delegator.delegation_expires_at &&
+          new Date(delegator.delegation_expires_at) > new Date();
+
+        if (!isActiveDelegate) {
+          return res.status(403).json({
+            success: false,
+            error: "You can only approve as yourself or as an active delegate",
+          });
+        }
       }
 
       if (comments && comments.length > MAX_COMMENT_LENGTH) {
@@ -1175,7 +1171,7 @@ router.post(
 
       const { data: currentApproval, error: fetchErr } = await supabase
         .from("professor_approvals")
-        .select("id, request_id, status, professor:professor_id(full_name)")
+        .select("id, request_id, status, professor:professor_id(full_name, designation)")
         .eq("id", approval_id)
         .eq("professor_id", professor_id)
         .single();
@@ -1186,21 +1182,14 @@ router.post(
           .json({ success: false, error: "Approval record not found" });
       }
 
-      const myName = currentApproval.professor?.full_name;
-      const UNDERGRAD_PROF_PREREQS = {
-        "Department Chairman": [],
-        "College Dean": ["Department Chairman"],
-        "Director Student Affairs": ["College Dean"],
-        "NSTP Director": ["Director Student Affairs"],
-        "Executive Officer": ["NSTP Director"],
-      };
+      const myDesignation = currentApproval.professor?.designation;
 
-      const prereqs = UNDERGRAD_PROF_PREREQS[myName] || [];
+      const prereqs = UNDERGRAD_PREREQS[myDesignation] || [];
       if (prereqs.length > 0) {
         const { data: rawPrereqApprovals } = await supabase
           .from("professor_approvals")
           .select(
-            "status, approved_at, professor_id, professor:professor_id(full_name)",
+            "status, approved_at, professor_id, professor:professor_id(full_name, designation)",
           )
           .eq("request_id", currentApproval.request_id);
 
@@ -1209,22 +1198,22 @@ router.post(
           currentApproval.request_id,
         );
 
-        for (const prereqName of prereqs) {
+        for (const prereqDesig of prereqs) {
           const prev = allApprovals.find(
-            (a) => a.professor?.full_name === prereqName,
+            (a) => a.professor?.designation === prereqDesig,
           );
           if (!prev || prev.status !== "approved") {
             return res.status(400).json({
               success: false,
-              error: `Cannot approve yet — ${prereqName} must approve first`,
+              error: `Cannot approve yet — ${prereqDesig} must approve first`,
             });
           }
         }
       }
 
       if (
-        ["NSTP Director", "Executive Officer", "Dean Graduate School"].includes(
-          myName,
+        [DESIGNATIONS.NSTP_DIRECTOR, DESIGNATIONS.EXECUTIVE_OFFICER, DESIGNATIONS.DEAN_GRADUATE_SCHOOL].includes(
+          myDesignation,
         )
       ) {
         const { data: request } = await supabase
@@ -1235,7 +1224,7 @@ router.post(
 
         if (request) {
           if (
-            myName === "NSTP Director" &&
+            myDesignation === DESIGNATIONS.NSTP_DIRECTOR &&
             (request.library_status !== "approved" ||
               request.cashier_status !== "approved")
           ) {
@@ -1248,7 +1237,7 @@ router.post(
               });
           }
           if (
-            myName === "Executive Officer" &&
+            myDesignation === DESIGNATIONS.EXECUTIVE_OFFICER &&
             request.cashier_status !== "approved"
           ) {
             return res
@@ -1259,7 +1248,7 @@ router.post(
               });
           }
           if (
-            myName === "Dean Graduate School" &&
+            myDesignation === DESIGNATIONS.DEAN_GRADUATE_SCHOOL &&
             (request.cashier_status !== "approved" ||
               request.library_status !== "approved" ||
               request.registrar_status !== "approved")
@@ -1313,38 +1302,39 @@ router.post(
         message: "Student approved successfully",
       });
 
-      logAction(professor_id, ACTIONS.CLEARANCE_PROFESSOR_APPROVED, {
-        targetId: data.request_id,
-        targetType: "request",
-        metadata: { approval_id, comments },
-      });
+      try {
+        logAction(professor_id, ACTIONS.CLEARANCE_PROFESSOR_APPROVED, {
+          targetId: data.request_id,
+          targetType: "request",
+          metadata: { approval_id, comments },
+        });
 
-      const { data: profProfile } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("id", professor_id)
-        .single();
-      const stageName = profProfile?.full_name || "Professor/Signatory";
-      notifyClearanceStatusChange(
-        data.request_id,
-        "approved",
-        stageName,
-        comments,
-      );
-      logStatusChange(
-        data.request_id,
-        `signatory`,
-        "pending",
-        "approved",
-        professor_id,
-        comments,
-      );
+        const { data: profProfile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", professor_id)
+          .single();
+        const stageName = profProfile?.full_name || "Professor/Signatory";
+        notifyClearanceStatusChange(
+          data.request_id,
+          "approved",
+          stageName,
+          comments,
+        );
+        logStatusChange(
+          data.request_id,
+          `signatory`,
+          "pending",
+          "approved",
+          professor_id,
+          comments,
+        );
+      } catch (postErr) {
+        console.warn("Post-response side-effect error (professor/approve):", postErr.message);
+      }
     } catch (error) {
       console.error("Error approving student:", error);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
+      safeErrorResponse(res, error);
     }
   },
 );
@@ -1421,38 +1411,39 @@ router.post(
         message: "Student rejected with comments",
       });
 
-      logAction(professor_id, ACTIONS.CLEARANCE_PROFESSOR_REJECTED, {
-        targetId: data.request_id,
-        targetType: "request",
-        metadata: { approval_id, comments },
-      });
+      try {
+        logAction(professor_id, ACTIONS.CLEARANCE_PROFESSOR_REJECTED, {
+          targetId: data.request_id,
+          targetType: "request",
+          metadata: { approval_id, comments },
+        });
 
-      const { data: profProfile } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("id", professor_id)
-        .single();
-      const stageName = profProfile?.full_name || "Professor/Signatory";
-      notifyClearanceStatusChange(
-        data.request_id,
-        "rejected",
-        stageName,
-        comments,
-      );
-      logStatusChange(
-        data.request_id,
-        `signatory`,
-        "pending",
-        "rejected",
-        professor_id,
-        comments,
-      );
+        const { data: profProfile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", professor_id)
+          .single();
+        const stageName = profProfile?.full_name || "Professor/Signatory";
+        notifyClearanceStatusChange(
+          data.request_id,
+          "rejected",
+          stageName,
+          comments,
+        );
+        logStatusChange(
+          data.request_id,
+          `signatory`,
+          "pending",
+          "rejected",
+          professor_id,
+          comments,
+        );
+      } catch (postErr) {
+        console.warn("Post-response side-effect error (professor/reject):", postErr.message);
+      }
     } catch (error) {
       console.error("Error rejecting student:", error);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
+      safeErrorResponse(res, error);
     }
   },
 );
@@ -1490,22 +1481,15 @@ router.get(
 
       if (error) throw error;
 
-      for (const req of requests || []) {
-        if (req.professor_approvals) {
-          req.professor_approvals = await healApprovals(
-            req.professor_approvals,
-            req.id,
+      for (const request of requests || []) {
+        if (request.professor_approvals) {
+          request.professor_approvals = await healApprovals(
+            request.professor_approvals,
+            request.id,
           );
         }
       }
 
-      const UNDERGRAD_NAMES = [
-        "Department Chairman",
-        "College Dean",
-        "Director Student Affairs",
-        "NSTP Director",
-        "Executive Officer",
-      ];
       const eligible = (requests || []).filter((req) => {
         const approvals = req.professor_approvals || [];
 
@@ -1513,11 +1497,11 @@ router.get(
           req.portion === "undergraduate" ||
           (!req.portion &&
             approvals.some((a) =>
-              UNDERGRAD_NAMES.includes(a.professor?.full_name),
+              isUndergradDesignation(a.professor?.designation),
             ));
         if (isUndergrad) {
           const dsa = approvals.find(
-            (a) => a.professor?.full_name === "Director Student Affairs",
+            (a) => a.professor?.designation === DESIGNATIONS.DIRECTOR_STUDENT_AFFAIRS,
           );
           return dsa?.status === "approved";
         } else {
@@ -1534,10 +1518,7 @@ router.get(
       });
     } catch (error) {
       console.error("Error getting library pending:", error);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
+      safeErrorResponse(res, error);
     }
   },
 );
@@ -1549,6 +1530,12 @@ router.post(
   async (req, res) => {
     try {
       const { request_id, admin_id, comments } = req.body;
+
+      if (req.user.id !== admin_id) {
+        return res
+          .status(403)
+          .json({ success: false, error: "You can only approve as yourself" });
+      }
 
       if (comments && comments.length > MAX_COMMENT_LENGTH) {
         return res
@@ -1586,31 +1573,32 @@ router.post(
         message: "Library clearance approved",
       });
 
-      logAction(admin_id, ACTIONS.CLEARANCE_LIBRARY_APPROVED, {
-        targetId: request_id,
-        targetType: "request",
-        metadata: { comments },
-      });
-      notifyClearanceStatusChange(
-        request_id,
-        "approved",
-        "Campus Librarian",
-        comments,
-      );
-      logStatusChange(
-        request_id,
-        "library",
-        "pending",
-        "approved",
-        admin_id,
-        comments,
-      );
+      try {
+        logAction(admin_id, ACTIONS.CLEARANCE_LIBRARY_APPROVED, {
+          targetId: request_id,
+          targetType: "request",
+          metadata: { comments },
+        });
+        notifyClearanceStatusChange(
+          request_id,
+          "approved",
+          "Campus Librarian",
+          comments,
+        );
+        logStatusChange(
+          request_id,
+          "library",
+          "pending",
+          "approved",
+          admin_id,
+          comments,
+        );
+      } catch (postErr) {
+        console.warn("Post-response side-effect error (library/approve):", postErr.message);
+      }
     } catch (error) {
       console.error("Error approving library:", error);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
+      safeErrorResponse(res, error);
     }
   },
 );
@@ -1622,6 +1610,12 @@ router.post(
   async (req, res) => {
     try {
       const { request_id, admin_id, comments } = req.body;
+
+      if (req.user.id !== admin_id) {
+        return res
+          .status(403)
+          .json({ success: false, error: "You can only reject as yourself" });
+      }
 
       if (!comments || comments.trim() === "") {
         return res.status(400).json({
@@ -1663,31 +1657,32 @@ router.post(
         message: "Library clearance rejected",
       });
 
-      logAction(admin_id, ACTIONS.CLEARANCE_LIBRARY_REJECTED, {
-        targetId: request_id,
-        targetType: "request",
-        metadata: { comments },
-      });
-      notifyClearanceStatusChange(
-        request_id,
-        "rejected",
-        "Campus Librarian",
-        comments,
-      );
-      logStatusChange(
-        request_id,
-        "library",
-        "pending",
-        "rejected",
-        admin_id,
-        comments,
-      );
+      try {
+        logAction(admin_id, ACTIONS.CLEARANCE_LIBRARY_REJECTED, {
+          targetId: request_id,
+          targetType: "request",
+          metadata: { comments },
+        });
+        notifyClearanceStatusChange(
+          request_id,
+          "rejected",
+          "Campus Librarian",
+          comments,
+        );
+        logStatusChange(
+          request_id,
+          "library",
+          "pending",
+          "rejected",
+          admin_id,
+          comments,
+        );
+      } catch (postErr) {
+        console.warn("Post-response side-effect error (library/reject):", postErr.message);
+      }
     } catch (error) {
       console.error("Error rejecting library:", error);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
+      safeErrorResponse(res, error);
     }
   },
 );
@@ -1725,29 +1720,22 @@ router.get(
 
       if (error) throw error;
 
-      for (const req of requests || []) {
-        if (req.professor_approvals) {
-          req.professor_approvals = await healApprovals(
-            req.professor_approvals,
-            req.id,
+      for (const request of requests || []) {
+        if (request.professor_approvals) {
+          request.professor_approvals = await healApprovals(
+            request.professor_approvals,
+            request.id,
           );
         }
       }
 
-      const UNDERGRAD_NAMES = [
-        "Department Chairman",
-        "College Dean",
-        "Director Student Affairs",
-        "NSTP Director",
-        "Executive Officer",
-      ];
       const eligible = (requests || []).filter((req) => {
         const approvals = req.professor_approvals || [];
         const isUndergrad =
           req.portion === "undergraduate" ||
           (!req.portion &&
             approvals.some((a) =>
-              UNDERGRAD_NAMES.includes(a.professor?.full_name),
+              isUndergradDesignation(a.professor?.designation),
             ));
         if (isUndergrad) {
           return req.library_status === "approved";
@@ -1765,10 +1753,7 @@ router.get(
       });
     } catch (error) {
       console.error("Error getting cashier pending:", error);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
+      safeErrorResponse(res, error);
     }
   },
 );
@@ -1780,6 +1765,12 @@ router.post(
   async (req, res) => {
     try {
       const { request_id, admin_id, comments } = req.body;
+
+      if (req.user.id !== admin_id) {
+        return res
+          .status(403)
+          .json({ success: false, error: "You can only approve as yourself" });
+      }
 
       if (comments && comments.length > MAX_COMMENT_LENGTH) {
         return res
@@ -1817,31 +1808,32 @@ router.post(
         message: "Cashier clearance approved",
       });
 
-      logAction(admin_id, ACTIONS.CLEARANCE_CASHIER_APPROVED, {
-        targetId: request_id,
-        targetType: "request",
-        metadata: { comments },
-      });
-      notifyClearanceStatusChange(
-        request_id,
-        "approved",
-        "Chief Accountant",
-        comments,
-      );
-      logStatusChange(
-        request_id,
-        "cashier",
-        "pending",
-        "approved",
-        admin_id,
-        comments,
-      );
+      try {
+        logAction(admin_id, ACTIONS.CLEARANCE_CASHIER_APPROVED, {
+          targetId: request_id,
+          targetType: "request",
+          metadata: { comments },
+        });
+        notifyClearanceStatusChange(
+          request_id,
+          "approved",
+          "Chief Accountant",
+          comments,
+        );
+        logStatusChange(
+          request_id,
+          "cashier",
+          "pending",
+          "approved",
+          admin_id,
+          comments,
+        );
+      } catch (postErr) {
+        console.warn("Post-response side-effect error (cashier/approve):", postErr.message);
+      }
     } catch (error) {
       console.error("Error approving cashier:", error);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
+      safeErrorResponse(res, error);
     }
   },
 );
@@ -1853,6 +1845,12 @@ router.post(
   async (req, res) => {
     try {
       const { request_id, admin_id, comments } = req.body;
+
+      if (req.user.id !== admin_id) {
+        return res
+          .status(403)
+          .json({ success: false, error: "You can only reject as yourself" });
+      }
 
       if (!comments || comments.trim() === "") {
         return res.status(400).json({
@@ -1894,31 +1892,32 @@ router.post(
         message: "Cashier clearance rejected",
       });
 
-      logAction(admin_id, ACTIONS.CLEARANCE_CASHIER_REJECTED, {
-        targetId: request_id,
-        targetType: "request",
-        metadata: { comments },
-      });
-      notifyClearanceStatusChange(
-        request_id,
-        "rejected",
-        "Chief Accountant",
-        comments,
-      );
-      logStatusChange(
-        request_id,
-        "cashier",
-        "pending",
-        "rejected",
-        admin_id,
-        comments,
-      );
+      try {
+        logAction(admin_id, ACTIONS.CLEARANCE_CASHIER_REJECTED, {
+          targetId: request_id,
+          targetType: "request",
+          metadata: { comments },
+        });
+        notifyClearanceStatusChange(
+          request_id,
+          "rejected",
+          "Chief Accountant",
+          comments,
+        );
+        logStatusChange(
+          request_id,
+          "cashier",
+          "pending",
+          "rejected",
+          admin_id,
+          comments,
+        );
+      } catch (postErr) {
+        console.warn("Post-response side-effect error (cashier/reject):", postErr.message);
+      }
     } catch (error) {
       console.error("Error rejecting cashier:", error);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
+      safeErrorResponse(res, error);
     }
   },
 );
@@ -1965,33 +1964,26 @@ router.get(
 
       if (error) throw error;
 
-      for (const req of requests || []) {
-        if (req.professor_approvals) {
-          req.professor_approvals = await healApprovals(
-            req.professor_approvals,
-            req.id,
+      for (const request of requests || []) {
+        if (request.professor_approvals) {
+          request.professor_approvals = await healApprovals(
+            request.professor_approvals,
+            request.id,
           );
         }
       }
 
-      const UNDERGRAD_NAMES = [
-        "Department Chairman",
-        "College Dean",
-        "Director Student Affairs",
-        "NSTP Director",
-        "Executive Officer",
-      ];
       const eligible = (requests || []).filter((req) => {
         const approvals = req.professor_approvals || [];
         const isUndergrad =
           req.portion === "undergraduate" ||
           (!req.portion &&
             approvals.some((a) =>
-              UNDERGRAD_NAMES.includes(a.professor?.full_name),
+              isUndergradDesignation(a.professor?.designation),
             ));
         if (isUndergrad) {
           const nstp = approvals.find(
-            (a) => a.professor?.full_name === "NSTP Director",
+            (a) => a.professor?.designation === DESIGNATIONS.NSTP_DIRECTOR,
           );
           return nstp?.status === "approved";
         } else {
@@ -2008,10 +2000,7 @@ router.get(
       });
     } catch (error) {
       console.error("Error getting registrar pending:", error);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
+      safeErrorResponse(res, error);
     }
   },
 );
@@ -2023,6 +2012,12 @@ router.post(
   async (req, res) => {
     try {
       const { request_id, admin_id, comments } = req.body;
+
+      if (req.user.id !== admin_id) {
+        return res
+          .status(403)
+          .json({ success: false, error: "You can only approve as yourself" });
+      }
 
       if (comments && comments.length > MAX_COMMENT_LENGTH) {
         return res
@@ -2071,35 +2066,36 @@ router.post(
           : "Registrar approved. Waiting for remaining approvals to complete clearance.",
       });
 
-      logAction(admin_id, ACTIONS.CLEARANCE_REGISTRAR_APPROVED, {
-        targetId: request_id,
-        targetType: "request",
-        metadata: {
+      try {
+        logAction(admin_id, ACTIONS.CLEARANCE_REGISTRAR_APPROVED, {
+          targetId: request_id,
+          targetType: "request",
+          metadata: {
+            comments,
+            completed,
+            certificateNumber: updated?.certificate_number,
+          },
+        });
+        notifyClearanceStatusChange(
+          request_id,
+          completed ? "completed" : "approved",
+          "Record Evaluator",
           comments,
-          completed,
-          certificateNumber: updated?.certificate_number,
-        },
-      });
-      notifyClearanceStatusChange(
-        request_id,
-        completed ? "completed" : "approved",
-        "Record Evaluator",
-        comments,
-      );
-      logStatusChange(
-        request_id,
-        "registrar",
-        "pending",
-        "approved",
-        admin_id,
-        comments,
-      );
+        );
+        logStatusChange(
+          request_id,
+          "registrar",
+          "pending",
+          "approved",
+          admin_id,
+          comments,
+        );
+      } catch (postErr) {
+        console.warn("Post-response side-effect error (registrar/approve):", postErr.message);
+      }
     } catch (error) {
       console.error("Error approving registrar:", error);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
+      safeErrorResponse(res, error);
     }
   },
 );
@@ -2111,6 +2107,12 @@ router.post(
   async (req, res) => {
     try {
       const { request_id, admin_id, comments } = req.body;
+
+      if (req.user.id !== admin_id) {
+        return res
+          .status(403)
+          .json({ success: false, error: "You can only reject as yourself" });
+      }
 
       if (!comments || comments.trim() === "") {
         return res.status(400).json({
@@ -2152,31 +2154,32 @@ router.post(
         message: "Registrar clearance rejected",
       });
 
-      logAction(admin_id, ACTIONS.CLEARANCE_REGISTRAR_REJECTED, {
-        targetId: request_id,
-        targetType: "request",
-        metadata: { comments },
-      });
-      notifyClearanceStatusChange(
-        request_id,
-        "rejected",
-        "Record Evaluator",
-        comments,
-      );
-      logStatusChange(
-        request_id,
-        "registrar",
-        "pending",
-        "rejected",
-        admin_id,
-        comments,
-      );
+      try {
+        logAction(admin_id, ACTIONS.CLEARANCE_REGISTRAR_REJECTED, {
+          targetId: request_id,
+          targetType: "request",
+          metadata: { comments },
+        });
+        notifyClearanceStatusChange(
+          request_id,
+          "rejected",
+          "Record Evaluator",
+          comments,
+        );
+        logStatusChange(
+          request_id,
+          "registrar",
+          "pending",
+          "rejected",
+          admin_id,
+          comments,
+        );
+      } catch (postErr) {
+        console.warn("Post-response side-effect error (registrar/reject):", postErr.message);
+      }
     } catch (error) {
       console.error("Error rejecting registrar:", error);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
+      safeErrorResponse(res, error);
     }
   },
 );
@@ -2219,10 +2222,7 @@ router.post(
       });
     } catch (error) {
       console.error("Error assigning professor:", error);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
+      safeErrorResponse(res, error);
     }
   },
 );
@@ -2247,10 +2247,7 @@ router.get(
       });
     } catch (error) {
       console.error("Error getting professors:", error);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
+      safeErrorResponse(res, error);
     }
   },
 );
@@ -2341,12 +2338,24 @@ router.post(
         }
       }
 
-      notifyBulkAction(results.approved, "approved", stageDisplayName);
+      try {
+        notifyBulkAction(results.approved, "approved", stageDisplayName);
+      } catch (notifyErr) {
+        console.warn("Bulk approve notification failed:", notifyErr.message);
+      }
 
-      res.json({ success: true, results });
+      const partialSuccess = results.failed.length > 0 && results.approved.length > 0;
+      res.json({
+        success: true,
+        partialSuccess,
+        results,
+        message: partialSuccess
+          ? `${results.approved.length} approved, ${results.failed.length} failed`
+          : `${results.approved.length} approved successfully`,
+      });
     } catch (error) {
       console.error("Bulk approve error:", error);
-      res.status(500).json({ success: false, error: error.message });
+      safeErrorResponse(res, error);
     }
   },
 );
@@ -2445,12 +2454,24 @@ router.post(
         }
       }
 
-      notifyBulkAction(results.rejected, "rejected", stageDisplayName);
+      try {
+        notifyBulkAction(results.rejected, "rejected", stageDisplayName);
+      } catch (notifyErr) {
+        console.warn("Bulk reject notification failed:", notifyErr.message);
+      }
 
-      res.json({ success: true, results });
+      const partialSuccess = results.failed.length > 0 && results.rejected.length > 0;
+      res.json({
+        success: true,
+        partialSuccess,
+        results,
+        message: partialSuccess
+          ? `${results.rejected.length} rejected, ${results.failed.length} failed`
+          : `${results.rejected.length} rejected successfully`,
+      });
     } catch (error) {
       console.error("Bulk reject error:", error);
-      res.status(500).json({ success: false, error: error.message });
+      safeErrorResponse(res, error);
     }
   },
 );

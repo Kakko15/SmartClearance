@@ -1,6 +1,12 @@
 const supabase = require("../supabaseClient");
 const { notifyRequestEscalated } = require("./notificationService");
 
+if (!process.env.SUPER_ADMIN_EMAIL) {
+  console.warn(
+    "[Escalation] SUPER_ADMIN_EMAIL is not set — escalation emails to admin will be skipped.",
+  );
+}
+
 async function snapshotApprovals(requestId) {
   const { data } = await supabase
     .from("professor_approvals")

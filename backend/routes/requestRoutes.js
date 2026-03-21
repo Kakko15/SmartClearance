@@ -11,6 +11,7 @@ const {
 const { generateCertificate } = require("../services/certificateService");
 const { classifyAndRouteRequest } = require("../services/aiRequestRouter");
 const { requireAuth } = require("../middleware/authMiddleware");
+const { safeErrorResponse } = require("../utils/safeError");
 const {
   ROLES,
   isClearanceRole,
@@ -156,7 +157,7 @@ router.post("/create", requireAuth, async (req, res) => {
     });
   } catch (error) {
     console.error("Request creation error:", error);
-    res.status(500).json({ success: false, error: error.message });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -246,7 +247,7 @@ router.post("/:id/approve", requireAuth, async (req, res) => {
       message: isLastStage ? "Request completed!" : "Moved to next stage",
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -318,7 +319,7 @@ router.post("/:id/reject", requireAuth, async (req, res) => {
       message: "Request rejected and put on hold",
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -378,7 +379,7 @@ router.post("/:id/resubmit", requireAuth, async (req, res) => {
       message: "Request resubmitted for review",
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -407,7 +408,7 @@ router.get("/student/:student_id", requireAuth, async (req, res) => {
 
     res.json({ success: true, requests: data });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -460,7 +461,7 @@ router.get("/admin/:role", requireAuth, async (req, res) => {
 
     res.json({ success: true, requests: filteredRequests });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -478,7 +479,7 @@ router.get("/:id/history", requireAuth, async (req, res) => {
 
     res.json({ success: true, history: data });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -526,7 +527,7 @@ router.delete("/:id/delete", requireAuth, async (req, res) => {
       message: "Request deleted successfully",
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    safeErrorResponse(res, error);
   }
 });
 

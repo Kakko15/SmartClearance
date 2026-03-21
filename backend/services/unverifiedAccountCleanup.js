@@ -33,8 +33,6 @@ async function cleanupUnverifiedAccounts() {
     let deleted = 0;
     for (const user of unverifiedUsers) {
       try {
-        await supabase.from("profiles").delete().eq("id", user.id);
-
         const { error: deleteError } = await supabase.auth.admin.deleteUser(
           user.id,
         );
@@ -44,6 +42,17 @@ async function cleanupUnverifiedAccounts() {
             deleteError.message,
           );
           continue;
+        }
+
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .delete()
+          .eq("id", user.id);
+        if (profileError) {
+          console.warn(
+            `[Cleanup] Auth user ${user.id} deleted but profile cleanup failed:`,
+            profileError.message,
+          );
         }
 
         deleted++;

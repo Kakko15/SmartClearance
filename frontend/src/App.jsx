@@ -126,6 +126,7 @@ function App() {
     backToRoleSelection,
     complete2FA,
     cancel2FA,
+    skip2FASetup,
   } = auth;
   const { isDarkMode, themePreference, toggleTheme } = useTheme();
   const location = useLocation();
@@ -149,7 +150,7 @@ function App() {
               email={pendingUser.email}
               isDark={isDarkMode}
               onComplete={complete2FA}
-              onSkip={cancel2FA}
+              onSkip={skip2FASetup}
             />
           ) : (
             <TwoFactorVerify
@@ -200,7 +201,7 @@ function App() {
                     transition={{ duration: 0.3, ease: "easeInOut" }}
                     className={`relative z-40 ${isDarkMode ? "bg-slate-950" : "bg-white"}`}
                   >
-                    {}
+
                     <LandingPage
                       onEnter={() => navigate("/select-role")}
                       isDark={isDarkMode}
@@ -225,7 +226,7 @@ function App() {
                     transition={{ duration: 0.3, ease: "easeInOut" }}
                     className={`relative z-40 ${isDarkMode ? "bg-slate-950" : "bg-white"}`}
                   >
-                    {}
+
                     <RoleSelectionPage
                       onRoleSelect={handleRoleSelect}
                       onBackToHome={() => navigate("/home")}
@@ -245,9 +246,9 @@ function App() {
                   Object.keys(localStorage).some(
                     (k) => k.startsWith("sb-") && k.endsWith("-auth-token"),
                   ) ? (
-                  <div className="min-h-screen flex items-center justify-center">
-                    {}
+                  <div className="min-h-screen flex flex-col items-center justify-center gap-3">
                     <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                    <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>Loading your session...</p>
                   </div>
                 ) : (
                   <motion.div
@@ -274,9 +275,10 @@ function App() {
               element={
                 !isAuthenticated ? (
                   initializing ? (
-                    <div className="min-h-screen flex items-center justify-center">
-                      {}
+                    <div className="min-h-screen flex flex-col items-center justify-center gap-3">
+  
                       <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                      <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>Loading your session...</p>
                     </div>
                   ) : (
                     <Navigate

@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const supabase = require("../supabaseClient");
 const { requireAuth } = require("../middleware/authMiddleware");
+const { safeErrorResponse } = require("../utils/safeError");
 const { isStaffRole, isManagementRole } = require("../constants/roles");
 const {
   checkAndEscalateRequests,
@@ -31,10 +32,7 @@ router.post("/check", requireAuth, async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error("Error checking escalations:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -60,10 +58,7 @@ router.get("/stats", requireAuth, async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error("Error getting escalation stats:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -97,10 +92,7 @@ router.post("/manual", requireAuth, async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error("Error manually escalating:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -153,10 +145,7 @@ router.get("/history/:request_id", requireAuth, async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching escalation history:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    safeErrorResponse(res, error);
   }
 });
 

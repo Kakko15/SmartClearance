@@ -25,15 +25,15 @@ async function classifyAndRouteRequest(requestData) {
 
     if (studentError) throw studentError;
 
-    const classification = await performIntelligentClassification({
+    const classification = await performRuleBasedClassification({
       docType,
       student,
       requestDetails: request_details,
     });
 
-    const routing = await determineOptimalRouting(classification, docType);
+    const routing = await determineRouting(classification, docType);
 
-    await logAIDecision({
+    await logRoutingDecision({
       student_id,
       doc_type_id,
       classification,
@@ -45,7 +45,7 @@ async function classifyAndRouteRequest(requestData) {
       success: true,
       classification,
       routing,
-      aiProcessed: true,
+      aiProcessed: false,
     };
   } catch (error) {
     console.error("AI Classification Error:", error);
@@ -57,7 +57,7 @@ async function classifyAndRouteRequest(requestData) {
   }
 }
 
-async function performIntelligentClassification(context) {
+async function performRuleBasedClassification(context) {
   const { docType, student, requestDetails } = context;
 
   const keywords = extractKeywords(docType.name, requestDetails);
@@ -72,17 +72,19 @@ async function performIntelligentClassification(context) {
 
   const urgency = determineUrgency(priorityScore);
 
+  const confidence = Math.min(0.5 + keywords.length * 0.15, 0.9);
+
   return {
     category,
     priorityScore,
     urgency,
     keywords,
-    confidence: 0.95,
+    confidence,
     processingMethod: "rule-based",
   };
 }
 
-async function determineOptimalRouting(classification, docType) {
+async function determineRouting(classification, docType) {
   const requiredStages = docType.required_stages || [];
 
   const initialStage = requiredStages[0] || "registrar";
@@ -173,7 +175,7 @@ function estimateProcessingTime(classification, stageCount) {
   return Math.ceil(estimatedTime);
 }
 
-async function logAIDecision(decisionData) {
+async function logRoutingDecision(decisionData) {
   try {
     const { error } = await supabase.from("ai_routing_logs").insert({
       student_id: decisionData.student_id,

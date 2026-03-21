@@ -363,7 +363,8 @@ export function AuthProvider({ children }) {
   };
 
   const complete2FA = () => {
-    sessionStorage.setItem("2fa_verified", pendingUser.id);
+    const userId = pendingUser.id;
+    sessionStorage.setItem("2fa_verified", userId);
     setUser(pendingUser);
     setProfile(pendingProfile);
     setTwoFactorPending(false);
@@ -372,7 +373,7 @@ export function AuthProvider({ children }) {
     supabase
       .from("profiles")
       .update({ last_login: new Date().toISOString() })
-      .eq("id", pendingUser.id)
+      .eq("id", userId)
       .then(({ error }) => {
         if (error) {
           console.error("last_login update failed:", error);
@@ -380,7 +381,7 @@ export function AuthProvider({ children }) {
             supabase
               .from("profiles")
               .update({ last_login: new Date().toISOString() })
-              .eq("id", pendingUser.id);
+              .eq("id", userId);
           }, 2000);
         }
       });
@@ -394,6 +395,26 @@ export function AuthProvider({ children }) {
     sessionStorage.removeItem("2fa_verified");
     roleMismatchRef.current = true;
     await supabase.auth.signOut();
+  };
+
+  const skip2FASetup = () => {
+    const userId = pendingUser.id;
+    sessionStorage.setItem("2fa_verified", userId);
+    setUser(pendingUser);
+    setProfile(pendingProfile);
+    setTwoFactorPending(false);
+    setPendingUser(null);
+    setPendingProfile(null);
+    supabase
+      .from("profiles")
+      .update({ last_login: new Date().toISOString() })
+      .eq("id", userId)
+      .then(({ error }) => {
+        if (error) {
+          console.error("last_login update failed:", error);
+        }
+      });
+    navigateRef.current?.("/dashboard");
   };
 
   const IDLE_TIMEOUT_MS =
@@ -449,8 +470,12 @@ export function AuthProvider({ children }) {
   }, []);
 
   const handleIdleWarning = useCallback((secondsLeft) => {
+    const timeText =
+      secondsLeft < 60
+        ? `${secondsLeft} seconds`
+        : `${Math.floor(secondsLeft / 60)}m ${secondsLeft % 60}s`;
     toast(
-      `Session expiring in ${Math.ceil(secondsLeft / 60)} min due to inactivity. Move your mouse to stay signed in.`,
+      `Session expiring in ${timeText} due to inactivity. Move your mouse to stay signed in.`,
       {
         icon: "⏳",
         duration: 10000,
@@ -490,6 +515,7 @@ export function AuthProvider({ children }) {
     backToRoleSelection,
     complete2FA,
     cancel2FA,
+    skip2FASetup,
     setNavigate,
     skipNextValidationRef,
   };

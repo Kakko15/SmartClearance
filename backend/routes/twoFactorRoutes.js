@@ -4,8 +4,14 @@ const crypto = require("crypto");
 const rateLimit = require("express-rate-limit");
 const { generateSecret, verifySync, generateURI } = require("otplib");
 const QRCode = require("qrcode");
-const nodemailer = require("nodemailer");
 const supabase = require("../supabaseClient");
+const { createClient } = require("@supabase/supabase-js");
+const {
+  buildGoogleEmail,
+  getLogoAttachment,
+} = require("../utils/emailTemplate");
+const { getEmailTransporter } = require("../utils/emailTransporter");
+const { encryptSecret, decryptSecret } = require("../utils/totpEncryption");
 
 const { requireAuth, optionalAuth } = require("../middleware/authMiddleware");
 
@@ -99,30 +105,10 @@ const verifyOtpLimiter = rateLimit({
   skipSuccessfulRequests: true,
 });
 
-let _transporter = null;
-function getTransporter() {
-  if (!_transporter) {
-    _transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST,
-      port: parseInt(process.env.EMAIL_PORT),
-      secure: process.env.EMAIL_SECURE === "true",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD,
-      },
-      pool: true,
-      maxConnections: 3,
-      maxMessages: 100,
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
-    });
-  }
-  return _transporter;
-}
+
 
 try {
-  const t = getTransporter();
+  const t = getEmailTransporter();
   t.verify()
     .then(() => {
       console.log("[SMTP] Connection pool ready");
@@ -186,7 +172,7 @@ router.post("/setup", optionalAuth, async (req, res) => {
 
     const { error } = await supabase
       .from("profiles")
-      .update({ totp_secret: secret, totp_enabled: false })
+      .update({ totp_secret: encryptSecret(secret), totp_enabled: false })
       .eq("id", userId);
 
     if (error) {
@@ -255,7 +241,7 @@ router.post("/verify-setup", optionalAuth, async (req, res) => {
 
     const setupResult = verifySync({
       token: token.toString(),
-      secret: profile.totp_secret,
+      secret: decryptSecret(profile.totp_secret),
       epochTolerance: 30,
     });
 
@@ -315,7 +301,7 @@ router.post(
 
       const loginResult = verifySync({
         token: token.toString(),
-        secret: profile.totp_secret,
+        secret: decryptSecret(profile.totp_secret),
         epochTolerance: 30,
       });
 
@@ -402,20 +388,10 @@ router.post(
           });
       }
 
-      res.json({
-        success: true,
-        message: "Verification code sent to your email",
-        expiresIn: OTP_EXPIRY_MS,
-        resendCooldown: Math.round(nextCooldownMs / 1000),
-      });
-
       const expiryMinutes = Math.round(OTP_EXPIRY_MS / 60000);
-      const transporter = getTransporter();
+      const transporter = getEmailTransporter();
 
-      const {
-        buildGoogleEmail,
-        getLogoAttachment,
-      } = require("../utils/emailTemplate");
+
       const htmlBody = buildGoogleEmail(
         "Login Verification",
         "Identity verification",
@@ -426,20 +402,20 @@ router.post(
         },
       );
 
-      transporter
-        .sendMail({
-          from: process.env.EMAIL_FROM,
-          to: email,
-          subject: "Your Login Verification Code - SmartClearance",
-          html: htmlBody,
-          attachments: getLogoAttachment(),
-        })
-        .catch((emailErr) => {
-          console.error(
-            "[send-email-otp] Background email send failed:",
-            emailErr.message,
-          );
-        });
+      await transporter.sendMail({
+        from: process.env.EMAIL_FROM,
+        to: email,
+        subject: "Your Login Verification Code - SmartClearance",
+        html: htmlBody,
+        attachments: getLogoAttachment(),
+      });
+
+      res.json({
+        success: true,
+        message: "Verification code sent to your email",
+        expiresIn: OTP_EXPIRY_MS,
+        resendCooldown: Math.round(nextCooldownMs / 1000),
+      });
     } catch (error) {
       console.error("Send email OTP error:", error.message, error.stack);
 
@@ -570,7 +546,6 @@ router.post(
           });
       }
 
-      const { createClient } = require("@supabase/supabase-js");
       const tempClient = createClient(
         process.env.SUPABASE_URL,
         process.env.SUPABASE_KEY,
@@ -652,7 +627,7 @@ router.post(
 
       const { error } = await supabase
         .from("profiles")
-        .update({ totp_secret: pending.tokenValue, totp_enabled: true })
+        .update({ totp_secret: encryptSecret(pending.tokenValue), totp_enabled: true })
         .eq("id", userId);
 
       if (error) {

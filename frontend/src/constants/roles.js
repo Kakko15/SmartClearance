@@ -1,5 +1,4 @@
 export const ROLES = {
-  SYSTEM_ADMIN: "system_admin",
   SUPER_ADMIN: "super_admin",
   LIBRARIAN: "librarian",
   CASHIER: "cashier",
@@ -9,7 +8,6 @@ export const ROLES = {
 };
 
 export const ROLE_LABELS = {
-  [ROLES.SYSTEM_ADMIN]: "System Admin",
   [ROLES.SUPER_ADMIN]: "Super Admin",
   [ROLES.LIBRARIAN]: "Librarian",
   [ROLES.CASHIER]: "Cashier",
@@ -32,7 +30,7 @@ export const SECRET_CODE_ROLES = [
   ROLES.REGISTRAR,
 ];
 
-export const MANAGEMENT_ROLES = [ROLES.SUPER_ADMIN, ROLES.SYSTEM_ADMIN];
+export const MANAGEMENT_ROLES = [ROLES.SUPER_ADMIN];
 
 export const isStaffRole = (role) => STAFF_ROLES.includes(role);
 export const isManagementRole = (role) => MANAGEMENT_ROLES.includes(role);

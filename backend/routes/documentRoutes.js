@@ -3,6 +3,7 @@ const router = express.Router();
 const supabase = require("../supabaseClient");
 const upload = require("../middleware/uploadMiddleware");
 const { requireAuth } = require("../middleware/authMiddleware");
+const { safeErrorResponse } = require("../utils/safeError");
 const { isStaffRole, isManagementRole } = require("../constants/roles");
 
 router.post("/upload", requireAuth, upload.single("file"), async (req, res) => {
@@ -110,10 +111,7 @@ router.post("/upload", requireAuth, upload.single("file"), async (req, res) => {
     });
   } catch (error) {
     console.error("Upload error:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -166,10 +164,7 @@ router.get("/request/:request_id", requireAuth, async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching documents:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -232,10 +227,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
     });
   } catch (error) {
     console.error("Delete error:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    safeErrorResponse(res, error);
   }
 });
 

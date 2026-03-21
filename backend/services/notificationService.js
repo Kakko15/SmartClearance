@@ -1,16 +1,10 @@
-const nodemailer = require("nodemailer");
 const supabase = require("../supabaseClient");
 const { escapeHtml } = require("../utils/escapeHtml");
-
-const emailTransporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,
-  port: parseInt(process.env.EMAIL_PORT),
-  secure: process.env.EMAIL_SECURE === "true",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD,
-  },
-});
+const {
+  buildGoogleEmail,
+  getLogoAttachment,
+} = require("../utils/emailTemplate");
+const { getEmailTransporter } = require("../utils/emailTransporter");
 
 async function resolveUserEmail(userId) {
   try {
@@ -64,15 +58,11 @@ async function sendEmail(userId, requestId, recipient, subject, message) {
 
     logData = data;
 
-    const {
-      buildGoogleEmail,
-      getLogoAttachment,
-    } = require("../utils/emailTemplate");
     const formulatedHtml = buildGoogleEmail(subject, null, message, {
       footerNote: "Please sign in to SmartClearance to view more details.",
     });
 
-    const info = await emailTransporter.sendMail({
+    const info = await getEmailTransporter().sendMail({
       from: process.env.EMAIL_FROM,
       to: recipient,
       subject: subject,
@@ -319,13 +309,21 @@ async function notifyRequestEscalated(requestId, escalationLevel, daysPending) {
       <p>SmartClearance Escalation System</p>
     `;
 
-    await sendEmail(
-      student.id,
-      requestId,
-      process.env.SUPER_ADMIN_EMAIL,
-      emailSubject,
-      emailMessage,
-    );
+    const adminEmail = process.env.SUPER_ADMIN_EMAIL;
+    if (!adminEmail) {
+      console.warn(
+        "[Escalation] SUPER_ADMIN_EMAIL not set — skipping admin escalation email for request",
+        requestId,
+      );
+    } else {
+      await sendEmail(
+        student.id,
+        requestId,
+        adminEmail,
+        emailSubject,
+        emailMessage,
+      );
+    }
 
     const studentEmail = await resolveUserEmail(student.id);
     if (!studentEmail) {

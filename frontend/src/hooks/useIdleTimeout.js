@@ -22,10 +22,19 @@ export default function useIdleTimeout({
   const warningFiredRef = useRef(false);
   const lastThrottleRef = useRef(0);
   const enabledRef = useRef(enabled);
+  const onIdleRef = useRef(onIdle);
+  const onWarningRef = useRef(onWarning);
+  const onActiveRef = useRef(onActive);
 
   useEffect(() => {
     enabledRef.current = enabled;
   }, [enabled]);
+
+  useEffect(() => {
+    onIdleRef.current = onIdle;
+    onWarningRef.current = onWarning;
+    onActiveRef.current = onActive;
+  });
 
   const STORAGE_KEY = "idle_last_active";
 
@@ -48,14 +57,14 @@ export default function useIdleTimeout({
       if (!enabledRef.current) return;
       warningFiredRef.current = true;
       const secondsLeft = Math.ceil(warningMs / 1000);
-      onWarning?.(secondsLeft);
+      onWarningRef.current?.(secondsLeft);
     }, warningDelay);
 
     timeoutRef.current = setTimeout(() => {
       if (!enabledRef.current) return;
-      onIdle();
+      onIdleRef.current();
     }, timeoutMs);
-  }, [clearTimers, timeoutMs, warningMs, onIdle, onWarning]);
+  }, [clearTimers, timeoutMs, warningMs]);
 
   const resetActivity = useCallback(() => {
     if (!enabledRef.current) return;
@@ -68,11 +77,11 @@ export default function useIdleTimeout({
 
     if (warningFiredRef.current) {
       warningFiredRef.current = false;
-      onActive?.();
+      onActiveRef.current?.();
     }
 
     startTimers();
-  }, [startTimers, onActive]);
+  }, [startTimers]);
 
   useEffect(() => {
     if (!enabled) {
@@ -88,7 +97,7 @@ export default function useIdleTimeout({
       const GRACE_PERIOD_MS = 10_000;
       const graceTimer = setTimeout(() => {
         if (!enabledRef.current) return;
-        onIdle();
+        onIdleRef.current();
       }, GRACE_PERIOD_MS);
 
       return () => clearTimeout(graceTimer);
@@ -108,12 +117,12 @@ export default function useIdleTimeout({
       if (!enabledRef.current) return;
       warningFiredRef.current = true;
       const secondsLeft = Math.ceil(Math.min(warningMs, remaining) / 1000);
-      onWarning?.(secondsLeft);
+      onWarningRef.current?.(secondsLeft);
     }, warningDelay);
 
     timeoutRef.current = setTimeout(() => {
       if (!enabledRef.current) return;
-      onIdle();
+      onIdleRef.current();
     }, remaining);
 
     ACTIVITY_EVENTS.forEach((event) => {
@@ -138,9 +147,6 @@ export default function useIdleTimeout({
     enabled,
     timeoutMs,
     warningMs,
-    onIdle,
-    onWarning,
-    onActive,
     clearTimers,
     resetActivity,
   ]);

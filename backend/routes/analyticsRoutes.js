@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const supabase = require("../supabaseClient");
 const { requireAuth, requireRole } = require("../middleware/authMiddleware");
+const { safeErrorResponse } = require("../utils/safeError");
 
 router.get(
   "/dashboard",
@@ -99,7 +100,7 @@ router.get(
       });
     } catch (error) {
       console.error("Analytics error:", error);
-      res.status(500).json({ success: false, error: error.message });
+      safeErrorResponse(res, error);
     }
   },
 );

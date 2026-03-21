@@ -1,58 +1,78 @@
 require("dotenv").config();
 const { createClient } = require("@supabase/supabase-js");
+const crypto = require("crypto");
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY,
 );
 
+function generateSecurePassword() {
+  const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const lower = "abcdefghijklmnopqrstuvwxyz";
+  const digits = "0123456789";
+  const special = "!@#$%&*";
+  const all = upper + lower + digits + special;
+
+  const required = [
+    upper[crypto.randomInt(upper.length)],
+    lower[crypto.randomInt(lower.length)],
+    digits[crypto.randomInt(digits.length)],
+    special[crypto.randomInt(special.length)],
+  ];
+
+  for (let i = 0; i < 12; i++) {
+    required.push(all[crypto.randomInt(all.length)]);
+  }
+
+  for (let i = required.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(i + 1);
+    [required[i], required[j]] = [required[j], required[i]];
+  }
+
+  return required.join("");
+}
+
 const accounts = [
   {
     name: "Super Admin",
     email: "superadmin@isu.edu.ph",
-    password: "SuperAdmin123!",
     role: "super_admin",
   },
 
   {
     name: "Department Chairman",
     email: "chairman@isu.edu.ph",
-    password: "Chairman123!",
     role: "signatory",
     designation: "Department Chairman",
   },
   {
     name: "College Dean",
     email: "dean@isu.edu.ph",
-    password: "Dean123!",
     role: "signatory",
     designation: "College Dean",
   },
   {
     name: "Director Student Affairs",
     email: "dsa@isu.edu.ph",
-    password: "DSA12345!",
     role: "signatory",
     designation: "Director of Student Affairs",
   },
   {
     name: "NSTP Director",
     email: "nstp@isu.edu.ph",
-    password: "NSTP12345!",
     role: "signatory",
     designation: "NSTP Director",
   },
   {
     name: "Executive Officer",
     email: "executive@isu.edu.ph",
-    password: "Executive123!",
     role: "signatory",
     designation: "Executive Officer",
   },
   {
     name: "Dean Graduate School",
     email: "gradschool@isu.edu.ph",
-    password: "GradDean123!",
     role: "signatory",
     designation: "Dean of Graduate School",
   },
@@ -60,46 +80,38 @@ const accounts = [
   {
     name: "Campus Librarian",
     email: "librarian@isu.edu.ph",
-    password: "Library123!",
     role: "librarian",
   },
   {
     name: "Chief Accountant",
     email: "cashier@isu.edu.ph",
-    password: "Cashier123!",
     role: "cashier",
   },
   {
     name: "Registrar",
     email: "registrar@isu.edu.ph",
-    password: "Registrar123!",
     role: "registrar",
   },
 ];
 
 const secretCodes = [
   {
-    code: "SIG-2024-SECRET",
+    code: crypto.randomBytes(16).toString("hex"),
     role: "signatory",
     description: "Signatory signup code",
   },
   {
-    code: "SIG-SECRET-2024",
-    role: "signatory",
-    description: "Signatory signup code (alt)",
-  },
-  {
-    code: "LIB-2024-SECRET",
+    code: crypto.randomBytes(16).toString("hex"),
     role: "librarian",
     description: "Librarian signup code",
   },
   {
-    code: "CASH-2024-SECRET",
+    code: crypto.randomBytes(16).toString("hex"),
     role: "cashier",
     description: "Cashier signup code",
   },
   {
-    code: "REG-2024-SECRET",
+    code: crypto.randomBytes(16).toString("hex"),
     role: "registrar",
     description: "Registrar signup code",
   },
@@ -190,10 +202,12 @@ async function createAccounts() {
       continue;
     }
 
+    const password = generateSecurePassword();
+
     const { data: authData, error: authError } =
       await supabase.auth.admin.createUser({
         email: acct.email,
-        password: acct.password,
+        password: password,
         email_confirm: true,
       });
 
@@ -226,6 +240,9 @@ async function createAccounts() {
     console.log(
       `  Created: ${acct.name} (${acct.email}) - ${acct.role}${acct.designation ? ` [${acct.designation}]` : ""}`,
     );
+    console.log(
+      `           Password: ${password}`,
+    );
     created++;
   }
 
@@ -238,7 +255,7 @@ async function createAccounts() {
   console.log("\nAll accounts in system:");
   const { data: allProfiles } = await supabase
     .from("profiles")
-    .select("id, full_name, role, designation, email:id")
+    .select("id, full_name, role, designation")
     .order("role");
 
   if (allProfiles) {

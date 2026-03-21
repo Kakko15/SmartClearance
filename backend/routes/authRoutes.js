@@ -2,11 +2,16 @@ const express = require("express");
 const router = express.Router();
 const axios = require("axios");
 const rateLimit = require("express-rate-limit");
-const nodemailer = require("nodemailer");
 const supabase = require("../supabaseClient");
+const { safeErrorResponse, sanitizeErrorMessage } = require("../utils/safeError");
 const { createClient } = require("@supabase/supabase-js");
 const twoFactorRoutes = require("./twoFactorRoutes");
 const { validatePassword } = require("../utils/validatePassword");
+const {
+  buildGoogleEmail,
+  getLogoAttachment,
+} = require("../utils/emailTemplate");
+const { getEmailTransporter } = require("../utils/emailTransporter");
 
 const crypto = require("crypto");
 const {
@@ -40,22 +45,6 @@ async function validateEmailVerifyToken(userId, token) {
 }
 const EMAIL_VERIFY_COOLDOWN_MS = 60 * 1000;
 const EMAIL_VERIFY_MAX_ATTEMPTS = 5;
-
-let _emailTransporter = null;
-function getEmailTransporter() {
-  if (!_emailTransporter) {
-    _emailTransporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST,
-      port: parseInt(process.env.EMAIL_PORT),
-      secure: process.env.EMAIL_SECURE === "true",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD,
-      },
-    });
-  }
-  return _emailTransporter;
-}
 
 const isDev = process.env.NODE_ENV !== "production";
 const DEFAULT_LOGIN_WINDOW_MINUTES = 15;
@@ -294,7 +283,7 @@ router.post(
 
         return res.status(401).json({
           success: false,
-          error: error.message,
+          error: sanitizeErrorMessage(error),
           rateLimit: getMostRestrictiveRateLimit(req),
         });
       }
@@ -857,10 +846,6 @@ async function sendVerificationEmail(userId, email) {
   });
 
   const transporter = getEmailTransporter();
-  const {
-    buildGoogleEmail,
-    getLogoAttachment,
-  } = require("../utils/emailTemplate");
   const htmlBody = buildGoogleEmail(
     "Verify Your Email",
     "Verify Your Email Address",
@@ -1097,6 +1082,17 @@ router.post("/verify-email", verifyEmailLimiter, async (req, res) => {
 });
 
 router.post("/forgot-password", async (req, res) => {
+  const startTime = Date.now();
+  const MIN_DELAY_MS = 300;
+  const JITTER_MS = 300;
+
+  const sendResponse = async (response) => {
+    const elapsed = Date.now() - startTime;
+    const delay = Math.max(0, MIN_DELAY_MS + Math.random() * JITTER_MS - elapsed);
+    if (delay > 0) await new Promise((r) => setTimeout(r, delay));
+    res.json(response);
+  };
+
   try {
     const email =
       typeof req.body?.email === "string"
@@ -1113,12 +1109,12 @@ router.post("/forgot-password", async (req, res) => {
       type: "recovery",
       email: email,
       options: {
-        redirectTo: `${req.headers.origin || "http://localhost:5173"}/reset-password`,
+        redirectTo: `${process.env.FRONTEND_URL || process.env.ALLOWED_ORIGINS?.split(",")[0] || "http://localhost:5173"}/reset-password`,
       },
     });
 
     if (error) {
-      return res.json({
+      return sendResponse({
         success: true,
         message: "If an account exists, a reset link has been sent.",
       });
@@ -1126,17 +1122,14 @@ router.post("/forgot-password", async (req, res) => {
 
     const resetLink = data?.properties?.action_link;
     if (!resetLink) {
-      return res.json({
+      return sendResponse({
         success: true,
         message: "If an account exists, a reset link has been sent.",
       });
     }
 
     const transporter = getEmailTransporter();
-    const {
-      buildGoogleEmail,
-      getLogoAttachment,
-    } = require("../utils/emailTemplate");
+
     const htmlBody = buildGoogleEmail(
       "Password Reset",
       "Reset Your Password",
@@ -1156,12 +1149,15 @@ router.post("/forgot-password", async (req, res) => {
       attachments: getLogoAttachment(),
     });
 
-    res.json({
+    return sendResponse({
       success: true,
       message: "Password reset link sent to your email.",
     });
   } catch (error) {
     console.error("Forgot password error:", error);
+    const elapsed = Date.now() - startTime;
+    const delay = Math.max(0, MIN_DELAY_MS + Math.random() * JITTER_MS - elapsed);
+    if (delay > 0) await new Promise((r) => setTimeout(r, delay));
     res.json({
       success: true,
       message: "If an account exists, a reset link has been sent.",

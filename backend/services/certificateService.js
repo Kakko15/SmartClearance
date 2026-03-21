@@ -252,7 +252,22 @@ async function generateCertificate(requestId) {
       .select()
       .single();
 
-    if (certError) throw certError;
+    if (certError) {
+      try {
+        await supabase.storage
+          .from("clearance-certificates")
+          .remove([fileName]);
+        console.warn(
+          `Certificate cleanup: removed orphaned file ${fileName} after DB insert failure`,
+        );
+      } catch (cleanupErr) {
+        console.error(
+          `Certificate cleanup failed for ${fileName}:`,
+          cleanupErr.message,
+        );
+      }
+      throw certError;
+    }
 
     console.log("Certificate generated:", certificateNumber);
 

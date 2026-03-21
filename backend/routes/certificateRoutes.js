@@ -3,6 +3,7 @@ const router = express.Router();
 const rateLimit = require("express-rate-limit");
 const supabase = require("../supabaseClient");
 const { requireAuth } = require("../middleware/authMiddleware");
+const { safeErrorResponse } = require("../utils/safeError");
 const { isStaffRole, isManagementRole } = require("../constants/roles");
 const {
   generateCertificate,
@@ -72,10 +73,7 @@ router.post("/generate", requireAuth, async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error("Error generating certificate:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -140,10 +138,7 @@ router.get("/request/:request_id", requireAuth, async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching certificate:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -156,10 +151,7 @@ router.get("/verify/:code", verifyLimiter, async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error("Error verifying certificate:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    safeErrorResponse(res, error);
   }
 });
 

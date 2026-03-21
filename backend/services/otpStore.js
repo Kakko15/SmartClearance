@@ -7,11 +7,20 @@ function fallbackKey(userId, tokenType) {
 }
 
 function setFallbackToken(userId, tokenType, token) {
+  console.warn(
+    `[otpStore] Using in-memory fallback for ${tokenType} (user ${userId}). NOT cluster-safe — OTP will only be valid on this process.`,
+  );
   fallbackTokens.set(fallbackKey(userId, tokenType), token);
 }
 
 function getFallbackToken(userId, tokenType) {
-  return fallbackTokens.get(fallbackKey(userId, tokenType)) || null;
+  const token = fallbackTokens.get(fallbackKey(userId, tokenType)) || null;
+  if (token) {
+    console.warn(
+      `[otpStore] Reading ${tokenType} from in-memory fallback (user ${userId}).`,
+    );
+  }
+  return token;
 }
 
 function deleteFallbackToken(userId, tokenType) {

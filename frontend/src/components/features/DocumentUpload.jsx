@@ -86,7 +86,7 @@ export default function DocumentUpload({
     setDeleteConfirm({ show: false, documentId: null, fileName: "" });
 
     try {
-      const response = await deleteDocument(documentId, userId);
+      const response = await deleteDocument(documentId);
       if (response.success) {
         toast.success("Document deleted successfully!");
         fetchDocuments();
