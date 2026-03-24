@@ -25,7 +25,7 @@ authAxios.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      supabase.auth.signOut();
+      supabase.auth.signOut().catch(() => {});
     }
     return Promise.reject(error);
   },
@@ -106,7 +106,11 @@ async function apiFetch(url, options = {}, retries = MAX_RETRIES) {
       throw new ApiError(message, response.status, errorData);
     }
 
-    return response.json();
+    try {
+      return await response.json();
+    } catch {
+      return { success: true };
+    }
   } catch (err) {
     if (err.name === "AbortError") {
       throw new ApiError(
@@ -256,12 +260,11 @@ export const updateComment = async (commentId, userId, commentText) => {
   });
 };
 
-export const deleteComment = async (commentId, userId) => {
+export const deleteComment = async (commentId) => {
   const headers = await getAuthHeaders();
   return apiFetch(`${API_URL}/comments/${commentId}`, {
     method: "DELETE",
     headers,
-    body: JSON.stringify({ user_id: userId }),
   });
 };
 

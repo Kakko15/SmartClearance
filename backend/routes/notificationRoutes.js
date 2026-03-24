@@ -14,6 +14,10 @@ router.get("/pending-count", requireAuth, async (req, res) => {
     const role = req.userRole;
     let count = 0;
 
+    if (!["librarian", "cashier", "registrar", "signatory"].includes(role)) {
+      return res.json({ success: true, pendingCount: 0 });
+    }
+
     if (role === "librarian") {
       const { data: requests } = await supabase
         .from("requests")

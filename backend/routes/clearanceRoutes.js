@@ -3,35 +3,18 @@ const router = express.Router();
 const supabase = require("../supabaseClient");
 const { requireAuth } = require("../middleware/authMiddleware");
 const { safeErrorResponse } = require("../utils/safeError");
-const { isStaffRole, isManagementRole, ROLES } = require("../constants/roles");
+const {
+  getUserProfile,
+  filterByVisibility,
+} = require("../utils/commentHelpers");
 
-const getUserProfile = async (userId) => {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id, full_name, role")
-    .eq("id", userId)
-    .single();
-  if (error) throw new Error("User not found");
-  return data;
-};
-
-const isAdminRole = (role) => {
-  return isStaffRole(role) || isManagementRole(role);
-};
-
-const isSignatoryRole = (role) => {
-  return role === ROLES.SIGNATORY;
-};
-
-const filterByVisibility = (comments, userRole) => {
-  return comments.filter((comment) => {
-    if (comment.visibility === "all") return true;
-    if (comment.visibility === "admins_only") return isAdminRole(userRole);
-    if (comment.visibility === "professors_only")
-      return isSignatoryRole(userRole);
-    return true;
-  });
-};
+let _notificationService = null;
+function getNotificationService() {
+  if (!_notificationService) {
+    _notificationService = require("../services/notificationService");
+  }
+  return _notificationService;
+}
 
 router.post("/:clearanceId/comments", requireAuth, async (req, res) => {
   try {
@@ -94,7 +77,7 @@ router.post("/:clearanceId/comments", requireAuth, async (req, res) => {
     if (insertError) throw insertError;
 
     try {
-      const { notifyNewComment } = require("../services/notificationService");
+      const { notifyNewComment } = getNotificationService();
       await notifyNewComment(clearanceId, user_id, comment_text);
     } catch (_notifError) {
       console.warn("Comment notification failed (non-blocking)");
@@ -140,7 +123,7 @@ router.get("/:clearanceId/comments", requireAuth, async (req, res) => {
   }
 });
 
-router.put("/comments/:commentId", requireAuth, async (req, res) => {
+router.put("/:commentId", requireAuth, async (req, res) => {
   try {
     const { commentId } = req.params;
     const user_id = req.user.id;
@@ -196,7 +179,7 @@ router.put("/comments/:commentId", requireAuth, async (req, res) => {
   }
 });
 
-router.delete("/comments/:commentId", requireAuth, async (req, res) => {
+router.delete("/:commentId", requireAuth, async (req, res) => {
   try {
     const { commentId } = req.params;
     const user_id = req.user.id;

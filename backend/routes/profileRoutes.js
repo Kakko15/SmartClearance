@@ -36,8 +36,21 @@ router.post("/request-edit", requireAuth, async (req, res) => {
         });
     }
 
+    if (new_value.length > 500) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          error: "New value must be 500 characters or fewer",
+        });
+    }
+
     if (!SENSITIVE_FIELDS.includes(field_name)) {
       return res.status(400).json({ success: false, error: "Invalid field" });
+    }
+
+    if (!/^[a-z_]+$/.test(field_name)) {
+      return res.status(400).json({ success: false, error: "Invalid field name format" });
     }
 
     const { data: profile } = await supabase

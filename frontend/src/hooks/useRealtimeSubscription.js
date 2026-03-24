@@ -1,6 +1,8 @@
 import { useEffect, useRef, useCallback } from "react";
 import { supabase } from "../lib/supabase";
 
+let channelCounter = 0;
+
 export default function useRealtimeSubscription(table, onUpdate, options = {}) {
   const { event = "*", filter, enabled = true } = options;
   const onUpdateRef = useRef(onUpdate);
@@ -19,7 +21,7 @@ export default function useRealtimeSubscription(table, onUpdate, options = {}) {
   useEffect(() => {
     if (!enabled) return;
 
-    const channelName = `realtime-${table}-${filter || "all"}-${Date.now()}`;
+    const channelName = `realtime-${table}-${filter || "all"}-${++channelCounter}`;
     const channelConfig = {
       event,
       schema: "public",

@@ -2,28 +2,13 @@ const express = require("express");
 const router = express.Router();
 const crypto = require("crypto");
 const supabase = require("../supabaseClient");
-const { requireAuth } = require("../middleware/authMiddleware");
+const { requireAuth, requireRole } = require("../middleware/authMiddleware");
 const { logAction, ACTIONS } = require("../services/auditService");
 
 const { ROLES } = require("../constants/roles");
 
-async function requireSuperAdmin(req, res, next) {
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", req.user.id)
-    .single();
 
-  if (!profile || profile.role !== ROLES.SUPER_ADMIN) {
-    return res
-      .status(403)
-      .json({ success: false, error: "Insufficient permissions" });
-  }
-  req.adminRole = profile.role;
-  next();
-}
-
-router.get("/", requireAuth, requireSuperAdmin, async (req, res) => {
+router.get("/", requireAuth, requireRole("super_admin"), async (req, res) => {
   try {
     const { data, error } = await supabase
       .from("admin_secret_codes")
@@ -38,7 +23,7 @@ router.get("/", requireAuth, requireSuperAdmin, async (req, res) => {
   }
 });
 
-router.post("/", requireAuth, requireSuperAdmin, async (req, res) => {
+router.post("/", requireAuth, requireRole("super_admin"), async (req, res) => {
   try {
     const { role, description, max_uses = 50, expires_at } = req.body;
 
@@ -90,7 +75,7 @@ router.post("/", requireAuth, requireSuperAdmin, async (req, res) => {
 router.patch(
   "/:id/toggle",
   requireAuth,
-  requireSuperAdmin,
+  requireRole("super_admin"),
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -128,7 +113,7 @@ router.patch(
   },
 );
 
-router.delete("/:id", requireAuth, requireSuperAdmin, async (req, res) => {
+router.delete("/:id", requireAuth, requireRole("super_admin"), async (req, res) => {
   try {
     const { id } = req.params;
 

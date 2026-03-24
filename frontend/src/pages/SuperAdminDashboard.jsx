@@ -507,7 +507,7 @@ export default function SuperAdminDashboard({
                   />
                   <MetricPill
                     label="On Hold"
-                    value={analytics.requests.rejected}
+                    value={analytics.requests.onHold}
                     color="rose"
                     icon={<XMarkIcon className="w-6 h-6" />}
                     isDarkMode={isDarkMode}

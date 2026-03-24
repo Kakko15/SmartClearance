@@ -206,12 +206,18 @@ router.delete("/:id", requireAuth, async (req, res) => {
     const urlParts = document.file_url.split("/request-documents/");
     const filePath = urlParts[1];
 
-    const { error: storageError } = await supabase.storage
-      .from("request-documents")
-      .remove([filePath]);
+    if (!filePath) {
+      console.warn(
+        `Could not extract storage path from file_url: ${document.file_url}. Orphan file may remain.`,
+      );
+    } else {
+      const { error: storageError } = await supabase.storage
+        .from("request-documents")
+        .remove([filePath]);
 
-    if (storageError) {
-      console.error("Storage deletion error:", storageError);
+      if (storageError) {
+        console.error("Storage deletion error:", storageError);
+      }
     }
 
     const { error: deleteError } = await supabase

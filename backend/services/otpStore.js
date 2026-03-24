@@ -1,14 +1,23 @@
 const supabase = require("../supabaseClient");
 
 const fallbackTokens = new Map();
+let warnedOnce = false;
 
 function fallbackKey(userId, tokenType) {
   return `${userId}:${tokenType}`;
 }
 
 function setFallbackToken(userId, tokenType, token) {
+  if (!warnedOnce) {
+    console.warn(
+      "[otpStore] ⚠️ WARNING: In-memory OTP fallback is active. " +
+      "This is NOT safe for clustered/multi-process deployments (e.g. PM2 cluster mode). " +
+      "Tokens stored in this process will not be accessible from other processes.",
+    );
+    warnedOnce = true;
+  }
   console.warn(
-    `[otpStore] Using in-memory fallback for ${tokenType} (user ${userId}). NOT cluster-safe — OTP will only be valid on this process.`,
+    `[otpStore] Using in-memory fallback for ${tokenType} (user ${userId}).`,
   );
   fallbackTokens.set(fallbackKey(userId, tokenType), token);
 }

@@ -43,7 +43,7 @@ export default function RequestComments({
   useEffect(() => {
     fetchComments();
 
-    const interval = setInterval(fetchComments, 5000);
+    const interval = setInterval(fetchComments, 30000);
     return () => clearInterval(interval);
   }, [fetchComments]);
 

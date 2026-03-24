@@ -72,11 +72,29 @@ router.post("/set", requireAuth, requireRole("signatory"), async (req, res) => {
         });
     }
 
+    if (delegated_to === req.user.id) {
+      return res
+        .status(400)
+        .json({ success: false, error: "You cannot delegate to yourself" });
+    }
+
     const expiryDate = new Date(expires_at);
+    if (isNaN(expiryDate.getTime())) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Invalid expiry date format" });
+    }
     if (expiryDate <= new Date()) {
       return res
         .status(400)
         .json({ success: false, error: "Expiry date must be in the future" });
+    }
+    const maxExpiry = new Date();
+    maxExpiry.setFullYear(maxExpiry.getFullYear() + 1);
+    if (expiryDate > maxExpiry) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Expiry date cannot be more than 1 year in the future" });
     }
 
     const { data: delegate } = await supabase
@@ -105,12 +123,15 @@ router.post("/set", requireAuth, requireRole("signatory"), async (req, res) => {
 
     if (error) throw error;
 
-    await supabase.from("notifications").insert({
+    const { error: notifError } = await supabase.from("notifications").insert({
       user_id: delegated_to,
       type: "info",
       title: "Delegation Assigned",
       message: `You have been designated as a temporary substitute signatory until ${expiryDate.toLocaleDateString()}.`,
     });
+    if (notifError) {
+      console.warn("Delegation notification insert failed:", notifError.message);
+    }
 
     res.json({ success: true, message: "Delegation set successfully" });
   } catch (error) {

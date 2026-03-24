@@ -13,7 +13,7 @@ router.get(
       const [
         pendingRes,
         completedRes,
-        rejectedRes,
+        onHoldRes,
         totalRes,
         studentsRes,
         staffRes,
@@ -88,7 +88,7 @@ router.get(
             total: totalRes.count ?? 0,
             pending: pendingRes.count ?? 0,
             completed: completedRes.count ?? 0,
-            rejected: rejectedRes.count ?? 0,
+            onHold: onHoldRes.count ?? 0,
           },
           users: {
             students: studentsRes.count ?? 0,

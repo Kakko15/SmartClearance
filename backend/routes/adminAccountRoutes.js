@@ -146,6 +146,13 @@ router.post("/reject-account", requireAuth, async (req, res) => {
       });
     }
 
+    if (reason.length > 2000) {
+      return res.status(400).json({
+        success: false,
+        error: "Reason must be 2000 characters or fewer",
+      });
+    }
+
     const { data: admin, error: adminError } = await supabase
       .from("profiles")
       .select("role")
@@ -240,39 +247,48 @@ router.post("/bulk-approve", requireAuth, async (req, res) => {
     }
 
     const results = { approved: [], failed: [] };
+    const now = new Date().toISOString();
 
-    for (const userId of userIds) {
-      const { data, error } = await supabase
-        .from("profiles")
-        .update({
-          verification_status: "approved",
-          account_enabled: true,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", userId)
-        .eq("verification_status", "pending_review")
-        .select()
-        .single();
+    const settledResults = await Promise.allSettled(
+      userIds.map(async (userId) => {
+        const { data, error } = await supabase
+          .from("profiles")
+          .update({
+            verification_status: "approved",
+            account_enabled: true,
+            updated_at: now,
+          })
+          .eq("id", userId)
+          .eq("verification_status", "pending_review")
+          .select()
+          .single();
 
-      if (error || !data) {
-        results.failed.push(userId);
-      } else {
-        results.approved.push(userId);
-
-        try {
-          await supabase.from("auth_audit_log").insert({
-            user_id: userId,
-            action: "account_approved_by_admin",
-            success: true,
-            metadata: {
-              approved_by: adminId,
-              admin_role: admin.role,
-              bulk: true,
-            },
-          });
-        } catch (logErr) {
-          console.warn("Auth audit log insert failed:", logErr.message);
+        if (error || !data) {
+          throw new Error(`Failed for ${userId}`);
         }
+
+        await supabase.from("auth_audit_log").insert({
+          user_id: userId,
+          action: "account_approved_by_admin",
+          success: true,
+          metadata: {
+            approved_by: adminId,
+            admin_role: admin.role,
+            bulk: true,
+          },
+        }).catch((logErr) => {
+          console.warn("Auth audit log insert failed:", logErr.message);
+        });
+
+        return userId;
+      }),
+    );
+
+    for (const result of settledResults) {
+      if (result.status === "fulfilled") {
+        results.approved.push(result.value);
+      } else {
+        results.failed.push(result.reason?.message || "unknown");
       }
     }
 
@@ -306,6 +322,11 @@ router.post("/bulk-reject", requireAuth, async (req, res) => {
         .status(400)
         .json({ success: false, error: "No accounts selected" });
     }
+    if (userIds.length > 200) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Cannot reject more than 200 accounts at once" });
+    }
     if (!reason || !reason.trim()) {
       return res
         .status(400)
@@ -328,23 +349,23 @@ router.post("/bulk-reject", requireAuth, async (req, res) => {
 
     const results = { rejected: [], failed: [] };
 
-    for (const userId of userIds) {
-      const { data, error } = await supabase
-        .from("profiles")
-        .update({
-          verification_status: "rejected",
-          account_enabled: false,
-          rejection_reason: reason,
-        })
-        .eq("id", userId)
-        .eq("verification_status", "pending_review")
-        .select()
-        .single();
+    const settled = await Promise.allSettled(
+      userIds.map(async (userId) => {
+        const { data, error } = await supabase
+          .from("profiles")
+          .update({
+            verification_status: "rejected",
+            account_enabled: false,
+            rejection_reason: reason,
+          })
+          .eq("id", userId)
+          .eq("verification_status", "pending_review")
+          .select()
+          .single();
 
-      if (error || !data) {
-        results.failed.push(userId);
-      } else {
-        results.rejected.push(userId);
+        if (error || !data) {
+          throw new Error(error?.message || "Update failed");
+        }
 
         try {
           await supabase.from("auth_audit_log").insert({
@@ -361,6 +382,16 @@ router.post("/bulk-reject", requireAuth, async (req, res) => {
         } catch (logErr) {
           console.warn("Auth audit log insert failed:", logErr.message);
         }
+
+        return userId;
+      }),
+    );
+
+    for (const result of settled) {
+      if (result.status === "fulfilled") {
+        results.rejected.push(result.value);
+      } else {
+        results.failed.push("unknown");
       }
     }
 

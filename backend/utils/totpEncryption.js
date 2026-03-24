@@ -52,7 +52,7 @@ function decryptSecret(stored) {
 
   const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
   decipher.setAuthTag(authTag);
-  return decipher.update(encrypted) + decipher.final("utf8");
+  return decipher.update(encrypted, undefined, "utf8") + decipher.final("utf8");
 }
 
 module.exports = { encryptSecret, decryptSecret };

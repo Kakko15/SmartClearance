@@ -1,3 +1,5 @@
+const { escapeHtml } = require("./escapeHtml");
+
 function buildGoogleEmail(title, headerText, contentHtml, options = {}) {
   const { code = null, button = null, footerNote = null } = options;
   const logoUrl = "cid:isu-logo";
@@ -15,10 +17,12 @@ function buildGoogleEmail(title, headerText, contentHtml, options = {}) {
 
   let buttonBlock = "";
   if (button) {
+    const safeUrl = escapeHtml(button.url || "");
+    const safeText = escapeHtml(button.text || "");
     buttonBlock = `
       <div style="text-align: center; margin: 32px 0;">
-        <a href="${button.url}" style="background-color: #388E3C; color: #FFFFFF; padding: 14px 32px; text-decoration: none; border-radius: 100px; font-weight: 500; font-size: 16px; display: inline-block; font-family: 'Google Sans', Roboto, sans-serif;">
-          ${button.text}
+        <a href="${safeUrl}" style="background-color: #388E3C; color: #FFFFFF; padding: 14px 32px; text-decoration: none; border-radius: 100px; font-weight: 500; font-size: 16px; display: inline-block; font-family: 'Google Sans', Roboto, sans-serif;">
+          ${safeText}
         </a>
       </div>
     `;
@@ -60,11 +64,18 @@ function buildGoogleEmail(title, headerText, contentHtml, options = {}) {
 }
 
 const path = require("path");
+const fs = require("fs");
+
 function getLogoAttachment() {
+  const logoPath = path.join(__dirname, "../../frontend/public/logo.png");
+  if (!fs.existsSync(logoPath)) {
+    console.warn("[email] Logo not found at", logoPath, "— sending email without logo.");
+    return [];
+  }
   return [
     {
       filename: "logo.png",
-      path: path.join(__dirname, "../../frontend/public/logo.png"),
+      path: logoPath,
       cid: "isu-logo",
     },
   ];

@@ -36,14 +36,24 @@ class ErrorBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
+      const isDark =
+        typeof document !== "undefined" &&
+        document.documentElement.classList.contains("dark");
+
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+        <div
+          className={`min-h-screen flex items-center justify-center bg-gradient-to-br ${isDark ? "from-gray-900 to-gray-950" : "from-gray-50 to-gray-100"}`}
+        >
           <div className="max-w-2xl w-full mx-4">
-            <div className="bg-white rounded-3xl shadow-2xl p-8 md:p-12 border border-gray-200">
+            <div
+              className={`rounded-3xl shadow-2xl p-8 md:p-12 border ${isDark ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"}`}
+            >
               <div className="flex justify-center mb-6">
-                <div className="w-20 h-20 rounded-full bg-red-100 flex items-center justify-center">
+                <div
+                  className={`w-20 h-20 rounded-full flex items-center justify-center ${isDark ? "bg-red-500/20" : "bg-red-100"}`}
+                >
                   <svg
-                    className="w-10 h-10 text-red-600"
+                    className={`w-10 h-10 ${isDark ? "text-red-400" : "text-red-600"}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -58,29 +68,43 @@ class ErrorBoundary extends React.Component {
                 </div>
               </div>
 
-              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 text-center mb-4">
+              <h1
+                className={`text-3xl md:text-4xl font-bold text-center mb-4 ${isDark ? "text-white" : "text-gray-900"}`}
+              >
                 Oops! Something went wrong
               </h1>
 
-              <p className="text-gray-600 text-center mb-8 text-lg">
-                We're sorry for the inconvenience. The application encountered
-                an unexpected error.
+              <p
+                className={`text-center mb-8 text-lg ${isDark ? "text-gray-300" : "text-gray-600"}`}
+              >
+                We&apos;re sorry for the inconvenience. The application
+                encountered an unexpected error.
               </p>
 
               {import.meta.env.DEV && this.state.error && (
-                <div className="mb-8 p-4 bg-red-50 border border-red-200 rounded-xl">
-                  <p className="text-sm font-bold text-red-900 mb-2">
+                <div
+                  className={`mb-8 p-4 border rounded-xl ${isDark ? "bg-red-500/10 border-red-500/30" : "bg-red-50 border-red-200"}`}
+                >
+                  <p
+                    className={`text-sm font-bold mb-2 ${isDark ? "text-red-300" : "text-red-900"}`}
+                  >
                     Error Details (Dev Mode):
                   </p>
-                  <p className="text-xs text-red-800 font-mono break-all">
+                  <p
+                    className={`text-xs font-mono break-all ${isDark ? "text-red-200" : "text-red-800"}`}
+                  >
                     {this.state.error.toString()}
                   </p>
                   {this.state.errorInfo && (
                     <details className="mt-2">
-                      <summary className="text-xs text-red-700 cursor-pointer hover:text-red-900">
+                      <summary
+                        className={`text-xs cursor-pointer ${isDark ? "text-red-300 hover:text-red-200" : "text-red-700 hover:text-red-900"}`}
+                      >
                         Stack Trace
                       </summary>
-                      <pre className="text-xs text-red-800 mt-2 overflow-auto max-h-40">
+                      <pre
+                        className={`text-xs mt-2 overflow-auto max-h-40 ${isDark ? "text-red-200" : "text-red-800"}`}
+                      >
                         {this.state.errorInfo.componentStack}
                       </pre>
                     </details>
@@ -98,13 +122,15 @@ class ErrorBoundary extends React.Component {
 
                 <button
                   onClick={() => window.location.reload()}
-                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 px-8 rounded-full transition-all"
+                  className={`font-bold py-3 px-8 rounded-full transition-all ${isDark ? "bg-gray-700 hover:bg-gray-600 text-gray-200" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
                 >
                   Refresh Page
                 </button>
               </div>
 
-              <p className="text-center text-sm text-gray-500 mt-8">
+              <p
+                className={`text-center text-sm mt-8 ${isDark ? "text-gray-500" : "text-gray-500"}`}
+              >
                 If this problem persists, please contact support or try again
                 later.
               </p>

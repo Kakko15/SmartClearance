@@ -23,9 +23,7 @@ export function ThemeProvider({ children }) {
     return false;
   });
 
-  const [prevThemePref, setPrevThemePref] = useState(themePreference);
-  if (themePreference !== prevThemePref) {
-    setPrevThemePref(themePreference);
+  useEffect(() => {
     let activeDark = false;
     if (themePreference === "dark") activeDark = true;
     else if (themePreference === "light") activeDark = false;
@@ -33,7 +31,7 @@ export function ThemeProvider({ children }) {
       activeDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
 
     setIsDarkMode(activeDark);
-  }
+  }, [themePreference]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDarkMode);

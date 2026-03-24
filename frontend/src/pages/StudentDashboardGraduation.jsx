@@ -802,16 +802,41 @@ export default function StudentDashboardGraduation({
     [studentId],
   );
 
+  const fetchClearanceStatus = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const response = await authAxios.get(`/graduation/status/${studentId}`);
+      if (response.data.success) {
+        setClearanceStatus(response.data);
+
+        const reqId =
+          response.data.request?.request_id || response.data.request?.id;
+        await fetchClearanceComments(reqId);
+      }
+    } catch (error) {
+      console.error("Error fetching clearance status:", error);
+      if (!silent) toast.error("Failed to load clearance status");
+    } finally {
+      setLoading(false);
+    }
+  }, [studentId, fetchClearanceComments]);
+
   useEffect(() => {
     document.title = "Student Dashboard | ISU Graduation Clearance";
     fetchClearanceStatus();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchClearanceStatus]);
 
-  useRealtimeSubscription("clearance_comments", () => {
-    const reqId =
-      clearanceStatus?.request?.request_id || clearanceStatus?.request?.id;
-    if (reqId) fetchClearanceComments(reqId);
-  });
+  const activeReqId =
+    clearanceStatus?.request?.request_id || clearanceStatus?.request?.id;
+
+  useRealtimeSubscription(
+    "clearance_comments",
+    () => {
+      if (activeReqId) fetchClearanceComments(activeReqId);
+    },
+    { enabled: !!activeReqId },
+  );
 
   useRealtimeSubscription("requests", () => fetchClearanceStatus(true));
   useRealtimeSubscription("professor_approvals", () =>
@@ -819,9 +844,9 @@ export default function StudentDashboardGraduation({
   );
 
   useEffect(() => {
-    const interval = setInterval(() => fetchClearanceStatus(true), 10000);
+    const interval = setInterval(() => fetchClearanceStatus(true), 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchClearanceStatus]);
 
   const cancelModalRef = useRef(null);
   useEffect(() => {
@@ -862,24 +887,7 @@ export default function StudentDashboardGraduation({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [showCancelModal]);
 
-  const fetchClearanceStatus = async (silent = false) => {
-    if (!silent) setLoading(true);
-    try {
-      const response = await authAxios.get(`/graduation/status/${studentId}`);
-      if (response.data.success) {
-        setClearanceStatus(response.data);
 
-        const reqId =
-          response.data.request?.request_id || response.data.request?.id;
-        await fetchClearanceComments(reqId);
-      }
-    } catch (error) {
-      console.error("Error fetching clearance status:", error);
-      toast.error("Failed to load clearance status");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleApplyClick = (portion) => {
     setAppPortion(portion);

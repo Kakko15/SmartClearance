@@ -59,14 +59,21 @@ async function logHistory(
   actionTaken,
   comments = null,
 ) {
-  await supabase.from("request_history").insert({
-    request_id: requestId,
-    processed_by: processedBy,
-    previous_status: previousStatus,
-    new_status: newStatus,
-    action_taken: actionTaken,
-    comments: comments,
-  });
+  try {
+    const { error } = await supabase.from("request_history").insert({
+      request_id: requestId,
+      processed_by: processedBy,
+      previous_status: previousStatus,
+      new_status: newStatus,
+      action_taken: actionTaken,
+      comments: comments,
+    });
+    if (error) {
+      console.warn("logHistory insert failed:", error.message);
+    }
+  } catch (err) {
+    console.warn("logHistory error:", err.message);
+  }
 }
 
 router.post("/create", requireAuth, async (req, res) => {
@@ -179,6 +186,26 @@ router.post("/:id/approve", requireAuth, async (req, res) => {
 
     if (reqError) throw reqError;
 
+    if (request.is_completed) {
+      return res.status(400).json({
+        success: false,
+        error: "This request has already been completed",
+      });
+    }
+
+    const { data: studentProfile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", request.student_id)
+      .maybeSingle();
+
+    if (!studentProfile) {
+      return res.status(400).json({
+        success: false,
+        error: "Student profile no longer exists",
+      });
+    }
+
     const currentStage =
       request.document_types.required_stages[request.current_stage_index];
 
@@ -238,7 +265,9 @@ router.post("/:id/approve", requireAuth, async (req, res) => {
       await generateCertificate(id);
     } else {
       const nextStage = request.document_types.required_stages[nextStageIndex];
-      notifyNextStageStaff(id, nextStage);
+      notifyNextStageStaff(id, nextStage).catch((err) =>
+        console.warn("notifyNextStageStaff error:", err.message),
+      );
     }
 
     res.json({
@@ -263,6 +292,12 @@ router.post("/:id/reject", requireAuth, async (req, res) => {
         .json({ success: false, error: "Rejection reason required" });
     }
 
+    if (reason.length > 2000) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Reason must be 2000 characters or fewer" });
+    }
+
     const userRole = await getUserRole(admin_id);
     if (!userRole || !isClearanceRole(userRole)) {
       return res.status(403).json({ success: false, error: "Unauthorized" });
@@ -275,6 +310,20 @@ router.post("/:id/reject", requireAuth, async (req, res) => {
       .single();
 
     if (reqError) throw reqError;
+
+    if (request.is_completed) {
+      return res.status(400).json({
+        success: false,
+        error: "Cannot reject — this request has already been completed",
+      });
+    }
+
+    if (request.current_status === "on_hold") {
+      return res.status(400).json({
+        success: false,
+        error: "This request is already on hold",
+      });
+    }
 
     const currentStage =
       request.document_types.required_stages[request.current_stage_index];
@@ -371,7 +420,9 @@ router.post("/:id/resubmit", requireAuth, async (req, res) => {
 
     const currentStage =
       request.document_types.required_stages[request.current_stage_index];
-    notifyRequestResubmitted(id, student_id, currentStage);
+    notifyRequestResubmitted(id, student_id, currentStage).catch((err) =>
+      console.warn("notifyRequestResubmitted error:", err.message),
+    );
 
     res.json({
       success: true,
@@ -453,9 +504,9 @@ router.get("/admin/:role", requireAuth, async (req, res) => {
 
     if (reqError) throw reqError;
 
-    const filteredRequests = requests.filter((req) => {
+    const filteredRequests = requests.filter((r) => {
       const currentStage =
-        req.document_types.required_stages[req.current_stage_index];
+        r.document_types.required_stages[r.current_stage_index];
       return currentStage === stageName;
     });
 
@@ -493,7 +544,7 @@ router.delete("/:id/delete", requireAuth, async (req, res) => {
       .select("*")
       .eq("id", id)
       .eq("student_id", student_id)
-      .single();
+      .maybeSingle();
 
     if (reqError) throw reqError;
 

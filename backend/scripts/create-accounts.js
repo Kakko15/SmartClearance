@@ -155,9 +155,11 @@ async function createAccounts() {
   let skipped = 0;
   let failed = 0;
 
+  const { data: existingUsers } = await supabase.auth.admin.listUsers();
+  const allExistingUsers = existingUsers?.users || [];
+
   for (const acct of accounts) {
-    const { data: existingUsers } = await supabase.auth.admin.listUsers();
-    const existingUser = existingUsers?.users?.find(
+    const existingUser = allExistingUsers.find(
       (u) => u.email === acct.email,
     );
 

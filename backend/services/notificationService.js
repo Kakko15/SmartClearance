@@ -198,7 +198,7 @@ async function notifyRequestApproved(
         <p>Your request for <strong>${escapeHtml(docType.name)}</strong> has been approved at the <strong>${escapeHtml(stageName)}</strong> stage.</p>
         <p><strong>Request ID:</strong> ${escapeHtml(requestId)}</p>
         <p><strong>Status:</strong> Approved</p>
-        <p><strong>Next Stage:</strong> ${escapeHtml(docType.required_stages[request.current_stage_index])}</p>
+        <p><strong>Current Stage:</strong> ${escapeHtml(docType.required_stages[request.current_stage_index] || "Completed")}</p>
         <p>Your request is now being processed at the next stage.</p>
         <br>
         <p>Best regards,<br>SmartClearance Team</p>

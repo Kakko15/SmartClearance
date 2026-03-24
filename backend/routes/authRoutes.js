@@ -64,9 +64,7 @@ function normalizeEmail(value) {
 }
 
 function getIpKey(req) {
-  return rateLimit.ipKeyGenerator(
-    req.ip || req.socket?.remoteAddress || "unknown",
-  );
+  return req.ip || req.socket?.remoteAddress || "unknown";
 }
 
 const LOGIN_WINDOW_MINUTES = getEnvInt(
@@ -260,23 +258,17 @@ router.post(
           .includes("email not confirmed");
 
         if (isEmailNotConfirmed) {
-          const { data: userList } = await supabase.auth.admin.listUsers();
-          const unverifiedUser = userList?.users?.find(
-            (u) => u.email?.toLowerCase() === email,
+          const { data: emailExists } = await supabase.rpc(
+            "check_email_exists",
+            { email_input: email },
           );
 
-          if (unverifiedUser) {
-            const verifyToken = await generateEmailVerifyToken(
-              unverifiedUser.id,
-            );
+          if (emailExists) {
             return res.status(403).json({
               success: false,
               error:
                 "Please verify your email before signing in. Check your inbox for the verification code.",
               emailNotVerified: true,
-              userId: unverifiedUser.id,
-              email: unverifiedUser.email,
-              verifyToken,
             });
           }
         }
@@ -398,7 +390,6 @@ router.post("/signup", signupLimiter, async (req, res) => {
       "librarian",
       "cashier",
       "registrar",
-      "super_admin",
     ];
 
     if (!adminRoles.includes(role)) {
@@ -527,7 +518,8 @@ router.post("/signup", signupLimiter, async (req, res) => {
         used_by: authData.user.id,
         used_at: new Date().toISOString(),
       })
-      .eq("id", codeData.id);
+      .eq("id", codeData.id)
+      .eq("current_uses", codeData.current_uses);
 
     try {
       await supabase.from("auth_audit_log").insert({

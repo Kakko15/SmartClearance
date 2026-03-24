@@ -9,6 +9,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "./contexts/AuthContext";
 import { useTheme } from "./contexts/ThemeContext";
+import { supabase } from "./lib/supabase";
 import StudentDashboardGraduation from "./pages/StudentDashboardGraduation";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import SignatoryDashboard from "./pages/SignatoryDashboard";
@@ -89,7 +90,7 @@ function DashboardContent(props) {
         {...sp}
       />
     );
-  if (profile.role === "super_admin")
+  if (profile.role === "super_admin" || profile.role === "system_admin")
     return (
       <SuperAdminDashboard
         adminId={user.id}
@@ -330,12 +331,20 @@ function App() {
             onClose={() => setShowSettings(false)}
             theme={themePreference}
             setTheme={(t) => toggleTheme(t)}
-            onAvatarUpdate={(url) =>
-              setUser((prev) => ({
-                ...prev,
-                user_metadata: { ...prev.user_metadata, avatar_url: url },
-              }))
-            }
+            onAvatarUpdate={async (url) => {
+              try {
+                const { data } = await supabase.auth.updateUser({
+                  data: { avatar_url: url },
+                });
+                if (data?.user) setUser(data.user);
+              } catch (_err) {
+                // Fallback: update local state even if persist fails
+                setUser((prev) => ({
+                  ...prev,
+                  user_metadata: { ...prev.user_metadata, avatar_url: url },
+                }));
+              }
+            }}
           />
         )}
       </div>

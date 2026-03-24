@@ -70,7 +70,7 @@ export default function LibraryAdminDashboard({
   useRealtimeSubscription("requests", () => fetchPendingRequests(true));
 
   useEffect(() => {
-    const interval = setInterval(() => fetchPendingRequests(true), 10000);
+    const interval = setInterval(() => fetchPendingRequests(true), 30000);
     return () => clearInterval(interval);
   }, [fetchPendingRequests]);
 
@@ -186,6 +186,8 @@ export default function LibraryAdminDashboard({
         );
         setSelectedIds(new Set());
         setBulkMode(false);
+        setSelectedRequest(null);
+        setComments("");
         fetchPendingRequests();
       }
     } catch (error) {
@@ -214,6 +216,7 @@ export default function LibraryAdminDashboard({
         );
         setSelectedIds(new Set());
         setBulkMode(false);
+        setSelectedRequest(null);
         setComments("");
         fetchPendingRequests();
       }

@@ -8,15 +8,25 @@ async function cleanupUnverifiedAccounts() {
       Date.now() - UNVERIFIED_ACCOUNT_MAX_AGE_MS,
     ).toISOString();
 
-    const { data: userList, error: listError } =
-      await supabase.auth.admin.listUsers();
+    // Fetch all users with pagination (Supabase defaults to 50 per page)
+    let allUsers = [];
+    let page = 1;
+    const perPage = 1000;
+    while (true) {
+      const { data: userList, error: listError } =
+        await supabase.auth.admin.listUsers({ page, perPage });
 
-    if (listError) {
-      console.error("[Cleanup] Failed to list users:", listError.message);
-      return;
+      if (listError) {
+        console.error("[Cleanup] Failed to list users:", listError.message);
+        return;
+      }
+
+      allUsers = allUsers.concat(userList.users);
+      if (userList.users.length < perPage) break;
+      page++;
     }
 
-    const unverifiedUsers = userList.users.filter((user) => {
+    const unverifiedUsers = allUsers.filter((user) => {
       return (
         !user.email_confirmed_at &&
         user.created_at &&
@@ -33,6 +43,19 @@ async function cleanupUnverifiedAccounts() {
     let deleted = 0;
     for (const user of unverifiedUsers) {
       try {
+        // Delete profile and related data first (before FK constraints)
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .delete()
+          .eq("id", user.id);
+        if (profileError) {
+          console.warn(
+            `[Cleanup] Profile cleanup failed for ${user.id}, skipping auth deletion:`,
+            profileError.message,
+          );
+          continue;
+        }
+
         const { error: deleteError } = await supabase.auth.admin.deleteUser(
           user.id,
         );
@@ -42,17 +65,6 @@ async function cleanupUnverifiedAccounts() {
             deleteError.message,
           );
           continue;
-        }
-
-        const { error: profileError } = await supabase
-          .from("profiles")
-          .delete()
-          .eq("id", user.id);
-        if (profileError) {
-          console.warn(
-            `[Cleanup] Auth user ${user.id} deleted but profile cleanup failed:`,
-            profileError.message,
-          );
         }
 
         deleted++;

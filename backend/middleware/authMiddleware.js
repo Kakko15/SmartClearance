@@ -68,7 +68,9 @@ async function optionalAuth(req, _res, next) {
       } = await supabase.auth.getUser(token);
       if (user) req.user = user;
     }
-  } catch (_error) {}
+  } catch (error) {
+    console.warn("optionalAuth error (non-blocking):", error.message);
+  }
   next();
 }
 

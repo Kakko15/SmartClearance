@@ -1,6 +1,10 @@
 function validatePassword(password) {
-  if (!password || password.length < 8) {
+  if (typeof password !== "string" || !password || password.length < 8) {
     return { valid: false, error: "Password must be at least 8 characters" };
+  }
+
+  if (password.length > 128) {
+    return { valid: false, error: "Password must be 128 characters or fewer" };
   }
 
   const hasUppercase = /[A-Z]/.test(password);

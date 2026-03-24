@@ -37,6 +37,7 @@ const secretCodeRoutes = require("./routes/secretCodeRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const analyticsRoutes = require("./routes/analyticsRoutes");
 const profileRoutes = require("./routes/profileRoutes");
+const delegationRoutes = require("./routes/delegationRoutes");
 app.use("/api/requests", requestRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/auth/2fa", twoFactorRoutes);
@@ -52,32 +53,57 @@ app.use("/api/admin/secret-codes", secretCodeRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/profile", profileRoutes);
-
-const errorHandler = require("./middleware/errorHandler");
-app.use(errorHandler);
+app.use("/api/delegation", delegationRoutes);
 
 app.get("/", (req, res) => {
   res.send("Smart Clearance System backend running!");
 });
 
+const errorHandler = require("./middleware/errorHandler");
+app.use(errorHandler);
+
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
+const cron = require("node-cron");
 const { cleanupExpired } = require("./services/otpStore");
-setInterval(() => cleanupExpired().catch(() => {}), 15 * 60 * 1000);
-
 const {
   cleanupUnverifiedAccounts,
 } = require("./services/unverifiedAccountCleanup");
-setTimeout(() => cleanupUnverifiedAccounts().catch(() => {}), 60 * 1000);
-setInterval(
-  () => cleanupUnverifiedAccounts().catch(() => {}),
-  6 * 60 * 60 * 1000,
-);
-
 const { checkDeadlineReminders } = require("./services/notificationService");
 
-setTimeout(() => checkDeadlineReminders().catch(() => {}), 30 * 1000);
-setInterval(
-  () => checkDeadlineReminders().catch(() => {}),
-  24 * 60 * 60 * 1000,
-);
+cron.schedule("*/15 * * * *", async () => {
+  try {
+    await cleanupExpired();
+  } catch (err) {
+    console.error("[Cron] OTP cleanup failed:", err.message);
+  }
+});
+
+if (process.env.NODE_ENV === "production") {
+  cron.schedule("0 */6 * * *", async () => {
+    try {
+      console.log("[Cron] Running unverified account cleanup...");
+      await cleanupUnverifiedAccounts();
+      console.log("[Cron] Unverified account cleanup complete.");
+    } catch (err) {
+      console.error("[Cron] Unverified account cleanup failed:", err.message);
+    }
+  });
+
+  cron.schedule("0 8 * * *", async () => {
+    try {
+      console.log("[Cron] Running deadline reminders...");
+      await checkDeadlineReminders();
+      console.log("[Cron] Deadline reminders complete.");
+    } catch (err) {
+      console.error("[Cron] Deadline reminders failed:", err.message);
+    }
+  });
+}
+
+if (process.env.NODE_ENV === "production") {
+  setTimeout(() => {
+    cleanupUnverifiedAccounts().catch(() => {});
+    checkDeadlineReminders().catch(() => {});
+  }, 30 * 1000);
+}

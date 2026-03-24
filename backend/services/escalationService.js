@@ -1,40 +1,13 @@
 const supabase = require("../supabaseClient");
 const { notifyRequestEscalated } = require("./notificationService");
+const { snapshotApprovals, restoreApprovals } = require("./graduationHelpers");
 
 if (!process.env.SUPER_ADMIN_EMAIL) {
   console.warn(
-    "[Escalation] SUPER_ADMIN_EMAIL is not set — escalation emails to admin will be skipped.",
+    "[Escalation] ⚠️ SUPER_ADMIN_EMAIL is not set. " +
+    "Escalation emails to admin will be skipped at runtime. " +
+    "Set this env variable to enable admin escalation notifications.",
   );
-}
-
-async function snapshotApprovals(requestId) {
-  const { data } = await supabase
-    .from("professor_approvals")
-    .select("id, status, comments, approved_at")
-    .eq("request_id", requestId);
-  return data || [];
-}
-
-async function restoreApprovals(requestId, snapshot) {
-  const { data: current } = await supabase
-    .from("professor_approvals")
-    .select("id, status")
-    .eq("request_id", requestId);
-  if (!current) return;
-  for (const prev of snapshot) {
-    const now = current.find((c) => c.id === prev.id);
-    if (now && prev.status !== "pending" && now.status === "pending") {
-      await supabase
-        .from("professor_approvals")
-        .update({
-          status: prev.status,
-          comments: prev.comments,
-          approved_at: prev.approved_at,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", prev.id);
-    }
-  }
 }
 
 async function checkAndEscalateRequests() {

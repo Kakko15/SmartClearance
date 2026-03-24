@@ -111,7 +111,7 @@ export default function RegistrarAdminDashboard({
     const interval = setInterval(() => {
       fetchPendingRequests(true);
       fetchPendingAccounts(true);
-    }, 10000);
+    }, 30000);
     return () => clearInterval(interval);
   }, [fetchPendingRequests, fetchPendingAccounts]);
 
@@ -298,6 +298,10 @@ export default function RegistrarAdminDashboard({
 
   const handleBulkApprove = async () => {
     if (selectedIds.size === 0) return;
+    const confirmed = window.confirm(
+      `Are you sure you want to approve ${selectedIds.size} clearance(s) without individual checklist review?`,
+    );
+    if (!confirmed) return;
     setBulkLoading(true);
     try {
       const response = await authAxios.post("graduation/bulk-approve", {
@@ -311,6 +315,8 @@ export default function RegistrarAdminDashboard({
         );
         setSelectedIds(new Set());
         setBulkMode(false);
+        setSelectedRequest(null);
+        setComments("");
         fetchPendingRequests();
       }
     } catch (error) {
@@ -339,6 +345,7 @@ export default function RegistrarAdminDashboard({
         );
         setSelectedIds(new Set());
         setBulkMode(false);
+        setSelectedRequest(null);
         setComments("");
         fetchPendingRequests();
       }
@@ -388,16 +395,16 @@ export default function RegistrarAdminDashboard({
           <>
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-3xl font-bold text-gray-900">
+                <h2 className={`text-3xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
                   Registrar Final Approval
                 </h2>
-                <p className="text-gray-500 mt-1">
+                <p className={`mt-1 ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
                   Final validation and certificate generation for graduating
                   students
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <div className="px-4 py-2 rounded-xl border text-slate-600 bg-slate-50 border-slate-200 text-center">
+                <div className={`px-4 py-2 rounded-xl border text-center ${isDarkMode ? "text-slate-300 bg-slate-700/50 border-slate-600" : "text-slate-600 bg-slate-50 border-slate-200"}`}>
                   <div className="text-xl font-bold">{requests.length}</div>
                   <div className="text-xs font-medium">Awaiting Final</div>
                 </div>
@@ -507,25 +514,25 @@ export default function RegistrarAdminDashboard({
                 </div>
               </div>
             ) : requests.length === 0 ? (
-              <GlassCard className="p-12 text-center">
+              <GlassCard className="p-12 text-center" isDark={isDarkMode}>
                 <motion.div
                   initial={{ scale: 0.8 }}
                   animate={{ scale: 1 }}
-                  className="w-20 h-20 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto mb-5"
+                  className={`w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-5 ${isDarkMode ? "bg-slate-700/50" : "bg-slate-50"}`}
                 >
                   <InboxStackIcon className="w-10 h-10 text-slate-400" />
                 </motion.div>
-                <h3 className="text-xl font-bold mb-2 text-gray-900">
+                <h3 className={`text-xl font-bold mb-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
                   No Pending Final Approvals
                 </h3>
-                <p className="text-gray-500">
+                <p className={isDarkMode ? "text-gray-400" : "text-gray-500"}>
                   All registrar clearance requests have been processed.
                 </p>
               </GlassCard>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="space-y-3">
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
+                  <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
                     Students Awaiting Final Approval
                   </h3>
                   <AnimatePresence mode="popLayout">
@@ -545,10 +552,10 @@ export default function RegistrarAdminDashboard({
                         <div
                           className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
                             selectedRequest?.id === req.id
-                              ? "border-slate-400 bg-slate-50/50 shadow-lg shadow-slate-500/10"
+                              ? isDarkMode ? "border-slate-500 bg-slate-700/50 shadow-lg" : "border-slate-400 bg-slate-50/50 shadow-lg shadow-slate-500/10"
                               : bulkMode && selectedIds.has(req.id)
-                                ? "border-blue-400 bg-blue-50/50 shadow-md"
-                                : "border-gray-100 bg-white/70 hover:border-slate-300 hover:shadow-md"
+                                ? isDarkMode ? "border-blue-500 bg-blue-500/10 shadow-md" : "border-blue-400 bg-blue-50/50 shadow-md"
+                                : isDarkMode ? "border-slate-700 bg-slate-800/70 hover:border-slate-500 hover:shadow-md" : "border-gray-100 bg-white/70 hover:border-slate-300 hover:shadow-md"
                           }`}
                           onClick={() => {
                             if (bulkMode) {
@@ -573,11 +580,11 @@ export default function RegistrarAdminDashboard({
                               {req.student?.full_name?.charAt(0) || "?"}
                             </div>
                             <div className="flex-1">
-                              <h4 className="font-bold text-sm text-gray-900">
+                              <h4 className={`font-bold text-sm ${isDarkMode ? "text-white" : "text-gray-900"}`}>
                                 {req.student?.full_name || "Unknown Student"}
                               </h4>
                               <div className="flex items-center gap-2 mt-0.5">
-                                <p className="text-xs text-gray-500">
+                                <p className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
                                   {req.student?.student_number || ""}
                                 </p>
                                 <div className="flex items-center gap-1">
@@ -608,27 +615,27 @@ export default function RegistrarAdminDashboard({
                 </div>
 
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                  <h3 className={`text-sm font-semibold uppercase tracking-wider mb-3 ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
                     Final Review
                   </h3>
                   {selectedRequest ? (
-                    <GlassCard className="p-5">
+                    <GlassCard className="p-5" isDark={isDarkMode}>
                       <div className="flex items-center gap-3 mb-4">
                         <div className="w-12 h-12 bg-gradient-to-br from-slate-600 to-slate-800 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg">
                           {selectedRequest.student?.full_name?.charAt(0) || "?"}
                         </div>
                         <div>
-                          <h3 className="font-bold text-gray-900">
+                          <h3 className={`font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
                             {selectedRequest.student?.full_name}
                           </h3>
-                          <p className="text-sm text-gray-500">
+                          <p className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
                             {selectedRequest.student?.student_number}
                           </p>
                         </div>
                       </div>
 
-                      <div className="mb-4 p-3 rounded-xl bg-slate-50 border border-slate-100">
-                        <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <div className={`mb-4 p-3 rounded-xl border ${isDarkMode ? "bg-slate-700/30 border-slate-600" : "bg-slate-50 border-slate-100"}`}>
+                        <h4 className={`text-xs font-semibold uppercase tracking-wider mb-2 flex items-center gap-1.5 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>
                           <DocumentCheckIcon className="w-3.5 h-3.5" />
                           Clearance Status
                         </h4>
@@ -649,7 +656,7 @@ export default function RegistrarAdminDashboard({
                           ].map((item) => (
                             <div
                               key={item.label}
-                              className="text-center p-2 rounded-lg bg-white"
+                              className={`text-center p-2 rounded-lg ${isDarkMode ? "bg-slate-800" : "bg-white"}`}
                             >
                               <div className="text-xs text-gray-500 mb-0.5">
                                 {item.label}
@@ -666,13 +673,14 @@ export default function RegistrarAdminDashboard({
                             requestId={selectedRequest.id}
                             userRole="registrar"
                             userId={adminId}
+                            isDarkMode={isDarkMode}
                           />
                         </div>
                       )}
 
                       <div className="mb-4">
-                        <label className="text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
-                          <ChatBubbleIcon className="w-4 h-4 text-gray-400" />
+                        <label className={`text-sm font-medium mb-1.5 flex items-center gap-2 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                          <ChatBubbleIcon className={`w-4 h-4 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`} />
                           Final Comments
                         </label>
                         <textarea
@@ -680,7 +688,7 @@ export default function RegistrarAdminDashboard({
                           value={comments}
                           onChange={(e) => setComments(e.target.value)}
                           rows={2}
-                          className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white/60 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all resize-none"
+                          className={`w-full px-4 py-3 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all resize-none ${isDarkMode ? "bg-slate-800 border-slate-600 text-white placeholder-gray-500" : "bg-white/60 border-gray-200 text-gray-900"}`}
                         />
                       </div>
 
@@ -828,10 +836,10 @@ export default function RegistrarAdminDashboard({
           <>
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-3xl font-bold text-gray-900">
+                <h2 className={`text-3xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
                   Pending Account Verifications
                 </h2>
-                <p className="text-gray-500 mt-1">
+                <p className={`mt-1 ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
                   Review and approve student accounts with low face verification
                   scores
                 </p>
@@ -841,7 +849,7 @@ export default function RegistrarAdminDashboard({
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={fetchPendingAccounts}
-                  className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 transition-all"
+                  className={`px-4 py-2 rounded-xl border text-sm font-medium transition-all ${isDarkMode ? "border-slate-600 bg-slate-700 text-slate-300 hover:bg-slate-600" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
                 >
                   Refresh
                 </motion.button>

@@ -14,7 +14,16 @@ function generateVerificationCode() {
   return crypto.randomBytes(5).toString("hex").substring(0, 8).toUpperCase();
 }
 
+const _certLocks = new Set();
+
 async function generateCertificate(requestId) {
+  if (_certLocks.has(requestId)) {
+    return {
+      success: false,
+      error: "Certificate generation already in progress for this request",
+    };
+  }
+  _certLocks.add(requestId);
   try {
     const { data: request, error: requestError } = await supabase
       .from("requests")
@@ -281,6 +290,8 @@ async function generateCertificate(requestId) {
       success: false,
       error: error.message,
     };
+  } finally {
+    _certLocks.delete(requestId);
   }
 }
 

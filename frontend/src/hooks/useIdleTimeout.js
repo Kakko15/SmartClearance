@@ -34,9 +34,9 @@ export default function useIdleTimeout({
     onIdleRef.current = onIdle;
     onWarningRef.current = onWarning;
     onActiveRef.current = onActive;
-  });
+  }, [onIdle, onWarning, onActive]);
 
-  const STORAGE_KEY = "idle_last_active";
+  const STORAGE_KEY = "sc_idle_last_active";
 
   const clearTimers = useCallback(() => {
     if (timeoutRef.current) {

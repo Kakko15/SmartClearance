@@ -77,7 +77,7 @@ export default function ProfessorDashboard({
   useRealtimeSubscription("requests", () => fetchStudents(true));
 
   useEffect(() => {
-    const interval = setInterval(() => fetchStudents(true), 10000);
+    const interval = setInterval(() => fetchStudents(true), 30000);
     return () => clearInterval(interval);
   }, [fetchStudents]);
 
@@ -389,11 +389,13 @@ export default function ProfessorDashboard({
                           ? "hover:bg-[#3c4043]/40"
                           : "hover:bg-[#f8f9fa]"
                       }`}
-                      onClick={() =>
-                        setExpandedStudent(
-                          expandedStudent === student.id ? null : student.id,
-                        )
-                      }
+                      onClick={() => {
+                        const nextId =
+                          expandedStudent === student.id ? null : student.id;
+                        setExpandedStudent(nextId);
+                        setRejectReason("");
+                        setSelectedRejectId(null);
+                      }}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
