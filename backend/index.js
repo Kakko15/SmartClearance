@@ -3,9 +3,17 @@ require("dotenv").config({ path: path.join(__dirname, ".env") });
 
 const express = require("express");
 const cors = require("cors");
+const helmet = require("helmet");
+const morgan = require("morgan");
 const app = express();
 
 const { allowedOrigins } = require("./constants/allowedOrigins");
+
+// L-7: Security headers
+app.use(helmet());
+
+// L-8: HTTP request logging
+app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
 app.use(
   cors({
@@ -19,7 +27,9 @@ app.use(
     credentials: true,
   }),
 );
-app.use(express.json({ limit: "10mb" }));
+
+// L-9: Reduced from 10MB to 1MB to prevent abuse
+app.use(express.json({ limit: "1mb" }));
 
 const PORT = process.env.PORT || 5000;
 
@@ -62,7 +72,7 @@ app.get("/", (req, res) => {
 const errorHandler = require("./middleware/errorHandler");
 app.use(errorHandler);
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const server = app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 const cron = require("node-cron");
 const { cleanupExpired } = require("./services/otpStore");
@@ -71,39 +81,73 @@ const {
 } = require("./services/unverifiedAccountCleanup");
 const { checkDeadlineReminders } = require("./services/notificationService");
 
-cron.schedule("*/15 * * * *", async () => {
-  try {
-    await cleanupExpired();
-  } catch (err) {
-    console.error("[Cron] OTP cleanup failed:", err.message);
-  }
-});
+const scheduledTasks = [];
+
+scheduledTasks.push(
+  cron.schedule("*/15 * * * *", async () => {
+    try {
+      await cleanupExpired();
+    } catch (err) {
+      console.error("[Cron] OTP cleanup failed:", err.message);
+    }
+  }),
+);
 
 if (process.env.NODE_ENV === "production") {
-  cron.schedule("0 */6 * * *", async () => {
-    try {
-      console.log("[Cron] Running unverified account cleanup...");
-      await cleanupUnverifiedAccounts();
-      console.log("[Cron] Unverified account cleanup complete.");
-    } catch (err) {
-      console.error("[Cron] Unverified account cleanup failed:", err.message);
-    }
-  });
+  scheduledTasks.push(
+    cron.schedule("0 */6 * * *", async () => {
+      try {
+        console.log("[Cron] Running unverified account cleanup...");
+        await cleanupUnverifiedAccounts();
+        console.log("[Cron] Unverified account cleanup complete.");
+      } catch (err) {
+        console.error("[Cron] Unverified account cleanup failed:", err.message);
+      }
+    }),
+  );
 
-  cron.schedule("0 8 * * *", async () => {
-    try {
-      console.log("[Cron] Running deadline reminders...");
-      await checkDeadlineReminders();
-      console.log("[Cron] Deadline reminders complete.");
-    } catch (err) {
-      console.error("[Cron] Deadline reminders failed:", err.message);
-    }
-  });
-}
+  scheduledTasks.push(
+    cron.schedule("0 8 * * *", async () => {
+      try {
+        console.log("[Cron] Running deadline reminders...");
+        await checkDeadlineReminders();
+        console.log("[Cron] Deadline reminders complete.");
+      } catch (err) {
+        console.error("[Cron] Deadline reminders failed:", err.message);
+      }
+    }),
+  );
 
-if (process.env.NODE_ENV === "production") {
+  // Run once on startup after 30s warm-up
   setTimeout(() => {
     cleanupUnverifiedAccounts().catch(() => {});
     checkDeadlineReminders().catch(() => {});
   }, 30 * 1000);
 }
+
+// L-10: Graceful shutdown handler
+function gracefulShutdown(signal) {
+  console.log(`\n[${signal}] Shutting down gracefully...`);
+
+  // Stop accepting new connections
+  server.close(() => {
+    console.log("[Shutdown] HTTP server closed.");
+    process.exit(0);
+  });
+
+  // Stop all scheduled cron tasks
+  for (const task of scheduledTasks) {
+    task.stop();
+  }
+  console.log(`[Shutdown] ${scheduledTasks.length} cron task(s) stopped.`);
+
+  // Force exit after 10s if connections are still hanging
+  setTimeout(() => {
+    console.error("[Shutdown] Forcing exit after timeout.");
+    process.exit(1);
+  }, 10_000).unref();
+}
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+

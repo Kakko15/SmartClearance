@@ -1,11 +1,22 @@
 const express = require("express");
 const router = express.Router();
+const rateLimit = require("express-rate-limit");
 const supabase = require("../supabaseClient");
 const { requireAuth, requireRole } = require("../middleware/authMiddleware");
 const { safeErrorResponse } = require("../utils/safeError");
 
+const isDev = process.env.NODE_ENV !== "production";
+const analyticsLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 200 : 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many requests. Please try again later." },
+});
+
 router.get(
   "/dashboard",
+  analyticsLimiter,
   requireAuth,
   requireRole("super_admin"),
   async (req, res) => {

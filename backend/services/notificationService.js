@@ -110,6 +110,13 @@ async function notifyRequestSubmitted(requestId, studentId) {
     const student = request.profiles;
     const docType = request.document_types;
 
+    if (!student || !docType) {
+      console.warn(
+        `[notifyRequestSubmitted] Missing student or docType for request ${requestId}, skipping`,
+      );
+      return;
+    }
+
     const studentEmail = await resolveUserEmail(studentId);
     if (!studentEmail) {
       console.warn(
@@ -118,6 +125,7 @@ async function notifyRequestSubmitted(requestId, studentId) {
       return;
     }
 
+    const currentStage = docType.required_stages?.[0] || "Processing";
     const emailSubject = `Request Submitted - ${docType.name}`;
     const emailMessage = `
       <h2>Request Submitted Successfully</h2>
@@ -125,7 +133,7 @@ async function notifyRequestSubmitted(requestId, studentId) {
       <p>Your request for <strong>${escapeHtml(docType.name)}</strong> has been submitted successfully.</p>
       <p><strong>Request ID:</strong> ${escapeHtml(requestId)}</p>
       <p><strong>Status:</strong> Pending</p>
-      <p><strong>Current Stage:</strong> ${escapeHtml(docType.required_stages[0])}</p>
+      <p><strong>Current Stage:</strong> ${escapeHtml(currentStage)}</p>
       <p>You will receive notifications as your request progresses through each stage.</p>
       <br>
       <p>Best regards,<br>SmartClearance Team</p>
@@ -169,6 +177,13 @@ async function notifyRequestApproved(
     const student = request.profiles;
     const docType = request.document_types;
 
+    if (!student || !docType) {
+      console.warn(
+        `[notifyRequestApproved] Missing student or docType for request ${requestId}, skipping`,
+      );
+      return;
+    }
+
     const studentEmail = await resolveUserEmail(studentId);
     if (!studentEmail) {
       console.warn(
@@ -198,7 +213,7 @@ async function notifyRequestApproved(
         <p>Your request for <strong>${escapeHtml(docType.name)}</strong> has been approved at the <strong>${escapeHtml(stageName)}</strong> stage.</p>
         <p><strong>Request ID:</strong> ${escapeHtml(requestId)}</p>
         <p><strong>Status:</strong> Approved</p>
-        <p><strong>Current Stage:</strong> ${escapeHtml(docType.required_stages[request.current_stage_index] || "Completed")}</p>
+        <p><strong>Current Stage:</strong> ${escapeHtml(docType.required_stages?.[request.current_stage_index] || "Completed")}</p>
         <p>Your request is now being processed at the next stage.</p>
         <br>
         <p>Best regards,<br>SmartClearance Team</p>

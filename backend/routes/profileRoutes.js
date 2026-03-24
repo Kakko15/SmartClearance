@@ -1,8 +1,32 @@
 const express = require("express");
 const router = express.Router();
+const rateLimit = require("express-rate-limit");
 const supabase = require("../supabaseClient");
 const { requireAuth, requireRole } = require("../middleware/authMiddleware");
 const { safeErrorResponse } = require("../utils/safeError");
+
+const isDev = process.env.NODE_ENV !== "production";
+
+const profileWriteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 200 : 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many requests. Please try again later." },
+});
+
+const profileReadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 500 : 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many requests. Please try again later." },
+});
+
+router.use((req, _res, next) => {
+  if (req.method === "GET") return profileReadLimiter(req, _res, next);
+  return profileWriteLimiter(req, _res, next);
+});
 
 const SENSITIVE_FIELDS = ["full_name", "student_number", "course_year"];
 

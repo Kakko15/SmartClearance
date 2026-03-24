@@ -27,6 +27,14 @@ const commentWriteLimiter = rateLimit({
   message: { success: false, error: "Too many comment operations, please try again later" },
 });
 
+const commentReadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 500 : 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many requests. Please try again later." },
+});
+
 // ─── Static routes MUST come before parameterized routes ───
 // (BUG-020 fix: reordered to prevent /:clearanceId from matching "create")
 
@@ -56,6 +64,14 @@ router.post("/create", commentWriteLimiter, requireAuth, async (req, res) => {
     }
 
     const userProfile = await getUserProfile(user_id);
+
+    if (userProfile.role === "student") {
+      return res.status(403).json({
+        success: false,
+        error:
+          "Students cannot add comments. Comments are read-only for students.",
+      });
+    }
 
     const { data: comment, error } = await supabase
       .from("clearance_comments")
@@ -90,7 +106,7 @@ router.post("/create", commentWriteLimiter, requireAuth, async (req, res) => {
   }
 });
 
-router.get("/request/:request_id", requireAuth, async (req, res) => {
+router.get("/request/:request_id", commentReadLimiter, requireAuth, async (req, res) => {
   try {
     const { request_id } = req.params;
     const user_id = req.user.id;
@@ -222,7 +238,7 @@ router.post("/:clearanceId/comments", commentWriteLimiter, requireAuth, async (r
   }
 });
 
-router.get("/:clearanceId/comments", requireAuth, async (req, res) => {
+router.get("/:clearanceId/comments", commentReadLimiter, requireAuth, async (req, res) => {
   try {
     const { clearanceId } = req.params;
     const user_id = req.user.id;
@@ -249,7 +265,7 @@ router.get("/:clearanceId/comments", requireAuth, async (req, res) => {
   }
 });
 
-router.put("/:commentId", requireAuth, async (req, res) => {
+router.put("/:commentId", commentWriteLimiter, requireAuth, async (req, res) => {
   try {
     const { commentId } = req.params;
     const { user_id, comment_text } = req.body;
@@ -258,6 +274,13 @@ router.put("/:commentId", requireAuth, async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Missing user_id or comment_text",
+      });
+    }
+
+    if (comment_text.length > MAX_COMMENT_LENGTH) {
+      return res.status(400).json({
+        success: false,
+        error: `Comment must be ${MAX_COMMENT_LENGTH} characters or fewer`,
       });
     }
 
@@ -311,7 +334,7 @@ router.put("/:commentId", requireAuth, async (req, res) => {
   }
 });
 
-router.delete("/:commentId", requireAuth, async (req, res) => {
+router.delete("/:commentId", commentWriteLimiter, requireAuth, async (req, res) => {
   try {
     const { commentId } = req.params;
     const user_id = req.user.id;

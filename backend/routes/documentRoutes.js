@@ -1,10 +1,34 @@
 const express = require("express");
 const router = express.Router();
+const rateLimit = require("express-rate-limit");
 const supabase = require("../supabaseClient");
 const upload = require("../middleware/uploadMiddleware");
 const { requireAuth } = require("../middleware/authMiddleware");
 const { safeErrorResponse } = require("../utils/safeError");
 const { isStaffRole, isManagementRole } = require("../constants/roles");
+
+const isDev = process.env.NODE_ENV !== "production";
+
+const docWriteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 200 : 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many requests. Please try again later." },
+});
+
+const docReadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 500 : 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many requests. Please try again later." },
+});
+
+router.use((req, _res, next) => {
+  if (req.method === "GET") return docReadLimiter(req, _res, next);
+  return docWriteLimiter(req, _res, next);
+});
 
 router.post("/upload", requireAuth, upload.single("file"), async (req, res) => {
   try {
@@ -45,15 +69,10 @@ router.post("/upload", requireAuth, upload.single("file"), async (req, res) => {
       });
     }
 
-    const { data: userProfile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user_id)
-      .single();
-
+    const userRole = req.userRole;
     const isOwner = request.student_id === user_id;
     const isAdmin =
-      isStaffRole(userProfile?.role) || isManagementRole(userProfile?.role);
+      isStaffRole(userRole) || isManagementRole(userRole);
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({
@@ -133,15 +152,10 @@ router.get("/request/:request_id", requireAuth, async (req, res) => {
       });
     }
 
-    const { data: userProfile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user_id)
-      .single();
-
+    const userRole = req.userRole;
     const isOwner = request.student_id === user_id;
     const isAdmin =
-      isStaffRole(userProfile?.role) || isManagementRole(userProfile?.role);
+      isStaffRole(userRole) || isManagementRole(userRole);
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({
@@ -186,15 +200,11 @@ router.delete("/:id", requireAuth, async (req, res) => {
       });
     }
 
-    const { data: userProfile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user_id)
-      .single();
+    const userRole = req.userRole;
 
     const isUploader = document.uploaded_by === user_id;
     const isAdmin =
-      isStaffRole(userProfile?.role) || isManagementRole(userProfile?.role);
+      isStaffRole(userRole) || isManagementRole(userRole);
 
     if (!isUploader && !isAdmin) {
       return res.status(403).json({

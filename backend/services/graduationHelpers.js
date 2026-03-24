@@ -193,11 +193,7 @@ async function healApprovals(approvals, requestId) {
   return healed;
 }
 
-const _completionLocks = new Set();
-
 async function tryCompleteRequest(requestId) {
-  if (_completionLocks.has(requestId)) return;
-  _completionLocks.add(requestId);
   try {
     const { data: request } = await supabase
       .from("requests")
@@ -205,9 +201,10 @@ async function tryCompleteRequest(requestId) {
         "id, portion, library_status, cashier_status, registrar_status, is_completed",
       )
       .eq("id", requestId)
+      .eq("is_completed", false)
       .single();
 
-    if (!request || request.is_completed) return;
+    if (!request) return;
 
     const { data: rawApprovals } = await supabase
       .from("professor_approvals")
@@ -239,7 +236,8 @@ async function tryCompleteRequest(requestId) {
     const certificateNumber = generateCertificateNumber();
     const now = new Date().toISOString();
 
-    // Try with certificate columns first, fall back if they don't exist
+    // DB-level guard: UPDATE ... WHERE is_completed = false
+    // If another process already completed this request, no rows will match.
     let updated;
     const { data: fullData, error: fullErr } = await supabase
       .from("requests")
@@ -274,15 +272,13 @@ async function tryCompleteRequest(requestId) {
       updated = fullData;
     }
 
+    if (!updated) return; // Another process already completed this request
+
     await restoreApprovals(requestId, preSnapshot);
 
-    if (updated) {
-      notifyClearanceStatusChange(requestId, "completed", "All Stages", null);
-    }
+    notifyClearanceStatusChange(requestId, "completed", "All Stages", null);
   } catch (err) {
     console.warn("tryCompleteRequest warning:", err.message);
-  } finally {
-    _completionLocks.delete(requestId);
   }
 }
 

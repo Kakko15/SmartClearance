@@ -1,14 +1,24 @@
 const express = require("express");
 const router = express.Router();
 const crypto = require("crypto");
+const rateLimit = require("express-rate-limit");
 const supabase = require("../supabaseClient");
 const { requireAuth, requireRole } = require("../middleware/authMiddleware");
+const { safeErrorResponse } = require("../utils/safeError");
 const { logAction, ACTIONS } = require("../services/auditService");
 
 const { ROLES } = require("../constants/roles");
 
+const isDev = process.env.NODE_ENV !== "production";
+const secretCodeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 200 : 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many requests. Please try again later." },
+});
 
-router.get("/", requireAuth, requireRole("super_admin"), async (req, res) => {
+router.get("/", secretCodeLimiter, requireAuth, requireRole("super_admin"), async (req, res) => {
   try {
     const { data, error } = await supabase
       .from("admin_secret_codes")
@@ -19,11 +29,11 @@ router.get("/", requireAuth, requireRole("super_admin"), async (req, res) => {
     res.json({ success: true, codes: data || [] });
   } catch (error) {
     console.error("Error fetching secret codes:", error);
-    res.status(500).json({ success: false, error: "Failed to fetch codes" });
+    safeErrorResponse(res, error);
   }
 });
 
-router.post("/", requireAuth, requireRole("super_admin"), async (req, res) => {
+router.post("/", secretCodeLimiter, requireAuth, requireRole("super_admin"), async (req, res) => {
   try {
     const { role, description, max_uses = 50, expires_at } = req.body;
 
@@ -67,13 +77,13 @@ router.post("/", requireAuth, requireRole("super_admin"), async (req, res) => {
     });
     res.json({ success: true, code: data });
   } catch (error) {
-    console.error("Error creating secret code:", error);
-    res.status(500).json({ success: false, error: "Failed to create code" });
+    safeErrorResponse(res, error);
   }
 });
 
 router.patch(
   "/:id/toggle",
+  secretCodeLimiter,
   requireAuth,
   requireRole("super_admin"),
   async (req, res) => {
@@ -107,13 +117,12 @@ router.patch(
       });
       res.json({ success: true, code: data });
     } catch (error) {
-      console.error("Error toggling secret code:", error);
-      res.status(500).json({ success: false, error: "Failed to update code" });
+      safeErrorResponse(res, error);
     }
   },
 );
 
-router.delete("/:id", requireAuth, requireRole("super_admin"), async (req, res) => {
+router.delete("/:id", secretCodeLimiter, requireAuth, requireRole("super_admin"), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -130,7 +139,7 @@ router.delete("/:id", requireAuth, requireRole("super_admin"), async (req, res) 
     res.json({ success: true, message: "Code deleted" });
   } catch (error) {
     console.error("Error deleting secret code:", error);
-    res.status(500).json({ success: false, error: "Failed to delete code" });
+    safeErrorResponse(res, error);
   }
 });
 

@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const rateLimit = require("express-rate-limit");
 const supabase = require("../supabaseClient");
 const { requireAuth } = require("../middleware/authMiddleware");
 const { safeErrorResponse } = require("../utils/safeError");
@@ -10,17 +11,32 @@ const {
   manuallyEscalateRequest,
 } = require("../services/escalationService");
 
+const isDev = process.env.NODE_ENV !== "production";
+
+const escalationWriteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 200 : 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many requests. Please try again later." },
+});
+
+const escalationReadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 500 : 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many requests. Please try again later." },
+});
+
+router.use((req, _res, next) => {
+  if (req.method === "GET") return escalationReadLimiter(req, _res, next);
+  return escalationWriteLimiter(req, _res, next);
+});
+
 router.post("/check", requireAuth, async (req, res) => {
   try {
-    const admin_id = req.user.id;
-
-    const { data: admin } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", admin_id)
-      .single();
-
-    if (!admin || !isManagementRole(admin.role)) {
+    if (!isManagementRole(req.userRole)) {
       return res.status(403).json({
         success: false,
         error: "Unauthorized - admin access required",
@@ -38,15 +54,7 @@ router.post("/check", requireAuth, async (req, res) => {
 
 router.get("/stats", requireAuth, async (req, res) => {
   try {
-    const admin_id = req.user.id;
-
-    const { data: admin } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", admin_id)
-      .single();
-
-    if (!admin || !isManagementRole(admin.role)) {
+    if (!isManagementRole(req.userRole)) {
       return res.status(403).json({
         success: false,
         error: "Unauthorized - admin access required",
@@ -65,7 +73,6 @@ router.get("/stats", requireAuth, async (req, res) => {
 router.post("/manual", requireAuth, async (req, res) => {
   try {
     const { request_id, reason } = req.body;
-    const admin_id = req.user.id;
 
     if (!request_id) {
       return res.status(400).json({
@@ -74,20 +81,14 @@ router.post("/manual", requireAuth, async (req, res) => {
       });
     }
 
-    const { data: admin } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", admin_id)
-      .single();
-
-    if (!admin || !isManagementRole(admin.role)) {
+    if (!isManagementRole(req.userRole)) {
       return res.status(403).json({
         success: false,
         error: "Unauthorized - admin access required",
       });
     }
 
-    const result = await manuallyEscalateRequest(request_id, admin_id, reason);
+    const result = await manuallyEscalateRequest(request_id, req.user.id, reason);
 
     res.json(result);
   } catch (error) {
@@ -114,15 +115,11 @@ router.get("/history/:request_id", requireAuth, async (req, res) => {
       });
     }
 
-    const { data: userProfile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user_id)
-      .single();
+    const userRole = req.userRole;
 
     const isOwner = request.student_id === user_id;
     const isAdmin =
-      isStaffRole(userProfile?.role) || isManagementRole(userProfile?.role);
+      isStaffRole(userRole) || isManagementRole(userRole);
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({

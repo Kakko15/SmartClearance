@@ -14,35 +14,9 @@ function generateVerificationCode() {
   return crypto.randomBytes(5).toString("hex").substring(0, 8).toUpperCase();
 }
 
-const _certLocks = new Set();
-
 async function generateCertificate(requestId) {
-  if (_certLocks.has(requestId)) {
-    return {
-      success: false,
-      error: "Certificate generation already in progress for this request",
-    };
-  }
-  _certLocks.add(requestId);
   try {
-    const { data: request, error: requestError } = await supabase
-      .from("requests")
-      .select(
-        `
-        *,
-        document_types(*),
-        profiles!requests_student_id_fkey(*)
-      `,
-      )
-      .eq("id", requestId)
-      .single();
-
-    if (requestError) throw requestError;
-
-    if (!request.is_completed) {
-      throw new Error("Request is not completed yet");
-    }
-
+    // DB-level guard: check for existing certificate first (replaces in-memory lock)
     const { data: existingCert, error: certCheckError } = await supabase
       .from("clearance_certificates")
       .select("*")
@@ -59,6 +33,24 @@ async function generateCertificate(requestId) {
         certificate: existingCert,
         message: "Certificate already exists",
       };
+    }
+
+    const { data: request, error: requestError } = await supabase
+      .from("requests")
+      .select(
+        `
+        *,
+        document_types(*),
+        profiles!requests_student_id_fkey(*)
+      `,
+      )
+      .eq("id", requestId)
+      .single();
+
+    if (requestError) throw requestError;
+
+    if (!request.is_completed) {
+      throw new Error("Request is not completed yet");
     }
 
     const student = request.profiles;
@@ -84,8 +76,6 @@ async function generateCertificate(requestId) {
 
     const chunks = [];
     doc.on("data", (chunk) => chunks.push(chunk));
-
-    const apiUrl = process.env.API_URL || "http://localhost:5000/api";
 
     const frontendUrl = (process.env.ALLOWED_ORIGINS || "http://localhost:5173")
       .split(",")[0]
@@ -290,8 +280,6 @@ async function generateCertificate(requestId) {
       success: false,
       error: error.message,
     };
-  } finally {
-    _certLocks.delete(requestId);
   }
 }
 

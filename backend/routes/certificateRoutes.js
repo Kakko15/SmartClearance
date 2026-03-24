@@ -21,8 +21,18 @@ const verifyLimiter = rateLimit({
     error: "Too many verification attempts. Please try again later.",
   },
 });
+const certificateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 200 : 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: "Too many certificate requests. Please try again later.",
+  },
+});
 
-router.post("/generate", requireAuth, async (req, res) => {
+router.post("/generate", certificateLimiter, requireAuth, async (req, res) => {
   try {
     const { request_id } = req.body;
     const user_id = req.user.id;
@@ -47,15 +57,11 @@ router.post("/generate", requireAuth, async (req, res) => {
       });
     }
 
-    const { data: userProfile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user_id)
-      .single();
+    const userRole = req.userRole;
 
     const isOwner = request.student_id === user_id;
     const isAdmin =
-      isStaffRole(userProfile?.role) || isManagementRole(userProfile?.role);
+      isStaffRole(userRole) || isManagementRole(userRole);
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({
@@ -77,7 +83,7 @@ router.post("/generate", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/request/:request_id", requireAuth, async (req, res) => {
+router.get("/request/:request_id", certificateLimiter, requireAuth, async (req, res) => {
   try {
     const { request_id } = req.params;
     const user_id = req.user.id;
@@ -95,15 +101,11 @@ router.get("/request/:request_id", requireAuth, async (req, res) => {
       });
     }
 
-    const { data: userProfile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user_id)
-      .single();
+    const userRole = req.userRole;
 
     const isOwner = request.student_id === user_id;
     const isAdmin =
-      isStaffRole(userProfile?.role) || isManagementRole(userProfile?.role);
+      isStaffRole(userRole) || isManagementRole(userRole);
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({

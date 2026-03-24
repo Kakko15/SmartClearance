@@ -2,16 +2,19 @@ const supabase = require("../supabaseClient");
 const { notifyRequestEscalated } = require("./notificationService");
 const { snapshotApprovals, restoreApprovals } = require("./graduationHelpers");
 
-if (!process.env.SUPER_ADMIN_EMAIL) {
-  console.warn(
-    "[Escalation] ⚠️ SUPER_ADMIN_EMAIL is not set. " +
-    "Escalation emails to admin will be skipped at runtime. " +
-    "Set this env variable to enable admin escalation notifications.",
-  );
-}
+let _warnedSuperAdminEmail = false;
 
 async function checkAndEscalateRequests() {
   try {
+    if (!_warnedSuperAdminEmail && !process.env.SUPER_ADMIN_EMAIL) {
+      console.warn(
+        "[Escalation] ⚠️ SUPER_ADMIN_EMAIL is not set. " +
+        "Escalation emails to admin will be skipped at runtime. " +
+        "Set this env variable to enable admin escalation notifications.",
+      );
+      _warnedSuperAdminEmail = true;
+    }
+
     const escalationDays = parseInt(process.env.ESCALATION_DAYS || "3");
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - escalationDays);

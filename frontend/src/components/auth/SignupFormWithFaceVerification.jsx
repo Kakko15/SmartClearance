@@ -14,12 +14,12 @@ import {
   COURSE_OPTIONS,
   YEAR_LEVEL_OPTIONS,
 } from "../../constants/formOptions";
+import { STUDENT_NUMBER_PATTERN } from "../../constants/validation";
 
 const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
 const IS_LOCALHOST =
   window.location.hostname === "localhost" ||
   window.location.hostname === "127.0.0.1";
-const STUDENT_NUMBER_PATTERN = /^\d{2}-\d{3,5}(?:-[A-Z]{1,3})?$/;
 const PENDING_SIGNUP_VERIFICATION_KEY = "pending_signup_email_verification";
 const PENDING_SIGNUP_TWO_FACTOR_KEY = "pending_signup_two_factor_setup";
 const PENDING_VERIFICATION_MAX_AGE_MS = 24 * 60 * 60 * 1000;

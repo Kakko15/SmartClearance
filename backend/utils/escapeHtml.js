@@ -6,8 +6,7 @@ function escapeHtml(str) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;")
-    .replace(/`/g, "&#96;")
-    .replace(/\//g, "&#47;");
+    .replace(/`/g, "&#96;");
 }
 
 module.exports = { escapeHtml };

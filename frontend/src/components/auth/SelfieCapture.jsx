@@ -185,7 +185,7 @@ export default function SelfieCapture({ idDescriptor, onMatch, isDark }) {
 
         setTimeout(() => {
           startAutoDetection();
-        }, 1500);
+        }, 800);
       }
     } catch (error) {
       console.error("Camera error:", error);
@@ -366,7 +366,7 @@ export default function SelfieCapture({ idDescriptor, onMatch, isDark }) {
         if (comparison.success && comparison.isMatch) {
           readyStreakRef.current += 1;
           lastSimilarityRef.current = comparison.similarity;
-          if (readyStreakRef.current >= 2) {
+          if (readyStreakRef.current >= 1) {
             setAutoDetectStatus(
               `Face match ready (${comparison.similarity.toFixed(0)}%). Click Capture Now to verify.`,
             );
@@ -388,7 +388,7 @@ export default function SelfieCapture({ idDescriptor, onMatch, isDark }) {
         console.error("Auto-detect cycle error:", err);
       }
       scanningRef.current = false;
-    }, 1000);
+    }, 700);
   }, [evaluateLiveFaceQuality, isWindowActive, stopAutoDetection]);
 
   useEffect(() => {
@@ -401,7 +401,7 @@ export default function SelfieCapture({ idDescriptor, onMatch, isDark }) {
     const comparisons = [];
     let lastGuidanceMessage = "Center your full face in the circle.";
 
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 4; i++) {
       if (!isWindowActive()) break;
       if (
         !videoRef.current ||
@@ -426,8 +426,8 @@ export default function SelfieCapture({ idDescriptor, onMatch, isDark }) {
         lastGuidanceMessage = "Position your face in the circle...";
       }
 
-      if (i < 4) {
-        await wait(170);
+      if (i < 3) {
+        await wait(100);
       }
     }
 

@@ -1,12 +1,32 @@
 const express = require("express");
 const router = express.Router();
+const rateLimit = require("express-rate-limit");
 const supabase = require("../supabaseClient");
 const { requireAuth } = require("../middleware/authMiddleware");
 const { safeErrorResponse } = require("../utils/safeError");
 const {
   getUserProfile,
+  isAdminRole,
   filterByVisibility,
 } = require("../utils/commentHelpers");
+
+const MAX_COMMENT_LENGTH = 2000;
+
+const isDev = process.env.NODE_ENV !== "production";
+const clearanceWriteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 200 : 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many requests. Please try again later." },
+});
+const clearanceReadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 500 : 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many requests. Please try again later." },
+});
 
 let _notificationService = null;
 function getNotificationService() {
@@ -16,7 +36,7 @@ function getNotificationService() {
   return _notificationService;
 }
 
-router.post("/:clearanceId/comments", requireAuth, async (req, res) => {
+router.post("/:clearanceId/comments", clearanceWriteLimiter, requireAuth, async (req, res) => {
   try {
     const { clearanceId } = req.params;
     const user_id = req.user.id;
@@ -26,6 +46,13 @@ router.post("/:clearanceId/comments", requireAuth, async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Missing required field: comment_text",
+      });
+    }
+
+    if (comment_text.length > 2000) {
+      return res.status(400).json({
+        success: false,
+        error: "Comment must be 2000 characters or fewer",
       });
     }
 
@@ -93,7 +120,7 @@ router.post("/:clearanceId/comments", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/:clearanceId/comments", requireAuth, async (req, res) => {
+router.get("/:clearanceId/comments", clearanceReadLimiter, requireAuth, async (req, res) => {
   try {
     const { clearanceId } = req.params;
     const user_id = req.user.id;
@@ -123,7 +150,7 @@ router.get("/:clearanceId/comments", requireAuth, async (req, res) => {
   }
 });
 
-router.put("/:commentId", requireAuth, async (req, res) => {
+router.put("/:commentId", clearanceWriteLimiter, requireAuth, async (req, res) => {
   try {
     const { commentId } = req.params;
     const user_id = req.user.id;
@@ -133,6 +160,13 @@ router.put("/:commentId", requireAuth, async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Missing comment_text",
+      });
+    }
+
+    if (comment_text.length > MAX_COMMENT_LENGTH) {
+      return res.status(400).json({
+        success: false,
+        error: `Comment must be ${MAX_COMMENT_LENGTH} characters or fewer`,
       });
     }
 
@@ -179,10 +213,12 @@ router.put("/:commentId", requireAuth, async (req, res) => {
   }
 });
 
-router.delete("/:commentId", requireAuth, async (req, res) => {
+router.delete("/:commentId", clearanceWriteLimiter, requireAuth, async (req, res) => {
   try {
     const { commentId } = req.params;
     const user_id = req.user.id;
+
+    const userProfile = await getUserProfile(user_id);
 
     const { data: comment, error: fetchError } = await supabase
       .from("clearance_comments")
@@ -197,7 +233,7 @@ router.delete("/:commentId", requireAuth, async (req, res) => {
       });
     }
 
-    if (user_id !== comment.commenter_id) {
+    if (user_id !== comment.commenter_id && !isAdminRole(userProfile.role)) {
       return res.status(403).json({
         success: false,
         error: "You can only delete your own comments",

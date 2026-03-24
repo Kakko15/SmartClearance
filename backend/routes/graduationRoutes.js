@@ -126,6 +126,8 @@ router.post("/apply", requireAuth, requireRole("student"), async (req, res) => {
       .eq("is_completed", false)
       .maybeSingle();
 
+    if (checkError) throw checkError;
+
     if (existing) {
       return res.status(400).json({
         success: false,
@@ -204,12 +206,21 @@ router.post("/apply", requireAuth, requireRole("student"), async (req, res) => {
 
     const wantedIds = wantedSignatories.map((p) => p.id);
 
+    // Clean up any unwanted approvals from a prior application attempt
     if (wantedIds.length > 0) {
-      await supabase
+      const { data: existingApprovals } = await supabase
         .from("professor_approvals")
-        .delete()
+        .select("id")
         .eq("request_id", request.id)
-        .not("professor_id", "in", `(${wantedIds.join(",")})`);
+        .limit(1);
+
+      if (existingApprovals && existingApprovals.length > 0) {
+        await supabase
+          .from("professor_approvals")
+          .delete()
+          .eq("request_id", request.id)
+          .not("professor_id", "in", `(${wantedIds.join(",")})`);
+      }
     }
 
     if (wantedSignatories.length > 0) {
@@ -326,10 +337,13 @@ router.delete(
       for (const existingRequest of requests) {
         if (existingRequest.is_completed) continue;
 
+        const reqId = existingRequest.id;
+
+        // Delete clearance_comments
         const { error: commentsDeleteError } = await supabase
           .from("clearance_comments")
           .delete()
-          .eq("clearance_request_id", existingRequest.id);
+          .eq("clearance_request_id", reqId);
 
         if (commentsDeleteError) {
           console.warn(
@@ -338,10 +352,11 @@ router.delete(
           );
         }
 
+        // Delete clearance_status_history
         const { error: historyDeleteError } = await supabase
           .from("clearance_status_history")
           .delete()
-          .eq("request_id", existingRequest.id);
+          .eq("request_id", reqId);
 
         if (historyDeleteError) {
           console.warn(
@@ -350,10 +365,11 @@ router.delete(
           );
         }
 
+        // Delete professor_approvals
         const { error: approvalDeleteError } = await supabase
           .from("professor_approvals")
           .delete()
-          .eq("request_id", existingRequest.id);
+          .eq("request_id", reqId);
 
         if (approvalDeleteError) {
           console.warn(
@@ -362,15 +378,68 @@ router.delete(
           );
         }
 
+        // Delete request_documents (C-4 fix)
+        const { error: docsDeleteError } = await supabase
+          .from("request_documents")
+          .delete()
+          .eq("request_id", reqId);
+
+        if (docsDeleteError) {
+          console.warn(
+            "Request documents cleanup warning:",
+            docsDeleteError.message,
+          );
+        }
+
+        // Delete request_history (C-4 fix)
+        const { error: reqHistoryDeleteError } = await supabase
+          .from("request_history")
+          .delete()
+          .eq("request_id", reqId);
+
+        if (reqHistoryDeleteError) {
+          console.warn(
+            "Request history cleanup warning:",
+            reqHistoryDeleteError.message,
+          );
+        }
+
+        // Delete escalation_history (C-4 fix)
+        const { error: escalationDeleteError } = await supabase
+          .from("escalation_history")
+          .delete()
+          .eq("request_id", reqId);
+
+        if (escalationDeleteError) {
+          console.warn(
+            "Escalation history cleanup warning:",
+            escalationDeleteError.message,
+          );
+        }
+
+        // Delete clearance_certificates (C-4 fix)
+        const { error: certDeleteError } = await supabase
+          .from("clearance_certificates")
+          .delete()
+          .eq("request_id", reqId);
+
+        if (certDeleteError) {
+          console.warn(
+            "Clearance certificates cleanup warning:",
+            certDeleteError.message,
+          );
+        }
+
+        // Finally, delete the request itself
         const { error: deleteError } = await supabase
           .from("requests")
           .delete()
-          .eq("id", existingRequest.id);
+          .eq("id", reqId);
 
         if (deleteError) {
           console.error(
             "Failed to delete request:",
-            existingRequest.id,
+            reqId,
             deleteError.message,
           );
           throw deleteError;
@@ -395,6 +464,13 @@ router.get(
   async (req, res) => {
     try {
       const { studentId } = req.params;
+
+      if (req.user.id !== studentId) {
+        return res.status(403).json({
+          success: false,
+          error: "You can only view your own clearance status",
+        });
+      }
 
       let request = null;
 
@@ -1032,10 +1108,24 @@ router.post(
       const { approval_id, professor_id, comments } = req.body;
 
       if (req.user.id !== professor_id) {
-        return res.status(403).json({
-          success: false,
-          error: "You can only reject as yourself",
-        });
+        const { data: delegator } = await supabase
+          .from("profiles")
+          .select("delegated_to, delegation_expires_at")
+          .eq("id", professor_id)
+          .single();
+
+        const isActiveDelegate =
+          delegator &&
+          delegator.delegated_to === req.user.id &&
+          delegator.delegation_expires_at &&
+          new Date(delegator.delegation_expires_at) > new Date();
+
+        if (!isActiveDelegate) {
+          return res.status(403).json({
+            success: false,
+            error: "You can only reject as yourself or as an active delegate",
+          });
+        }
       }
 
       if (!comments || comments.trim() === "") {
@@ -1161,6 +1251,7 @@ router.get(
         )
         .eq("clearance_type", "graduation")
         .eq("library_status", "pending")
+        .eq("is_completed", false)
         .order("created_at", { ascending: true });
 
       if (error) throw error;
@@ -1213,13 +1304,8 @@ router.post(
   requireRole("librarian"),
   async (req, res) => {
     try {
-      const { request_id, admin_id, comments } = req.body;
-
-      if (req.user.id !== admin_id) {
-        return res
-          .status(403)
-          .json({ success: false, error: "You can only approve as yourself" });
-      }
+      const { request_id, comments } = req.body;
+      const admin_id = req.user.id;
 
       if (comments && comments.length > MAX_COMMENT_LENGTH) {
         return res
@@ -1293,13 +1379,8 @@ router.post(
   requireRole("librarian"),
   async (req, res) => {
     try {
-      const { request_id, admin_id, comments } = req.body;
-
-      if (req.user.id !== admin_id) {
-        return res
-          .status(403)
-          .json({ success: false, error: "You can only reject as yourself" });
-      }
+      const { request_id, comments } = req.body;
+      const admin_id = req.user.id;
 
       if (!comments || comments.trim() === "") {
         return res.status(400).json({
@@ -1400,6 +1481,7 @@ router.get(
         )
         .eq("clearance_type", "graduation")
         .eq("cashier_status", "pending")
+        .eq("is_completed", false)
         .order("created_at", { ascending: true });
 
       if (error) throw error;
@@ -1448,13 +1530,8 @@ router.post(
   requireRole("cashier"),
   async (req, res) => {
     try {
-      const { request_id, admin_id, comments } = req.body;
-
-      if (req.user.id !== admin_id) {
-        return res
-          .status(403)
-          .json({ success: false, error: "You can only approve as yourself" });
-      }
+      const { request_id, comments } = req.body;
+      const admin_id = req.user.id;
 
       if (comments && comments.length > MAX_COMMENT_LENGTH) {
         return res
@@ -1528,13 +1605,8 @@ router.post(
   requireRole("cashier"),
   async (req, res) => {
     try {
-      const { request_id, admin_id, comments } = req.body;
-
-      if (req.user.id !== admin_id) {
-        return res
-          .status(403)
-          .json({ success: false, error: "You can only reject as yourself" });
-      }
+      const { request_id, comments } = req.body;
+      const admin_id = req.user.id;
 
       if (!comments || comments.trim() === "") {
         return res.status(400).json({
@@ -1644,6 +1716,7 @@ router.get(
         )
         .eq("clearance_type", "graduation")
         .eq("registrar_status", "pending")
+        .eq("is_completed", false)
         .order("created_at", { ascending: true });
 
       if (error) throw error;
@@ -1695,13 +1768,8 @@ router.post(
   requireRole("registrar"),
   async (req, res) => {
     try {
-      const { request_id, admin_id, comments } = req.body;
-
-      if (req.user.id !== admin_id) {
-        return res
-          .status(403)
-          .json({ success: false, error: "You can only approve as yourself" });
-      }
+      const { request_id, comments } = req.body;
+      const admin_id = req.user.id;
 
       if (comments && comments.length > MAX_COMMENT_LENGTH) {
         return res
@@ -1790,13 +1858,8 @@ router.post(
   requireRole("registrar"),
   async (req, res) => {
     try {
-      const { request_id, admin_id, comments } = req.body;
-
-      if (req.user.id !== admin_id) {
-        return res
-          .status(403)
-          .json({ success: false, error: "You can only reject as yourself" });
-      }
+      const { request_id, comments } = req.body;
+      const admin_id = req.user.id;
 
       if (!comments || comments.trim() === "") {
         return res.status(400).json({
@@ -1942,7 +2005,8 @@ router.post(
   requireRole("librarian", "cashier", "registrar"),
   async (req, res) => {
     try {
-      const { request_ids, admin_id, stage, comments } = req.body;
+      const { request_ids, stage, comments } = req.body;
+      const admin_id = req.user.id;
 
       const statusField = {
         library: "library_status",
@@ -1991,11 +2055,6 @@ router.post(
             error: "Cannot bulk approve more than 100 requests at once",
           });
       }
-      if (req.user.id !== admin_id) {
-        return res
-          .status(403)
-          .json({ success: false, error: "You can only approve as yourself" });
-      }
 
       const results = { approved: [], failed: [] };
       for (const rid of request_ids) {
@@ -2018,7 +2077,7 @@ router.post(
         } else {
           await restoreApprovals(rid, preSnapshot);
           results.approved.push(rid);
-          tryCompleteRequest(rid);
+          await tryCompleteRequest(rid);
           logStatusChange(
             rid,
             stage,
@@ -2058,7 +2117,8 @@ router.post(
   requireRole("librarian", "cashier", "registrar"),
   async (req, res) => {
     try {
-      const { request_ids, admin_id, stage, comments } = req.body;
+      const { request_ids, stage, comments } = req.body;
+      const admin_id = req.user.id;
       const statusField = {
         library: "library_status",
         cashier: "cashier_status",
@@ -2116,11 +2176,6 @@ router.post(
             success: false,
             error: `Comments must be ${MAX_COMMENT_LENGTH} characters or less`,
           });
-      }
-      if (req.user.id !== admin_id) {
-        return res
-          .status(403)
-          .json({ success: false, error: "You can only reject as yourself" });
       }
 
       const results = { rejected: [], failed: [] };

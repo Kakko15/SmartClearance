@@ -143,7 +143,7 @@ export const createRequest = async (studentId, docTypeId) => {
 
 export const createGraduationRequest = async (studentId, requestData = {}) => {
   const headers = await getAuthHeaders();
-  return apiFetch(`${API_URL}/graduation/request`, {
+  return apiFetch(`${API_URL}/graduation/apply`, {
     method: "POST",
     headers,
     body: JSON.stringify({ student_id: studentId, ...requestData }),
@@ -296,7 +296,7 @@ export const getClearanceComments = async (clearanceId, userId) => {
 
 export const deleteClearanceComment = async (commentId, userId) => {
   const headers = await getAuthHeaders();
-  return apiFetch(`${API_URL}/clearance/comments/${commentId}`, {
+  return apiFetch(`${API_URL}/clearance/${commentId}`, {
     method: "DELETE",
     headers,
     body: JSON.stringify({ user_id: userId }),
@@ -309,7 +309,7 @@ export const updateClearanceComment = async (
   commentText,
 ) => {
   const headers = await getAuthHeaders();
-  return apiFetch(`${API_URL}/clearance/comments/${commentId}`, {
+  return apiFetch(`${API_URL}/clearance/${commentId}`, {
     method: "PUT",
     headers,
     body: JSON.stringify({ user_id: userId, comment_text: commentText }),

@@ -79,7 +79,7 @@ const LOGIN_ACCOUNT_MAX = getEnvInt(
 const LOGIN_IP_MAX = getEnvInt("LOGIN_RATE_LIMIT_IP_MAX", DEFAULT_LOGIN_IP_MAX);
 const LOGIN_ACCOUNT_LIMIT_ERROR = `Too many failed sign-in attempts for this account. Please try again in ${LOGIN_WINDOW_MINUTES} minutes or reset your password.`;
 const LOGIN_IP_LIMIT_ERROR = `Too many login attempts from this network. Please try again in ${LOGIN_WINDOW_MINUTES} minutes.`;
-const STUDENT_NUMBER_PATTERN = /^\d{2}-\d{3,5}(?:-[A-Z]{1,3})?$/;
+const { STUDENT_NUMBER_PATTERN } = require("../constants/validation");
 
 function normalizeStudentNumber(value) {
   if (typeof value !== "string") return "";
@@ -511,7 +511,8 @@ router.post("/signup", signupLimiter, async (req, res) => {
       });
     }
 
-    await supabase
+    // Fire-and-forget: secret code update, audit log, and email (non-critical, don't block response)
+    supabase
       .from("admin_secret_codes")
       .update({
         current_uses: codeData.current_uses + 1,
@@ -519,35 +520,39 @@ router.post("/signup", signupLimiter, async (req, res) => {
         used_at: new Date().toISOString(),
       })
       .eq("id", codeData.id)
-      .eq("current_uses", codeData.current_uses);
+      .eq("current_uses", codeData.current_uses)
+      .then(({ data: updateData, error: updateErr }) => {
+        if (updateErr) {
+          console.warn("Secret code optimistic update failed:", updateErr.message);
+        } else if (!updateData || (Array.isArray(updateData) && updateData.length === 0)) {
+          console.warn(
+            `Secret code ${codeData.id} optimistic lock missed — concurrent use may have occurred.`,
+          );
+        }
+      })
+      .catch((err) => console.warn("Secret code update failed:", err.message));
 
-    try {
-      await supabase.from("auth_audit_log").insert({
-        user_id: authData.user.id,
-        action: "admin_signup",
-        success: true,
-        metadata: {
-          role: role,
-          secret_code_used: codeData.id,
-        },
-      });
-    } catch (logError) {
+    supabase.from("auth_audit_log").insert({
+      user_id: authData.user.id,
+      action: "admin_signup",
+      success: true,
+      metadata: {
+        role: role,
+        secret_code_used: codeData.id,
+      },
+    }).then(() => {}).catch((logError) => {
       console.warn(
         "Auth audit log insert failed (table may not exist):",
         logError.message,
       );
-    }
+    });
 
-    let emailSent = true;
-    try {
-      await sendVerificationEmail(authData.user.id, email);
-    } catch (emailErr) {
+    sendVerificationEmail(authData.user.id, email).catch((emailErr) => {
       console.error(
         "Verification email failed (admin signup):",
         emailErr.message,
       );
-      emailSent = false;
-    }
+    });
 
     const signupToken = await twoFactorRoutes.generateSignupToken(
       authData.user.id,
@@ -555,11 +560,9 @@ router.post("/signup", signupLimiter, async (req, res) => {
 
     res.json({
       success: true,
-      message: emailSent
-        ? "Account created successfully! Please verify your email."
-        : "Account created, but we couldn't send the verification email. You can request a new code later.",
+      message: "Account created successfully! Please verify your email.",
       emailVerificationRequired: true,
-      emailSent,
+      emailSent: true,
       signupToken,
       user: {
         id: authData.user.id,
@@ -644,15 +647,7 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
       });
     }
 
-    if (recaptchaToken) {
-      const recaptchaResult = await verifyRecaptcha(recaptchaToken);
-      if (!recaptchaResult.success) {
-        return res.status(400).json({
-          success: false,
-          error: "reCAPTCHA verification failed. Please try again.",
-        });
-      }
-    } else if (!isDev) {
+    if (!recaptchaToken && !isDev) {
       return res.status(400).json({
         success: false,
         error: "reCAPTCHA verification is required.",
@@ -680,11 +675,24 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
       return res.status(400).json({ success: false, error: pwCheck.error });
     }
 
-    const { data: existingProfile } = await supabase
-      .from("profiles")
-      .select("id, student_number")
-      .or(`student_number.eq.${normalizedStudentNumber}`)
-      .maybeSingle();
+    // Run reCAPTCHA verification and student number check in parallel (independent operations)
+    const [recaptchaResult, { data: existingProfile }] = await Promise.all([
+      recaptchaToken
+        ? verifyRecaptcha(recaptchaToken)
+        : Promise.resolve({ success: true }),
+      supabase
+        .from("profiles")
+        .select("id, student_number")
+        .or(`student_number.eq.${normalizedStudentNumber}`)
+        .maybeSingle(),
+    ]);
+
+    if (recaptchaToken && !recaptchaResult.success) {
+      return res.status(400).json({
+        success: false,
+        error: "reCAPTCHA verification failed. Please try again.",
+      });
+    }
 
     if (existingProfile) {
       return res.status(409).json({
@@ -762,35 +770,31 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
       });
     }
 
-    try {
-      await supabase.from("auth_audit_log").insert({
-        user_id: authData.user.id,
-        action: "student_signup_with_face_verification",
-        success: true,
-        metadata: {
-          face_verified: faceVerification.verified,
-          face_similarity: similarity,
-          auto_approved: isAutoApproved,
-          verification_status: verificationStatus,
-        },
-      });
-    } catch (logError) {
+    // Fire-and-forget: audit log (non-critical)
+    supabase.from("auth_audit_log").insert({
+      user_id: authData.user.id,
+      action: "student_signup_with_face_verification",
+      success: true,
+      metadata: {
+        face_verified: faceVerification.verified,
+        face_similarity: similarity,
+        auto_approved: isAutoApproved,
+        verification_status: verificationStatus,
+      },
+    }).then(() => {}).catch((logError) => {
       console.warn(
         "Auth audit log insert failed (table may not exist):",
         logError.message,
       );
-    }
+    });
 
-    let emailSent = true;
-    try {
-      await sendVerificationEmail(authData.user.id, email);
-    } catch (emailErr) {
+    // Fire-and-forget: send verification email (SMTP is slow, don't block response)
+    sendVerificationEmail(authData.user.id, email).catch((emailErr) => {
       console.error(
         "Verification email failed (student signup):",
         emailErr.message,
       );
-      emailSent = false;
-    }
+    });
 
     const signupToken = await twoFactorRoutes.generateSignupToken(
       authData.user.id,
@@ -801,15 +805,11 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
       autoApproved: isAutoApproved,
       similarity: similarity,
       emailVerificationRequired: true,
-      emailSent,
+      emailSent: true,
       signupToken,
       message: isAutoApproved
-        ? emailSent
-          ? "Account approved! Please verify your email."
-          : "Account approved, but we couldn't send the verification email. You can request a new code later."
-        : emailSent
-          ? "Account pending review. Please verify your email."
-          : "Account pending review. We couldn't send the verification email — you can request a new code later.",
+        ? "Account approved! Please verify your email."
+        : "Account pending review. Please verify your email.",
       user: {
         id: authData.user.id,
         email: authData.user.email,
@@ -1057,7 +1057,7 @@ router.post("/verify-email", verifyEmailLimiter, async (req, res) => {
         user_id: userId,
         action: "email_verified",
         success: true,
-        metadata: { email: stored.email || email },
+        metadata: { email: stored.email || null },
       });
     } catch (logError) {
       console.warn("Auth audit log insert failed:", logError.message);

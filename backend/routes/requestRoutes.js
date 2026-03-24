@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const rateLimit = require("express-rate-limit");
 const supabase = require("../supabaseClient");
 const {
   notifyRequestSubmitted,
@@ -18,16 +19,28 @@ const {
   isManagementRole,
 } = require("../constants/roles");
 
-async function getUserRole(userId) {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", userId)
-    .single();
+const isDev = process.env.NODE_ENV !== "production";
 
-  if (error) return null;
-  return data.role;
-}
+const requestWriteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 200 : 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many requests. Please try again later." },
+});
+
+const requestReadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 500 : 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many requests. Please try again later." },
+});
+
+router.use((req, _res, next) => {
+  if (req.method === "GET") return requestReadLimiter(req, _res, next);
+  return requestWriteLimiter(req, _res, next);
+});
 
 const ROLE_DISPLAY = {
   [ROLES.LIBRARIAN]: "Librarian",
@@ -90,7 +103,35 @@ router.post("/create", requireAuth, async (req, res) => {
       student_agreement_accepted,
     } = req.body;
 
-    console.log("Initiating AI request classification...");
+    if (!doc_type_id) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required field: doc_type_id",
+      });
+    }
+
+    if (request_details && request_details.length > 5000) {
+      return res.status(400).json({
+        success: false,
+        error: "Request details must be 5000 characters or fewer",
+      });
+    }
+
+    if (thesis_title && thesis_title.length > 500) {
+      return res.status(400).json({
+        success: false,
+        error: "Thesis title must be 500 characters or fewer",
+      });
+    }
+
+    if (clearance_intent_others && clearance_intent_others.length > 500) {
+      return res.status(400).json({
+        success: false,
+        error: "Clearance intent details must be 500 characters or fewer",
+      });
+    }
+
+    if (isDev) console.log("Initiating AI request classification...");
 
     const aiResult = await classifyAndRouteRequest({
       doc_type_id,
@@ -100,7 +141,7 @@ router.post("/create", requireAuth, async (req, res) => {
 
     if (!aiResult.success) {
       console.warn("AI classification failed, using fallback routing");
-    } else {
+    } else if (isDev) {
       console.log("AI Classification Complete:", {
         category: aiResult.classification.category,
         urgency: aiResult.classification.urgency,
@@ -173,7 +214,7 @@ router.post("/:id/approve", requireAuth, async (req, res) => {
     const { id } = req.params;
     const admin_id = req.user.id;
 
-    const userRole = await getUserRole(admin_id);
+    const userRole = req.userRole;
     if (!userRole || !isClearanceRole(userRole)) {
       return res.status(403).json({ success: false, error: "Unauthorized" });
     }
@@ -203,6 +244,13 @@ router.post("/:id/approve", requireAuth, async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Student profile no longer exists",
+      });
+    }
+
+    if (!request.document_types || !request.document_types.required_stages) {
+      return res.status(400).json({
+        success: false,
+        error: "Document type configuration is missing or has been deleted",
       });
     }
 
@@ -298,7 +346,7 @@ router.post("/:id/reject", requireAuth, async (req, res) => {
         .json({ success: false, error: "Reason must be 2000 characters or fewer" });
     }
 
-    const userRole = await getUserRole(admin_id);
+    const userRole = req.userRole;
     if (!userRole || !isClearanceRole(userRole)) {
       return res.status(403).json({ success: false, error: "Unauthorized" });
     }
@@ -322,6 +370,13 @@ router.post("/:id/reject", requireAuth, async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "This request is already on hold",
+      });
+    }
+
+    if (!request.document_types || !request.document_types.required_stages) {
+      return res.status(400).json({
+        success: false,
+        error: "Document type configuration is missing or has been deleted",
       });
     }
 
@@ -418,6 +473,13 @@ router.post("/:id/resubmit", requireAuth, async (req, res) => {
       "Student resubmitted request",
     );
 
+    if (!request.document_types || !request.document_types.required_stages) {
+      return res.status(400).json({
+        success: false,
+        error: "Document type configuration is missing or has been deleted",
+      });
+    }
+
     const currentStage =
       request.document_types.required_stages[request.current_stage_index];
     notifyRequestResubmitted(id, student_id, currentStage).catch((err) =>
@@ -438,7 +500,7 @@ router.get("/student/:student_id", requireAuth, async (req, res) => {
   try {
     const { student_id } = req.params;
 
-    const callerRole = await getUserRole(req.user.id);
+    const callerRole = req.userRole;
     if (
       req.user.id !== student_id &&
       !isClearanceRole(callerRole) &&
@@ -467,7 +529,7 @@ router.get("/admin/:role", requireAuth, async (req, res) => {
   try {
     const { role } = req.params;
 
-    const callerRole = await getUserRole(req.user.id);
+    const callerRole = req.userRole;
     if (
       !callerRole ||
       (callerRole !== role && callerRole !== ROLES.SUPER_ADMIN)
@@ -488,11 +550,28 @@ router.get("/admin/:role", requireAuth, async (req, res) => {
     };
     const stageName = ROLE_TO_STAGE[role] || role.replace("_admin", "");
 
+    // Determine which doc_type + stage_index combinations match this stage
     const { data: docTypes, error: docError } = await supabase
       .from("document_types")
       .select("id, required_stages");
 
     if (docError) throw docError;
+
+    const matchingConditions = [];
+    for (const dt of docTypes || []) {
+      (dt.required_stages || []).forEach((stage, idx) => {
+        if (stage === stageName) {
+          matchingConditions.push(
+            `and(doc_type_id.eq.${dt.id},current_stage_index.eq.${idx})`,
+          );
+        }
+      });
+    }
+
+    // If no doc types have this stage, return empty immediately
+    if (matchingConditions.length === 0) {
+      return res.json({ success: true, requests: [] });
+    }
 
     const { data: requests, error: reqError } = await supabase
       .from("requests")
@@ -500,17 +579,12 @@ router.get("/admin/:role", requireAuth, async (req, res) => {
         "*, document_types(*), profiles!requests_student_id_fkey(full_name, student_number)",
       )
       .in("current_status", ["pending", "approved"])
+      .or(matchingConditions.join(","))
       .order("created_at", { ascending: true });
 
     if (reqError) throw reqError;
 
-    const filteredRequests = requests.filter((r) => {
-      const currentStage =
-        r.document_types.required_stages[r.current_stage_index];
-      return currentStage === stageName;
-    });
-
-    res.json({ success: true, requests: filteredRequests });
+    res.json({ success: true, requests: requests || [] });
   } catch (error) {
     safeErrorResponse(res, error);
   }

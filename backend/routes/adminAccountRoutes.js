@@ -1,10 +1,34 @@
 const express = require("express");
 const router = express.Router();
+const rateLimit = require("express-rate-limit");
 const supabase = require("../supabaseClient");
 const { requireAuth, requireRole } = require("../middleware/authMiddleware");
 const { safeErrorResponse } = require("../utils/safeError");
 const { ROLES } = require("../constants/roles");
 const { logAction, ACTIONS } = require("../services/auditService");
+
+const isDev = process.env.NODE_ENV !== "production";
+
+const adminWriteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 200 : 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many requests. Please try again later." },
+});
+
+const adminReadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 500 : 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many requests. Please try again later." },
+});
+
+router.use((req, _res, next) => {
+  if (req.method === "GET") return adminReadLimiter(req, _res, next);
+  return adminWriteLimiter(req, _res, next);
+});
 
 router.get("/pending-accounts", requireAuth, requireRole("super_admin"), async (req, res) => {
   try {
@@ -23,27 +47,51 @@ router.get("/pending-accounts", requireAuth, requireRole("super_admin"), async (
     });
   } catch (error) {
     console.error("Error fetching pending accounts:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch pending accounts",
-    });
+    safeErrorResponse(res, error);
   }
 });
 
-router.get("/all-users", requireAuth, async (req, res) => {
+router.get("/all-users", requireAuth, requireRole("super_admin"), async (req, res) => {
   try {
-    const { data: admin } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", req.user.id)
-      .single();
-    if (!admin || admin.role !== "super_admin") {
-      return res.status(403).json({ success: false, error: "Unauthorized" });
+    const page = parseInt(req.query.page) || 0;
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+
+    const selectedFields =
+      "id, full_name, email, role, student_number, course_year, verification_status, account_enabled, created_at";
+
+    if (page > 0 && limit > 0) {
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
+
+      const [{ data, error }, { count, error: countError }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select(selectedFields)
+          .order("created_at", { ascending: false })
+          .range(from, to),
+        supabase
+          .from("profiles")
+          .select("id", { count: "exact", head: true }),
+      ]);
+
+      if (error) throw error;
+      if (countError) throw countError;
+
+      return res.json({
+        success: true,
+        users: data,
+        pagination: {
+          page,
+          limit,
+          total: count || 0,
+          totalPages: Math.ceil((count || 0) / limit),
+        },
+      });
     }
 
     const { data, error } = await supabase
       .from("profiles")
-      .select("*")
+      .select(selectedFields)
       .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -51,11 +99,11 @@ router.get("/all-users", requireAuth, async (req, res) => {
     res.json({ success: true, users: data });
   } catch (error) {
     console.error("Error fetching all users:", error);
-    res.status(500).json({ success: false, error: "Failed to fetch users" });
+    safeErrorResponse(res, error);
   }
 });
 
-router.post("/approve-account", requireAuth, async (req, res) => {
+router.post("/approve-account", requireAuth, requireRole("super_admin"), async (req, res) => {
   try {
     const { userId } = req.body;
     const adminId = req.user.id;
@@ -64,26 +112,6 @@ router.post("/approve-account", requireAuth, async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Missing required fields",
-      });
-    }
-
-    const { data: admin, error: adminError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", adminId)
-      .single();
-
-    if (adminError || !admin) {
-      return res.status(403).json({
-        success: false,
-        error: "Unauthorized",
-      });
-    }
-
-    if (!["super_admin"].includes(admin.role)) {
-      return res.status(403).json({
-        success: false,
-        error: "Only super admin can approve accounts",
       });
     }
 
@@ -107,7 +135,7 @@ router.post("/approve-account", requireAuth, async (req, res) => {
         success: true,
         metadata: {
           approved_by: adminId,
-          admin_role: admin.role,
+          admin_role: req.userRole,
         },
       });
     } catch (logError) {
@@ -123,18 +151,15 @@ router.post("/approve-account", requireAuth, async (req, res) => {
     logAction(adminId, ACTIONS.ACCOUNT_APPROVED, {
       targetId: userId,
       targetType: "profile",
-      metadata: { admin_role: admin.role },
+      metadata: { admin_role: req.userRole },
     });
   } catch (error) {
     console.error("Error approving account:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to approve account",
-    });
+    safeErrorResponse(res, error);
   }
 });
 
-router.post("/reject-account", requireAuth, async (req, res) => {
+router.post("/reject-account", requireAuth, requireRole("super_admin"), async (req, res) => {
   try {
     const { userId, reason } = req.body;
     const adminId = req.user.id;
@@ -150,26 +175,6 @@ router.post("/reject-account", requireAuth, async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Reason must be 2000 characters or fewer",
-      });
-    }
-
-    const { data: admin, error: adminError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", adminId)
-      .single();
-
-    if (adminError || !admin) {
-      return res.status(403).json({
-        success: false,
-        error: "Unauthorized",
-      });
-    }
-
-    if (!["super_admin"].includes(admin.role)) {
-      return res.status(403).json({
-        success: false,
-        error: "Only super admin can reject accounts",
       });
     }
 
@@ -196,7 +201,7 @@ router.post("/reject-account", requireAuth, async (req, res) => {
         success: true,
         metadata: {
           rejected_by: adminId,
-          admin_role: admin.role,
+          admin_role: req.userRole,
           reason: reason,
         },
       });
@@ -213,7 +218,7 @@ router.post("/reject-account", requireAuth, async (req, res) => {
     logAction(adminId, ACTIONS.ACCOUNT_REJECTED, {
       targetId: userId,
       targetType: "profile",
-      metadata: { admin_role: admin.role, reason },
+      metadata: { admin_role: req.userRole, reason },
     });
   } catch (error) {
     console.error("Error rejecting account:", error);
@@ -231,13 +236,13 @@ router.post("/bulk-approve", requireAuth, async (req, res) => {
         .status(400)
         .json({ success: false, error: "No accounts selected" });
     }
+    if (userIds.length > 200) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Cannot approve more than 200 accounts at once" });
+    }
 
-    const { data: admin } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", adminId)
-      .single();
-    if (!admin || admin.role !== "super_admin") {
+    if (req.userRole !== "super_admin") {
       return res
         .status(403)
         .json({
@@ -273,7 +278,7 @@ router.post("/bulk-approve", requireAuth, async (req, res) => {
           success: true,
           metadata: {
             approved_by: adminId,
-            admin_role: admin.role,
+            admin_role: req.userRole,
             bulk: true,
           },
         }).catch((logErr) => {
@@ -308,7 +313,7 @@ router.post("/bulk-approve", requireAuth, async (req, res) => {
     });
   } catch (error) {
     console.error("Bulk approve error:", error);
-    res.status(500).json({ success: false, error: "Bulk approve failed" });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -333,12 +338,7 @@ router.post("/bulk-reject", requireAuth, async (req, res) => {
         .json({ success: false, error: "Rejection reason is required" });
     }
 
-    const { data: admin } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", adminId)
-      .single();
-    if (!admin || admin.role !== "super_admin") {
+    if (req.userRole !== "super_admin") {
       return res
         .status(403)
         .json({
@@ -374,7 +374,7 @@ router.post("/bulk-reject", requireAuth, async (req, res) => {
             success: true,
             metadata: {
               rejected_by: adminId,
-              admin_role: admin.role,
+              admin_role: req.userRole,
               reason,
               bulk: true,
             },
@@ -412,31 +412,35 @@ router.post("/bulk-reject", requireAuth, async (req, res) => {
     });
   } catch (error) {
     console.error("Bulk reject error:", error);
-    res.status(500).json({ success: false, error: "Bulk reject failed" });
+    safeErrorResponse(res, error);
   }
 });
 
 router.get("/account-stats", requireAuth, requireRole("super_admin"), async (req, res) => {
   try {
-    const { count: pendingCount } = await supabase
-      .from("profiles")
-      .select("id", { count: "exact", head: true })
-      .eq("verification_status", "pending_review");
-
-    const { count: approvedCount } = await supabase
-      .from("profiles")
-      .select("id", { count: "exact", head: true })
-      .eq("verification_status", "approved");
-
-    const { count: autoApprovedCount } = await supabase
-      .from("profiles")
-      .select("id", { count: "exact", head: true })
-      .eq("verification_status", "auto_approved");
-
-    const { count: rejectedCount } = await supabase
-      .from("profiles")
-      .select("id", { count: "exact", head: true })
-      .eq("verification_status", "rejected");
+    const [
+      { count: pendingCount },
+      { count: approvedCount },
+      { count: autoApprovedCount },
+      { count: rejectedCount },
+    ] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("verification_status", "pending_review"),
+      supabase
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("verification_status", "approved"),
+      supabase
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("verification_status", "auto_approved"),
+      supabase
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("verification_status", "rejected"),
+    ]);
 
     const pending = pendingCount || 0;
     const approved = approvedCount || 0;
@@ -455,10 +459,7 @@ router.get("/account-stats", requireAuth, requireRole("super_admin"), async (req
     });
   } catch (error) {
     console.error("Error fetching stats:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch statistics",
-    });
+    safeErrorResponse(res, error);
   }
 });
 

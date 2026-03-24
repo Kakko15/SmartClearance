@@ -163,7 +163,6 @@ async function setToken(
       }
     }
   }
-  setFallbackToken(userId, tokenType, fallbackToken);
   return true;
 }
 

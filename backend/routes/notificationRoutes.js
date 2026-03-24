@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const rateLimit = require("express-rate-limit");
 const supabase = require("../supabaseClient");
 const { requireAuth } = require("../middleware/authMiddleware");
 const { safeErrorResponse } = require("../utils/safeError");
@@ -8,6 +9,29 @@ const {
   UNDERGRAD_PREREQS,
   isUndergradDesignation,
 } = require("../constants/designations");
+
+const isDev = process.env.NODE_ENV !== "production";
+
+const notifWriteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 500 : 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many requests. Please try again later." },
+});
+
+const notifReadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 1000 : 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many requests. Please try again later." },
+});
+
+router.use((req, _res, next) => {
+  if (req.method === "GET") return notifReadLimiter(req, _res, next);
+  return notifWriteLimiter(req, _res, next);
+});
 
 router.get("/pending-count", requireAuth, async (req, res) => {
   try {
