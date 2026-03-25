@@ -30,6 +30,8 @@ const ApplicationModal = ({
     major: studentInfo?.major || "",
     agreedToTerms: false,
   });
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [step3Touched, setStep3Touched] = useState(false);
 
   const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
   if (isOpen !== prevIsOpen) {
@@ -60,7 +62,13 @@ const ApplicationModal = ({
       setStep(2);
     } else if (step === 1 || step === 2) {
       setStep(3);
+      setStep3Touched(false);
+      setFieldErrors({});
     } else if (step === 3) {
+      setStep3Touched(true);
+      const errors = getStep3Errors();
+      setFieldErrors(errors);
+      if (Object.values(errors).some((e) => e !== "")) return;
       setStep(4);
     }
   };
@@ -73,6 +81,80 @@ const ApplicationModal = ({
     else if (step === 2) setStep(1);
   };
 
+  const validateStep3Field = (name, value) => {
+    switch (name) {
+      case "major": {
+        const v = (value ?? "").trim();
+        if (!v) return "Course major is required.";
+        if (/^N\/A$/i.test(v)) return "";
+        // Allow uppercase abbreviations (BSIT, BSCS, BS IT, B.S.I.T.)
+        if (/^[A-Z][A-Z\s.]{0,11}$/.test(v)) return "";
+        if (v.length < 3) return "Must be at least 3 characters.";
+        if (/(.)\1{2,}/i.test(v)) return "Please enter a valid course major.";
+        const vowelCount = (v.match(/[aeiou]/gi) || []).length;
+        if (vowelCount === 0) return "Please enter a valid course major.";
+        // Single short word (not an abbreviation) is likely gibberish
+        const words = v.split(/\s+/).filter((w) => w.length > 0);
+        if (words.length === 1 && v.length < 5)
+          return "Please enter your full course major.";
+        return "";
+      }
+      case "semestersEnrolled": {
+        const num = parseInt(value, 10);
+        if (!value && value !== 0) return "Semesters enrolled is required.";
+        if (isNaN(num) || num < 1) return "Must be at least 1.";
+        if (num > 20) return "Cannot exceed 20 semesters.";
+        return "";
+      }
+      case "summersEnrolled": {
+        if (value === "" || value === undefined) return "";
+        const num = parseInt(value, 10);
+        if (isNaN(num) || num < 0) return "Cannot be negative.";
+        if (num > 10) return "Cannot exceed 10 summers.";
+        return "";
+      }
+      case "nstpSerial": {
+        if (portion !== "undergraduate") return "";
+        const v = (value ?? "").trim();
+        if (!v) return "NSTP Serial No. is required.";
+        if (v.length < 5) return "Must be at least 5 characters (e.g. 19-02685-IsU).";
+        if (!/\d/.test(v)) return "Must contain at least one number (e.g. 19-02685-IsU).";
+        if (!/[-]/.test(v)) return "Must contain a hyphen (e.g. 19-02685-IsU).";
+        return "";
+      }
+      default:
+        return "";
+    }
+  };
+
+  const getStep3Errors = () => {
+    const errors = {};
+    errors.major = validateStep3Field("major", formData.major);
+    errors.semestersEnrolled = validateStep3Field("semestersEnrolled", formData.semestersEnrolled);
+    errors.summersEnrolled = validateStep3Field("summersEnrolled", formData.summersEnrolled);
+    if (portion === "undergraduate") {
+      errors.nstpSerial = validateStep3Field("nstpSerial", formData.nstpSerial);
+    }
+    return errors;
+  };
+
+  const handleStep3Change = (name, value) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (step3Touched) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        [name]: validateStep3Field(name, value),
+      }));
+    }
+  };
+
+  const handleStep3Blur = (name) => {
+    setFieldErrors((prev) => ({
+      ...prev,
+      [name]: validateStep3Field(name, formData[name]),
+    }));
+  };
+
   const isNextDisabled = () => {
     if (step === 1)
       return (
@@ -81,11 +163,8 @@ const ApplicationModal = ({
       );
     if (step === 2) return !formData.acceptedWarning;
     if (step === 3) {
-      if (!formData.semestersEnrolled) return true;
-      if (portion === "undergraduate" && !formData.nstpSerial) return true;
-      if (!formData.major) return true;
-
-      return false;
+      const errors = getStep3Errors();
+      return Object.values(errors).some((e) => e !== "");
     }
     if (step === 4) return !formData.agreedToTerms;
     return false;
@@ -322,16 +401,31 @@ const ApplicationModal = ({
                     <input
                       type="text"
                       value={formData.major}
-                      onChange={(e) =>
-                        setFormData({ ...formData, major: e.target.value })
-                      }
+                      onChange={(e) => handleStep3Change("major", e.target.value)}
+                      onBlur={() => handleStep3Blur("major")}
                       placeholder="e.g. Major in Business Analytics"
-                      className={`w-full px-4 py-2.5 rounded-xl border outline-none focus:ring-2 focus:ring-primary-500/50 ${isDarkMode ? "bg-[#202124] border-[#3c4043] text-white" : "bg-white border-gray-200"}`}
+                      className={`w-full px-4 py-2.5 rounded-xl border outline-none focus:ring-2 transition-colors duration-200 ${fieldErrors.major ? "border-red-500 focus:ring-red-500/50" : `focus:ring-primary-500/50 ${isDarkMode ? "border-[#3c4043]" : "border-gray-200"}`} ${isDarkMode ? "bg-[#202124] text-white" : "bg-white"}`}
                     />
+                    <AnimatePresence>
+                      {fieldErrors.major && (
+                        <motion.div
+                          key="major-error"
+                          initial={{ opacity: 0, y: -5, height: 0 }}
+                          animate={{ opacity: 1, y: 0, height: "auto" }}
+                          exit={{ opacity: 0, y: -5, height: 0 }}
+                          transition={{ duration: 0.2, ease: "easeInOut" }}
+                          className="overflow-hidden"
+                        >
+                          <p className="mt-1.5 text-[11px] font-bold leading-tight text-red-500">
+                            {fieldErrors.major}
+                          </p>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                     <p
                       className={`mt-1.5 text-[11px] leading-tight ${isDarkMode ? "text-[#9aa0a6]" : "text-gray-500"}`}
                     >
-                      Specify your program major. If none, type "N/A".
+                      Specify your program major. If none, type &quot;N/A&quot;.
                     </p>
                   </div>
 
@@ -346,15 +440,28 @@ const ApplicationModal = ({
                       <input
                         type="number"
                         min="1"
+                        max="20"
                         value={formData.semestersEnrolled}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            semestersEnrolled: e.target.value,
-                          })
-                        }
-                        className={`w-full px-4 py-2.5 rounded-xl border outline-none focus:ring-2 focus:ring-primary-500/50 ${isDarkMode ? "bg-[#202124] border-[#3c4043] text-white" : "bg-white border-gray-200"}`}
+                        onChange={(e) => handleStep3Change("semestersEnrolled", e.target.value)}
+                        onBlur={() => handleStep3Blur("semestersEnrolled")}
+                        className={`w-full px-4 py-2.5 rounded-xl border outline-none focus:ring-2 transition-colors duration-200 ${fieldErrors.semestersEnrolled ? "border-red-500 focus:ring-red-500/50" : `focus:ring-primary-500/50 ${isDarkMode ? "border-[#3c4043]" : "border-gray-200"}`} ${isDarkMode ? "bg-[#202124] text-white" : "bg-white"}`}
                       />
+                      <AnimatePresence>
+                        {fieldErrors.semestersEnrolled && (
+                          <motion.div
+                            key="sem-error"
+                            initial={{ opacity: 0, y: -5, height: 0 }}
+                            animate={{ opacity: 1, y: 0, height: "auto" }}
+                            exit={{ opacity: 0, y: -5, height: 0 }}
+                            transition={{ duration: 0.2, ease: "easeInOut" }}
+                            className="overflow-hidden"
+                          >
+                            <p className="mt-1.5 text-[11px] font-bold leading-tight text-red-500">
+                              {fieldErrors.semestersEnrolled}
+                            </p>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                       <p
                         className={`mt-1.5 text-[11px] leading-tight ${isDarkMode ? "text-[#9aa0a6]" : "text-gray-500"}`}
                       >
@@ -371,15 +478,28 @@ const ApplicationModal = ({
                       <input
                         type="number"
                         min="0"
+                        max="10"
                         value={formData.summersEnrolled}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            summersEnrolled: e.target.value,
-                          })
-                        }
-                        className={`w-full px-4 py-2.5 rounded-xl border outline-none focus:ring-2 focus:ring-primary-500/50 ${isDarkMode ? "bg-[#202124] border-[#3c4043] text-white" : "bg-white border-gray-200"}`}
+                        onChange={(e) => handleStep3Change("summersEnrolled", e.target.value)}
+                        onBlur={() => handleStep3Blur("summersEnrolled")}
+                        className={`w-full px-4 py-2.5 rounded-xl border outline-none focus:ring-2 transition-colors duration-200 ${fieldErrors.summersEnrolled ? "border-red-500 focus:ring-red-500/50" : `focus:ring-primary-500/50 ${isDarkMode ? "border-[#3c4043]" : "border-gray-200"}`} ${isDarkMode ? "bg-[#202124] text-white" : "bg-white"}`}
                       />
+                      <AnimatePresence>
+                        {fieldErrors.summersEnrolled && (
+                          <motion.div
+                            key="sum-error"
+                            initial={{ opacity: 0, y: -5, height: 0 }}
+                            animate={{ opacity: 1, y: 0, height: "auto" }}
+                            exit={{ opacity: 0, y: -5, height: 0 }}
+                            transition={{ duration: 0.2, ease: "easeInOut" }}
+                            className="overflow-hidden"
+                          >
+                            <p className="mt-1.5 text-[11px] font-bold leading-tight text-red-500">
+                              {fieldErrors.summersEnrolled}
+                            </p>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                       <p
                         className={`mt-1.5 text-[11px] leading-tight ${isDarkMode ? "text-[#9aa0a6]" : "text-gray-500"}`}
                       >
@@ -421,20 +541,32 @@ const ApplicationModal = ({
                       <label
                         className={`block text-xs font-semibold mb-1 uppercase tracking-wider ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}
                       >
-                        NSTP Serial No.
+                        NSTP Serial No. <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
                         value={formData.nstpSerial}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            nstpSerial: e.target.value,
-                          })
-                        }
+                        onChange={(e) => handleStep3Change("nstpSerial", e.target.value)}
+                        onBlur={() => handleStep3Blur("nstpSerial")}
                         placeholder="e.g. 19-02685-IsU"
-                        className={`w-full px-4 py-2.5 rounded-xl border outline-none focus:ring-2 focus:ring-primary-500/50 ${isDarkMode ? "bg-[#202124] border-[#3c4043] text-white" : "bg-white border-gray-200"}`}
+                        className={`w-full px-4 py-2.5 rounded-xl border outline-none focus:ring-2 transition-colors duration-200 ${fieldErrors.nstpSerial ? "border-red-500 focus:ring-red-500/50" : `focus:ring-primary-500/50 ${isDarkMode ? "border-[#3c4043]" : "border-gray-200"}`} ${isDarkMode ? "bg-[#202124] text-white" : "bg-white"}`}
                       />
+                      <AnimatePresence>
+                        {fieldErrors.nstpSerial && (
+                          <motion.div
+                            key="nstp-error"
+                            initial={{ opacity: 0, y: -5, height: 0 }}
+                            animate={{ opacity: 1, y: 0, height: "auto" }}
+                            exit={{ opacity: 0, y: -5, height: 0 }}
+                            transition={{ duration: 0.2, ease: "easeInOut" }}
+                            className="overflow-hidden"
+                          >
+                            <p className="mt-1.5 text-[11px] font-bold leading-tight text-red-500">
+                              {fieldErrors.nstpSerial}
+                            </p>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                       <p
                         className={`mt-1.5 text-[11px] leading-tight ${isDarkMode ? "text-[#9aa0a6]" : "text-gray-500"}`}
                       >
