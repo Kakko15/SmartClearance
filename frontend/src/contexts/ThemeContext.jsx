@@ -2,6 +2,15 @@ import { createContext, useContext, useState, useEffect } from "react";
 
 const ThemeContext = createContext(null);
 
+function resolveIsDark(pref) {
+  if (pref === "dark") return true;
+  if (pref === "light") return false;
+  if (typeof window !== "undefined") {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+  return false;
+}
+
 export function useTheme() {
   const ctx = useContext(ThemeContext);
   if (!ctx) throw new Error("useTheme must be used within ThemeProvider");
@@ -13,25 +22,9 @@ export function ThemeProvider({ children }) {
     return localStorage.getItem("theme") || "system";
   });
 
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    const savedTheme = localStorage.getItem("theme");
-    if (savedTheme === "dark") return true;
-    if (savedTheme === "light") return false;
-    if (typeof window !== "undefined") {
-      return window.matchMedia("(prefers-color-scheme: dark)").matches;
-    }
-    return false;
-  });
-
-  useEffect(() => {
-    let activeDark = false;
-    if (themePreference === "dark") activeDark = true;
-    else if (themePreference === "light") activeDark = false;
-    else if (typeof window !== "undefined")
-      activeDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-
-    setIsDarkMode(activeDark);
-  }, [themePreference]);
+  const [isDarkMode, setIsDarkMode] = useState(() =>
+    resolveIsDark(localStorage.getItem("theme") || "system"),
+  );
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDarkMode);
@@ -43,7 +36,6 @@ export function ThemeProvider({ children }) {
     const listener = (e) => {
       if (themePreference === "system") {
         setIsDarkMode(e.matches);
-        document.documentElement.classList.toggle("dark", e.matches);
       }
     };
     watcher.addEventListener("change", listener);
@@ -51,14 +43,11 @@ export function ThemeProvider({ children }) {
   }, [themePreference]);
 
   const toggleTheme = (newPref) => {
-    if (typeof newPref === "string") {
-      setThemePreference(newPref);
-      localStorage.setItem("theme", newPref);
-    } else {
-      const p = isDarkMode ? "light" : "dark";
-      setThemePreference(p);
-      localStorage.setItem("theme", p);
-    }
+    const pref =
+      typeof newPref === "string" ? newPref : isDarkMode ? "light" : "dark";
+    setThemePreference(pref);
+    localStorage.setItem("theme", pref);
+    setIsDarkMode(resolveIsDark(pref));
   };
 
   return (

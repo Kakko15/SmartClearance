@@ -29,6 +29,47 @@ import CertificateVerifyPage from "./pages/CertificateVerifyPage";
 
 const TAB_ID = `loader_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
+function DashboardSkeletonShell({ isDark }) {
+  return (
+    <div className={`min-h-screen flex ${isDark ? "bg-[#030712]" : "bg-[#f8f9fa]"} overflow-hidden`}>
+      {/* Sidebar Skeleton */}
+      <div className={`hidden lg:flex w-[280px] flex-col h-screen border-r ${isDark ? "bg-[#282a2d] border-[#3c4043]" : "bg-white border-[#dadce0]"} p-6 flex-shrink-0`}>
+        <div className={`w-36 h-8 rounded-lg animate-pulse mb-10 ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`} />
+        <div className="space-y-3">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className={`w-full h-11 rounded-xl animate-pulse ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`} />
+          ))}
+        </div>
+      </div>
+      
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-h-screen min-w-0">
+        {/* Header Skeleton */}
+        <header className={`h-[72px] border-b flex items-center justify-between px-6 flex-shrink-0 ${isDark ? "bg-[#282a2d]/50 border-[#3c4043]" : "bg-white/50 border-[#dadce0]"}`}>
+          <div className="flex items-center gap-4">
+            <div className={`w-10 h-10 rounded-xl animate-pulse lg:hidden ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`} />
+            <div className={`w-48 h-6 rounded-md animate-pulse hidden sm:block ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`} />
+          </div>
+          <div className="flex items-center gap-4">
+            <div className={`w-10 h-10 rounded-xl animate-pulse ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`} />
+            <div className={`w-10 h-10 rounded-xl animate-pulse ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`} />
+          </div>
+        </header>
+        
+        {/* Content Skeleton Area (Will be instantly replaced by actual page skeleton to feel seamless) */}
+        <main className="flex-1 p-6 sm:p-8 space-y-6">
+          <div className={`w-1/4 h-10 rounded-xl animate-pulse mt-4 ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`} />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className={`h-32 rounded-3xl animate-pulse ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`} />
+            ))}
+          </div>
+          <div className={`w-full h-64 rounded-3xl animate-pulse mt-6 ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`} />
+        </main>
+      </div>
+    </div>
+  );
+}
 function LoaderPage() {
   const navigate = useNavigate();
   useEffect(() => {
@@ -247,17 +288,14 @@ function App() {
                   Object.keys(localStorage).some(
                     (k) => k.startsWith("sb-") && k.endsWith("-auth-token"),
                   ) ? (
-                  <div className="min-h-screen flex flex-col items-center justify-center gap-3">
-                    <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
-                    <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>Loading your session...</p>
-                  </div>
+                  <DashboardSkeletonShell isDark={isDarkMode} />
                 ) : (
                   <motion.div
                     key="auth"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
                     className="relative z-10 min-h-screen"
                   >
                     <AuthPage
@@ -276,11 +314,7 @@ function App() {
               element={
                 !isAuthenticated ? (
                   initializing ? (
-                    <div className="min-h-screen flex flex-col items-center justify-center gap-3">
-  
-                      <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
-                      <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>Loading your session...</p>
-                    </div>
+                    <DashboardSkeletonShell isDark={isDarkMode} />
                   ) : (
                     <Navigate
                       to={selectedRole ? "/auth" : "/select-role"}
@@ -288,12 +322,8 @@ function App() {
                     />
                   )
                 ) : (
-                  <motion.div
+                  <div
                     key="dashboard"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.3, ease: "easeInOut" }}
                     className="relative z-10 min-h-screen"
                   >
                     <DashboardContent
@@ -304,7 +334,7 @@ function App() {
                       toggleTheme={toggleTheme}
                       setShowSettings={setShowSettings}
                     />
-                  </motion.div>
+                  </div>
                 )
               }
             />

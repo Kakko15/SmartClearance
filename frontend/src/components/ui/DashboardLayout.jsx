@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion"; // eslint-disable-line no-unused-vars
 import {
   ArrowLeftIcon,
   ArrowRightOnRectangleIcon,
@@ -36,7 +36,7 @@ export default function DashboardLayout({
 
   useEffect(() => {
     if (profileDropdownOpen) {
-      setThemePrefState(localStorage.getItem("theme") || "system");
+      setThemePrefState(localStorage.getItem("theme") || "system"); // eslint-disable-line react-hooks/set-state-in-effect
     }
   }, [profileDropdownOpen, isDarkMode]);
 
@@ -548,18 +548,37 @@ export default function DashboardLayout({
             </div>
           </div>
         </div>
-
         <div
           id="main-content"
           role="main"
-          className="flex-1 overflow-y-scroll overflow-x-hidden p-3 sm:p-8 relative z-10 scroll-smooth custom-scrollbar"
+          className="flex-1 overflow-y-scroll overflow-x-hidden p-3 sm:p-8 relative z-10 scroll-smooth custom-scrollbar pb-[80px]"
+          onTouchStart={(e) => {
+             profileDropdownRef.current = profileDropdownRef.current || {};
+             profileDropdownRef.current.touchStartX = e.changedTouches[0].clientX;
+          }}
+          onTouchEnd={(e) => {
+             const startX = profileDropdownRef.current?.touchStartX;
+             if (!startX) return;
+             const endX = e.changedTouches[0].clientX;
+             const diff = startX - endX;
+             
+             if (Math.abs(diff) > 70) {
+               const idx = menuItems.findIndex((m) => m.id === activeView);
+               if (diff > 0 && idx !== -1 && idx < menuItems.length - 1) {
+                 setActiveView(menuItems[idx + 1].id);
+               } else if (diff < 0 && idx > 0) {
+                 setActiveView(menuItems[idx - 1].id);
+               }
+             }
+             profileDropdownRef.current.touchStartX = null;
+          }}
         >
           <AnimatePresence mode="wait">
             <motion.div
               key={activeView}
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
               transition={{ type: "spring", stiffness: 350, damping: 35 }}
               className="h-full w-full max-w-[1000px] mx-auto"
             >
@@ -567,6 +586,32 @@ export default function DashboardLayout({
             </motion.div>
           </AnimatePresence>
         </div>
+
+        {/* Bottom Navigation for Mobile */}
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-[100] border-t pb-safe flex justify-around items-center px-2 py-1.5 shadow-[0_-4px_24px_rgba(0,0,0,0.05)] transition-colors duration-300 min-h-[64px] bg-white/95 backdrop-blur-xl border-gray-200 dark:bg-[#181a1b]/95 dark:border-[#2a2d2f]">
+          {menuItems.slice(0, 5).map((item) => {
+            const isActive = activeView === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveView(item.id)}
+                className="flex flex-col items-center justify-center w-full h-full min-w-[64px] rounded-2xl active:scale-95 transition-transform"
+                aria-label={item.label}
+              >
+                <div className={`relative flex items-center justify-center p-1.5 rounded-full transition-colors duration-300 ${isActive ? (isDarkMode ? 'bg-primary-900/50 text-primary-400' : 'bg-primary-100 text-primary-600') : 'text-slate-500 bg-transparent dark:text-slate-400'}`}>
+                  {item.icon}
+                  {item.count > 0 && (
+                     <span className={`absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 ${isDarkMode ? 'border-[#181a1b]' : 'border-white'} animate-pulse`} />
+                  )}
+                </div>
+                <span className={`text-[10px] font-semibold tracking-wide mt-1 transition-colors duration-300 ${isActive ? (isDarkMode ? 'text-primary-400' : 'text-primary-700') : 'text-slate-500 dark:text-slate-400'}`}>
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+
       </div>
     </div>
   );

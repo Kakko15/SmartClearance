@@ -65,13 +65,7 @@ router.post("/create", commentWriteLimiter, requireAuth, async (req, res) => {
 
     const userProfile = await getUserProfile(user_id);
 
-    if (userProfile.role === "student") {
-      return res.status(403).json({
-        success: false,
-        error:
-          "Students cannot add comments. Comments are read-only for students.",
-      });
-    }
+    // Removed restriction to allow Student-to-Admin Messaging
 
     const { data: comment, error } = await supabase
       .from("clearance_comments")
@@ -185,13 +179,7 @@ router.post("/:clearanceId/comments", commentWriteLimiter, requireAuth, async (r
 
     const userProfile = await getUserProfile(user_id);
 
-    if (userProfile.role === "student") {
-      return res.status(403).json({
-        success: false,
-        error:
-          "Students cannot add comments. Comments are read-only for students.",
-      });
-    }
+    // Removed restriction to allow Student-to-Admin Messaging
 
     const { data: clearanceRequest, error: reqError } = await supabase
       .from("requests")

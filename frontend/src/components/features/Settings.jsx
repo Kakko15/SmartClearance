@@ -20,7 +20,6 @@ export default function Settings({
   profile,
   onClose,
   theme,
-  setTheme,
   onAvatarUpdate,
 }) {
   const { skipNextValidationRef } = useAuth();

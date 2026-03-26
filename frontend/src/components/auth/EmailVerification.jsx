@@ -77,7 +77,7 @@ export default function EmailVerification({
       );
       startResendCooldown(60);
     }
-  }, []);
+  }, [storagePrefix]);
 
   const startCountdown = (seconds) => {
     if (timerRef.current) clearInterval(timerRef.current);

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function CustomSelect({
@@ -101,21 +101,14 @@ export default function CustomSelect({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    if (isOpen && containerRef.current) {
-      if (placement === "auto") {
-        const rect = containerRef.current.getBoundingClientRect();
-        const spaceBelow = window.innerHeight - rect.bottom;
-        if (spaceBelow < 300 && rect.top > 300) {
-          setMenuPlacement("top");
-        } else {
-          setMenuPlacement("bottom");
-        }
-      } else {
-        setMenuPlacement(placement);
-      }
+  const computePlacement = useCallback(() => {
+    if (containerRef.current && placement === "auto") {
+      const rect = containerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      return spaceBelow < 300 && rect.top > 300 ? "top" : "bottom";
     }
-  }, [isOpen, placement]);
+    return placement === "auto" ? "bottom" : placement;
+  }, [placement]);
 
   const resultCount = filteredOptions.reduce(
     (count, opt) => count + (opt.options ? opt.options.length : 1),
@@ -177,7 +170,10 @@ export default function CustomSelect({
           }
           ${error ? "!border-red-500" : ""}
         `}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          if (!isOpen) setMenuPlacement(computePlacement());
+          setIsOpen(!isOpen);
+        }}
         onKeyDown={handleKeyDown}
       >
         <div className="flex items-center justify-between px-4 py-3 h-full">

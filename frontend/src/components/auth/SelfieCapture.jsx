@@ -162,7 +162,7 @@ export default function SelfieCapture({ idDescriptor, onMatch, isDark }) {
   }, [capturing, result, stopAutoDetection]);
 
   useEffect(() => {
-    if (consentGiven) startCamera();
+    if (consentGiven) startCameraRef.current?.();
   }, [consentGiven]);
 
   const startCamera = async () => {

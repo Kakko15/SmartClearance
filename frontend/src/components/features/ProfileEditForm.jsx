@@ -22,7 +22,8 @@ export default function ProfileEditForm({ profile, isDarkMode = false }) {
     try {
       const { data } = await authAxios.get("profile/edit-requests");
       if (data.success) setEditRequests(data.requests);
-    } catch {
+    } catch (err) {
+      console.warn("Failed to fetch edit requests:", err);
     } finally {
       setLoading(false);
     }

@@ -72,6 +72,7 @@ export default {
         'slide-up': 'slideUp 0.3s cubic-bezier(0.2, 0.0, 0, 1.0) forwards',
         'shimmer': 'shimmer 1.5s infinite linear',
         'ripple': 'ripple 0.6s linear',
+        'pulse': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
       },
       keyframes: {
         fadeIn: {
@@ -88,6 +89,10 @@ export default {
         ripple: {
           '0%': { transform: 'scale(0)', opacity: '0.4' },
           '100%': { transform: 'scale(4)', opacity: '0' },
+        },
+        pulse: {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0.65' },
         }
       },
     },

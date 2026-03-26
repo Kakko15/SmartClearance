@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion"; // eslint-disable-line no-unused-vars
 import { getClearanceComments, authAxios } from "../services/api";
 import { getStudentTheme } from "../constants/dashboardThemes";
 import useRealtimeSubscription from "../hooks/useRealtimeSubscription";
@@ -22,8 +23,16 @@ import {
   ChevronDownIcon,
   DocumentCheckIcon,
   ChatBubbleIcon,
+  ArrowUpTrayIcon,
+  DocumentIcon,
+  BellIcon,
+  UserIcon,
+  HomeIcon,
 } from "../components/ui/Icons";
+import StudentOverview from "../components/features/StudentOverview";
 import StudentRequestHistory from "../components/features/StudentRequestHistory";
+import StudentNotifications from "../components/features/StudentNotifications";
+import StudentProfile from "../components/features/StudentProfile";
 import ApplicationModal from "../components/features/ApplicationModal";
 
 const UnresolvedBadge = ({ count = 0 }) => {
@@ -64,6 +73,7 @@ const StageNode = ({
   hasComments,
   onViewComments,
   onRequestReevaluation,
+  onUploadDocument,
   children,
   isDarkMode = false,
 }) => {
@@ -216,6 +226,18 @@ const StageNode = ({
                   title="Request re-evaluation"
                 >
                   Re-evaluate
+                </button>
+              )}
+              {stage.status !== "locked" && !stage.hasChildren && onUploadDocument && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onUploadDocument(stage);
+                  }}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${isDarkMode ? "bg-blue-500/10 hover:bg-blue-500/20 text-blue-400" : "bg-blue-50 hover:bg-blue-100 text-blue-600"}`}
+                  title="Upload proof or supporting document"
+                >
+                  <ArrowUpTrayIcon className="w-4 h-4" />
                 </button>
               )}
               {hasComments && !stage.hasChildren && (
@@ -394,13 +416,45 @@ const ProfessorCard = ({
 
 const CommentPopupModal = ({
   target,
-  requestId: _requestId,
-  studentId: _studentId,
+  requestId,
+  studentId,
   onClose,
   clearanceComments = [],
+  onCommentAdded,
 }) => {
+  const [replyText, setReplyText] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   if (!target) return null;
 
+  const handleReplySubmit = async (e) => {
+    e.preventDefault();
+    if (!replyText.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      const { data } = await authAxios.post(
+        `/comments/${requestId}/comments`,
+        {
+          user_id: studentId,
+          comment_text: replyText.trim(),
+          visibility: "all",
+        }
+      );
+
+      if (data.success) {
+        toast.success("Reply sent successfully");
+        setReplyText("");
+        if (onCommentAdded) onCommentAdded();
+      } else {
+        throw new Error(data.error || "Failed to post reply");
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.error || error.message || "Failed to post reply. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -620,6 +674,159 @@ const CommentPopupModal = ({
             );
           })()}
         </div>
+
+        {/* Reply Box Footer */}
+        <div className="sticky bottom-0 z-10 p-4 border-t border-green-100/60 bg-white/90 backdrop-blur-md rounded-b-2xl">
+          <form onSubmit={handleReplySubmit} className="flex flex-col gap-2">
+            <textarea
+              disabled={isSubmitting}
+              placeholder="Type your reply to this message thread..."
+              className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50/50 p-3 text-sm text-gray-900 placeholder-gray-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-50 min-h-[80px]"
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleReplySubmit(e);
+                }
+              }}
+            />
+            <div className="flex justify-between items-center mt-1">
+              <span className="text-xs text-gray-400 hidden sm:inline-block">Press <span className="font-semibold text-gray-500">Enter</span> to send, <span className="font-semibold text-gray-500">Shift + Enter</span> for new line.</span>
+              <button
+                type="submit"
+                disabled={isSubmitting || !replyText.trim()}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:opacity-50 transition-colors ml-auto mt-1 sm:mt-0"
+               >
+                {isSubmitting ? "Sending..." : "Send Reply"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+const DocumentUploadModal = ({ target, requestId, studentId, onClose, onUploadSuccess, isDarkMode }) => {
+  const [file, setFile] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleFileChange = (e) => {
+    const selected = e.target.files[0];
+    if (!selected) return;
+
+    const validTypes = ["application/pdf", "image/jpeg", "image/png", "image/jpg"];
+    if (!validTypes.includes(selected.type)) {
+      toast.error("Invalid file type. Please upload PDF, JPG, or PNG only.");
+      return;
+    }
+
+    if (selected.size > 5 * 1024 * 1024) {
+      toast.error("File size exceeds 5MB limit.");
+      return;
+    }
+
+    setFile(selected);
+  };
+
+  const handleUploadSubmit = async (e) => {
+    e.preventDefault();
+    if (!file) {
+      toast.error("Please select a document first.");
+      return;
+    }
+
+    setIsUploading(true);
+    const formData = new FormData();
+    const newFile = new File([file], `[${target.title}] ${file.name}`, { type: file.type });
+    
+    formData.append("file", newFile);
+    formData.append("request_id", requestId);
+    formData.append("user_id", studentId);
+
+    try {
+      const response = await authAxios.post("/documents/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+      if (response.data.success) {
+        toast.success("Document uploaded successfully");
+        if (onUploadSuccess) onUploadSuccess();
+        onClose();
+      } else {
+        throw new Error(response.data.error || "Upload failed");
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.error || error.message || "Failed to upload document");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  if (!target) return null;
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="fixed inset-0 z-50 flex items-center justify-center p-4 px-4 sm:px-0" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+      <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} transition={{ type: "spring", stiffness: 400, damping: 30 }} onClick={(e) => e.stopPropagation()} className={`relative w-full max-w-md rounded-3xl shadow-2xl border overflow-hidden ${isDarkMode ? "bg-[#282a2d] border-[#3c4043]" : "bg-white border-blue-100/60"}`}>
+        <div className={`flex items-center justify-between px-6 py-5 border-b ${isDarkMode ? "border-[#3c4043]" : "border-blue-100/60"}`}>
+          <div className="flex items-center gap-4">
+             <div className="w-11 h-11 rounded-[14px] bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30 text-white flex-shrink-0">
+                <ArrowUpTrayIcon className="w-5 h-5 text-white" />
+             </div>
+             <div>
+                <h4 className={`font-bold text-[16px] tracking-tight ${isDarkMode ? "text-gray-100" : "text-gray-900"}`}>Upload Document</h4>
+                <p className={`text-[13px] ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>For {target.title}</p>
+             </div>
+          </div>
+          <motion.button type="button" whileHover={{ scale: 1.1, rotate: 90 }} whileTap={{ scale: 0.9 }} onClick={onClose} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${isDarkMode ? "bg-[#3c4043] text-gray-400 hover:text-red-400 hover:bg-red-500/10" : "bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-500"}`}>
+             <XMarkIcon className="w-4 h-4" />
+          </motion.button>
+        </div>
+
+        <form onSubmit={handleUploadSubmit} className="p-6">
+           <p className={`text-[14px] leading-relaxed mb-5 ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+             Please upload your proof of payment or related clearance certificate for the <strong className={isDarkMode ? "text-blue-300" : "text-blue-700 font-semibold"}>{target.title}</strong> stage.
+           </p>
+
+           <div className="relative group">
+             <div className={`absolute inset-0 bg-blue-500/5 rounded-2xl transition-transform duration-300 ${!file ? 'group-hover:scale-105' : ''} -z-10`} />
+             <div className={`relative border-2 border-dashed rounded-2xl p-7 flex flex-col items-center justify-center gap-3 transition-colors duration-300 ${isDarkMode ? "border-blue-500/30 bg-[#282a2d] hover:border-blue-400/50" : "border-blue-200 bg-white hover:border-blue-300"} cursor-pointer min-h-[160px]`}>
+                <motion.div animate={{ y: !file ? [0, -4, 0] : 0 }} transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}>
+                  <DocumentIcon className={`w-12 h-12 ${isDarkMode ? "text-blue-400" : "text-blue-500"} drop-shadow-sm`} />
+                </motion.div>
+                <div className="text-center mt-2">
+                   {file ? (
+                     <span className={`font-semibold text-[15px] ${isDarkMode ? "text-blue-300" : "text-blue-700"}`}>{file.name}</span>
+                   ) : (
+                     <div className="flex flex-col items-center">
+                       <span className={`font-semibold text-[15px] ${isDarkMode ? "text-blue-300" : "text-blue-700"}`}>Click to browse</span>
+                       <span className={`text-[13px] mt-1 ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>or drag and drop your file here</span>
+                     </div>
+                   )}
+                   <p className={`text-[12px] mt-2 ${isDarkMode ? "text-gray-500" : "text-gray-400"} font-medium uppercase tracking-wider`}>PDF, JPG, PNG (Max 5MB)</p>
+                </div>
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png" disabled={isUploading} onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+             </div>
+           </div>
+
+           <div className="mt-8 flex justify-end gap-3">
+              <button type="button" onClick={onClose} disabled={isUploading} className={`px-5 py-2.5 rounded-[14px] font-semibold text-sm transition-colors ${isDarkMode ? "text-gray-300 hover:bg-[#3c4043]" : "text-gray-600 hover:bg-gray-100"}`}>
+                 Cancel
+              </button>
+              <button type="submit" disabled={isUploading || !file} className="px-5 py-2.5 rounded-[14px] bg-blue-600 font-semibold text-sm text-white shadow-md shadow-blue-500/20 hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center min-w-[140px] active:scale-95">
+                 {isUploading ? (
+                    <span className="flex items-center gap-2">
+                       <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                       </svg>
+                       Uploading...
+                    </span>
+                 ) : "Upload File"}
+              </button>
+           </div>
+        </form>
       </motion.div>
     </motion.div>
   );
@@ -773,20 +980,36 @@ export default function StudentDashboardGraduation({
   const [clearanceStatus, setClearanceStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
-  const [activeView, setActiveView] = useState(
-    () => sessionStorage.getItem("tab_student") || "status",
-  );
+  const [searchParams, setSearchParams] = useSearchParams();
 
+  // Replaces useState for activeView with URL parameters for browser back-button support
+  const urlTab = searchParams.get("tab");
+  const activeView = urlTab || sessionStorage.getItem("tab_student") || "home";
+
+  const setActiveView = useCallback(
+    (viewId) => {
+      setSearchParams({ tab: viewId });
+      sessionStorage.setItem("tab_student", viewId);
+    },
+    [setSearchParams]
+  );
+  
+  // Sync the URL initially if it doesn't have a tab but sessionStorage does
   useEffect(() => {
-    sessionStorage.setItem("tab_student", activeView);
-  }, [activeView]);
+    if (!urlTab) {
+      setSearchParams({ tab: activeView }, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [expandedStages, setExpandedStages] = useState({ professors: true });
   const [cancelling, setCancelling] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showAppModal, setShowAppModal] = useState(false);
   const [appPortion, setAppPortion] = useState("undergraduate");
   const [commentTarget, setCommentTarget] = useState(null);
+  const [documentTarget, setDocumentTarget] = useState(null);
   const [clearanceComments, setClearanceComments] = useState([]);
+  const [requestHistoryLog, setRequestHistoryLog] = useState([]);
 
   const fetchClearanceComments = useCallback(
     async (reqId) => {
@@ -811,7 +1034,12 @@ export default function StudentDashboardGraduation({
 
         const reqId =
           response.data.request?.request_id || response.data.request?.id;
-        await fetchClearanceComments(reqId);
+        await Promise.all([
+          fetchClearanceComments(reqId),
+          reqId ? authAxios.get(`/requests/${reqId}/history`)
+            .then(res => setRequestHistoryLog(res.data.history || []))
+            .catch(e => console.warn("Could not fetch clearance history:", e)) : Promise.resolve()
+        ]);
       }
     } catch (error) {
       console.error("Error fetching clearance status:", error);
@@ -824,7 +1052,6 @@ export default function StudentDashboardGraduation({
   useEffect(() => {
     document.title = "Student Dashboard | ISU Graduation Clearance";
     fetchClearanceStatus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchClearanceStatus]);
 
   const activeReqId =
@@ -941,6 +1168,7 @@ export default function StudentDashboardGraduation({
     }
   };
 
+  // eslint-disable-next-line no-unused-vars
   const toggleStage = (key) =>
     setExpandedStages((prev) => ({ ...prev, [key]: !prev[key] }));
 
@@ -1182,11 +1410,12 @@ export default function StudentDashboardGraduation({
     let qrDataUrl = "";
     try {
       qrDataUrl = await QRCode.toDataURL(verifyUrl, { width: 80, margin: 1 });
-    } catch (_) {
+    } catch {
       /* QR generation failed, skip */
     }
 
     // Build stage rows with signatory name + date columns
+    // eslint-disable-next-line no-unused-vars
     const profApprovals = clearanceStatus.professorApprovals || [];
     const stageRows = stages
       .map((s, i) => {
@@ -1207,6 +1436,7 @@ export default function StudentDashboardGraduation({
             cashier: "cashier_approved_at",
             registrar: "registrar_approved_at",
           }[s.key];
+          // eslint-disable-next-line no-unused-vars
           const byField = {
             library: "library_approved_by",
             cashier: "cashier_approved_by",
@@ -1428,9 +1658,19 @@ export default function StudentDashboardGraduation({
 
   const menuItems = [
     {
+      id: "home",
+      label: "Overview",
+      icon: <HomeIcon className="w-5 h-5" />,
+    },
+    {
       id: "status",
       label: "Clearance Status",
       icon: <ChartBarIcon className="w-5 h-5" />,
+    },
+    {
+      id: "notifications",
+      label: "Notifications",
+      icon: <BellIcon className="w-5 h-5" />,
     },
     {
       id: "history",
@@ -1441,6 +1681,11 @@ export default function StudentDashboardGraduation({
       id: "certificate",
       label: "Certificate",
       icon: <AcademicCapIcon className="w-5 h-5" />,
+    },
+    {
+      id: "profile",
+      label: "My Profile",
+      icon: <UserIcon className="w-5 h-5" />,
     },
   ];
 
@@ -1461,6 +1706,16 @@ export default function StudentDashboardGraduation({
       toggleTheme={toggleTheme}
       isDarkMode={isDarkMode}
     >
+      {activeView === "home" && (
+        <StudentOverview
+          studentInfo={studentInfo}
+          clearanceStatus={clearanceStatus}
+          stages={stages}
+          setActiveView={setActiveView}
+          isDarkMode={isDarkMode}
+        />
+      )}
+
       {activeView === "status" && (
         <div className="max-w-4xl mx-auto space-y-6">
           <div className="mb-2">
@@ -1944,12 +2199,78 @@ export default function StudentDashboardGraduation({
                           openStageComments(stage);
                         }
                       }}
+                      onUploadDocument={() => setDocumentTarget(stage)}
                       onRequestReevaluation={handleRequestReevaluation}
                       isDarkMode={isDarkMode}
                     />
                   ))}
                 </div>
               </GlassCard>
+
+              {/* Activity Timeline Section */}
+              {requestHistoryLog && requestHistoryLog.length > 0 && (
+                <GlassCard
+                  isDark={isDarkMode}
+                  className={`p-6 sm:p-9 border-none shadow-[0_4px_12px_rgba(0,0,0,0.05),0_1px_3px_rgba(0,0,0,0.02)] rounded-[28px] mt-6 ${isDarkMode ? "bg-[#202124]" : "bg-white"}`}
+                >
+                  <div className="flex items-center gap-3 mb-8">
+                    <div className={`p-2.5 rounded-xl ${isDarkMode ? "bg-blue-900/30 text-blue-400" : "bg-blue-50 text-blue-600"}`}>
+                      <ClockIcon className="w-6 h-6" />
+                    </div>
+                    <h3 className={`text-[22px] font-medium tracking-tight ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>
+                      Clearance Activity Timeline
+                    </h3>
+                  </div>
+                  
+                  <div className="space-y-6">
+                    {requestHistoryLog.map((logItem, idx) => {
+                      const date = new Date(logItem.created_at);
+                      
+                      let color = "blue";
+                      if (logItem.action === "approved" || logItem.action === "created") color = "emerald";
+                      if (logItem.action === "rejected") color = "red";
+                      
+                      let actorName = logItem.stage_name ? logItem.stage_name.charAt(0).toUpperCase() + logItem.stage_name.slice(1) : (logItem.profiles?.full_name || "System");
+                      if (logItem.action === "created") actorName = "You";
+
+                      let titleText = logItem.action === "created" ? "Applied for clearance" : `${actorName} ${logItem.action}`;
+                      if (logItem.action === "commented") titleText = `${actorName} left a comment`;
+                      
+                      return (
+                         <div key={logItem.id} className="relative pl-8 sm:pl-10">
+                           {/* Connecting Line */}
+                           {idx !== requestHistoryLog.length - 1 && (
+                             <div className={`absolute left-[11px] sm:left-[15px] top-[30px] bottom-[-24px] w-[2px] rounded-full ${isDarkMode ? "bg-[#3c4043]" : "bg-gray-100"}`} />
+                           )}
+                           
+                           {/* Dot */}
+                           <div className={`absolute left-0 sm:left-1 top-1 w-6 h-6 rounded-full flex items-center justify-center ring-[4px] sm:ring-[6px] ${isDarkMode ? "ring-[#202124]" : "ring-white"} 
+                              ${color === 'emerald' ? 'bg-[#10b981]' : color === 'red' ? 'bg-[#ef4444]' : 'bg-[#3b82f6]'}`}
+                           >
+                             <div className={`w-2 h-2 rounded-full ${isDarkMode ? "bg-[#202124]" : "bg-white"}`} />
+                           </div>
+
+                           <div className="bg-transparent mt-[2px]">
+                             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-baseline gap-1 sm:gap-4 mb-2">
+                               <h4 className={`font-semibold text-[15px] tracking-tight ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>
+                                 {titleText}
+                               </h4>
+                               <span className={`text-[13px] font-medium whitespace-nowrap ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                 {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'})}
+                               </span>
+                             </div>
+                             {logItem.comments && (
+                               <div className={`p-4 rounded-xl border text-[14px] leading-relaxed ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-gray-300" : "bg-gray-50/80 border-gray-100 text-gray-700"}`}>
+                                  {logItem.comments}
+                               </div>
+                             )}
+                           </div>
+                         </div>
+                      );
+                    })}
+                  </div>
+                </GlassCard>
+              )}
             </>
           )}
         </div>
@@ -2013,6 +2334,49 @@ export default function StudentDashboardGraduation({
           )}
         </div>
       )}
+
+      {activeView === "notifications" && (
+        <div className="max-w-4xl mx-auto space-y-6">
+          <div className="mb-2">
+            <h2
+              className={`text-[28px] font-normal tracking-tight ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}
+              style={{ fontFamily: "Google Sans, sans-serif" }}
+            >
+              Notifications
+            </h2>
+            <p
+              className={`text-sm mt-1 ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}
+            >
+              Stay updated on your clearance progress
+            </p>
+          </div>
+          <StudentNotifications isDarkMode={isDarkMode} />
+        </div>
+      )}
+
+      {activeView === "profile" && (
+        <div className="max-w-4xl mx-auto space-y-6">
+          <div className="mb-2">
+            <h2
+              className={`text-[28px] font-normal tracking-tight ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}
+              style={{ fontFamily: "Google Sans, sans-serif" }}
+            >
+              My Profile
+            </h2>
+            <p
+              className={`text-sm mt-1 ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}
+            >
+              View and manage your account information
+            </p>
+          </div>
+          <StudentProfile
+            studentInfo={studentInfo}
+            user={user}
+            isDarkMode={isDarkMode}
+          />
+        </div>
+      )}
+
       <AnimatePresence mode="wait">
         {commentTarget && (
           <CommentPopupModal
@@ -2022,6 +2386,7 @@ export default function StudentDashboardGraduation({
             studentId={studentId}
             onClose={closeCommentPanel}
             clearanceComments={clearanceComments}
+            onCommentAdded={() => fetchClearanceComments(activeReqId)}
           />
         )}
       </AnimatePresence>
@@ -2175,6 +2540,21 @@ export default function StudentDashboardGraduation({
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {documentTarget && (
+          <DocumentUploadModal
+            target={documentTarget}
+            requestId={clearanceStatus?.request?.id || clearanceStatus?.request?.request_id}
+            studentId={studentId}
+            onClose={() => setDocumentTarget(null)}
+            onUploadSuccess={() => {
+              fetchClearanceStatus(true);
+            }}
+            isDarkMode={isDarkMode}
+          />
         )}
       </AnimatePresence>
     </DashboardLayout>

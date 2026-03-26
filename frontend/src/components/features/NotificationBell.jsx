@@ -18,14 +18,18 @@ export default function NotificationBell({ isDarkMode = false }) {
         setNotifications(data.notifications);
         setUnreadCount(data.unreadCount);
       }
-    } catch {}
+    } catch (err) {
+      console.warn("Failed to fetch notifications:", err);
+    }
   }, []);
 
   const fetchPendingCount = useCallback(async () => {
     try {
       const { data } = await authAxios.get("notifications/pending-count");
       if (data.success) setPendingCount(data.pendingCount || 0);
-    } catch {}
+    } catch (err) {
+      console.warn("Failed to fetch pending count:", err);
+    }
   }, []);
 
   useEffect(() => {
@@ -55,7 +59,9 @@ export default function NotificationBell({ isDarkMode = false }) {
         ),
       );
       setUnreadCount((c) => Math.max(0, c - 1));
-    } catch {}
+    } catch (err) {
+      console.warn("Failed to mark notification as read:", err);
+    }
   };
 
   const markAllRead = async () => {
@@ -69,7 +75,8 @@ export default function NotificationBell({ isDarkMode = false }) {
         })),
       );
       setUnreadCount(0);
-    } catch {
+    } catch (err) {
+      console.warn("Failed to mark all notifications as read:", err);
     } finally {
       setLoading(false);
     }

@@ -157,7 +157,9 @@ export default function GraduationCertificate({
     let qrDataUrl = "";
     try {
       qrDataUrl = await QRCode.toDataURL(verifyUrl, { width: 100, margin: 1 });
-    } catch (_) {}
+    } catch (qrErr) {
+      console.warn("Failed to generate QR code for PDF:", qrErr);
+    }
 
     const stages = getClearedStages();
     const stageRows = stages

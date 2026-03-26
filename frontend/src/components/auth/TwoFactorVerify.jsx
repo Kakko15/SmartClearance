@@ -66,7 +66,7 @@ export default function TwoFactorVerify({
     } else if (emailSent && expiresAt <= Date.now()) {
       setExpired(true);
     }
-  }, []);
+  }, [emailSent]);
 
   const startCountdown = (ms) => {
     if (timerRef.current) clearInterval(timerRef.current);
