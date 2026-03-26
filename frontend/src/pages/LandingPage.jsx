@@ -316,9 +316,7 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
         <div
           className={`absolute top-[40%] -left-[20%] w-[60vw] h-[60vw] max-w-[700px] max-h-[700px] rounded-full opacity-30 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] ${isDark ? "from-secondary-900/40 via-secondary-900/10 to-transparent" : "from-secondary-300/40 via-secondary-300/10 to-transparent"}`}
         />
-        <div
-          className={`absolute inset-0 bg-[url('/noise.png')] opacity-[0.03]`}
-        />
+        
       </div>
 
       <header

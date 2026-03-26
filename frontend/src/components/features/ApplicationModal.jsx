@@ -87,13 +87,13 @@ const ApplicationModal = ({
         const v = (value ?? "").trim();
         if (!v) return "Course major is required.";
         if (/^N\/A$/i.test(v)) return "";
-        // Allow uppercase abbreviations (BSIT, BSCS, BS IT, B.S.I.T.)
+
         if (/^[A-Z][A-Z\s.]{0,11}$/.test(v)) return "";
         if (v.length < 3) return "Must be at least 3 characters.";
         if (/(.)\1{2,}/i.test(v)) return "Please enter a valid course major.";
         const vowelCount = (v.match(/[aeiou]/gi) || []).length;
         if (vowelCount === 0) return "Please enter a valid course major.";
-        // Single short word (not an abbreviation) is likely gibberish
+
         const words = v.split(/\s+/).filter((w) => w.length > 0);
         if (words.length === 1 && v.length < 5)
           return "Please enter your full course major.";

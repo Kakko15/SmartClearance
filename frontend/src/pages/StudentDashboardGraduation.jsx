@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
-import { motion, AnimatePresence } from "framer-motion"; // eslint-disable-line no-unused-vars
+import { motion, AnimatePresence } from "framer-motion";
 import { getClearanceComments, authAxios } from "../services/api";
 import { getStudentTheme } from "../constants/dashboardThemes";
 import useRealtimeSubscription from "../hooks/useRealtimeSubscription";
@@ -265,6 +265,7 @@ const StageNode = ({
           <AnimatePresence>
             {isExpanded && children && (
               <motion.div
+                onClick={(e) => e.stopPropagation()}
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
@@ -414,18 +415,16 @@ const ProfessorCard = ({
   );
 };
 
-const CommentPopupModal = ({
-  target,
+const InlineCommentThread = ({
+  stage,
   requestId,
   studentId,
-  onClose,
   clearanceComments = [],
   onCommentAdded,
+  isDarkMode
 }) => {
   const [replyText, setReplyText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  if (!target) return null;
 
   const handleReplySubmit = async (e) => {
     e.preventDefault();
@@ -433,11 +432,14 @@ const CommentPopupModal = ({
 
     setIsSubmitting(true);
     try {
+      const targetTag = stage.type === "signatory" && stage.approval ? `[TO:${stage.approval.professor_id}]` : `[TO:${stage.key}]`;
+      const finalComment = `${targetTag} ${replyText.trim()}`;
+
       const { data } = await authAxios.post(
         `/comments/${requestId}/comments`,
         {
           user_id: studentId,
-          comment_text: replyText.trim(),
+          comment_text: finalComment,
           visibility: "all",
         }
       );
@@ -445,266 +447,389 @@ const CommentPopupModal = ({
       if (data.success) {
         toast.success("Reply sent successfully");
         setReplyText("");
+        
+        // Let postgres_changes handle cross-client sync
         if (onCommentAdded) onCommentAdded();
       } else {
         throw new Error(data.error || "Failed to post reply");
       }
     } catch (error) {
-      toast.error(error.response?.data?.error || error.message || "Failed to post reply. Please try again.");
+      toast.error(error.response?.data?.error || error.message || "Failed to post reply.");
     } finally {
       setIsSubmitting(false);
     }
   };
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.2 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
 
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9, y: 20 }}
-        transition={{ type: "spring", stiffness: 400, damping: 30 }}
-        onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border border-green-200/60 bg-gradient-to-br from-white via-green-50/30 to-emerald-50/20 shadow-2xl"
-      >
-        <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-green-100/60 bg-white/90 backdrop-blur-md rounded-t-2xl">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-green-500/20">
-              <ChatBubbleIcon className="w-5 h-5 text-white" />
+  let specificComments = [];
+
+  const isTargetComment = (c) => {
+    if (c.commenter_id !== studentId) return false;
+    const tTag = stage.type === "signatory" && stage.approval ? `[TO:${stage.approval.professor_id}]` : `[TO:${stage.key}]`;
+    if (c.comment_text.startsWith(tTag)) return true;
+    if (!c.comment_text.includes("[TO:")) {
+      // Show untagged legacy comments if this stage has comments or is pending/rejected
+      const roleMap = { library: "librarian", cashier: "cashier", registrar: "registrar" };
+      const role = stage.type === "stage" ? roleMap[stage.key] : "signatory";
+      const hasStaffComments = clearanceComments.some(sc => sc.commenter_role === role || sc.commenter_id === stage.approval?.professor_id);
+      return hasStaffComments || stage.status !== "approved";
+    }
+    return false;
+  };
+
+  if (stage.type === "signatory" && stage.approval) {
+    specificComments = clearanceComments.filter(
+      (c) => c.commenter_id === stage.approval.professor_id || isTargetComment(c),
+    );
+
+    if (stage.approval.comments && stage.approval.comments.trim()) {
+      specificComments = [
+        {
+          id: `approval-${stage.approval.id}`,
+          commenter_name: stage.approval.professor?.full_name || "Signatory",
+          commenter_role: "signatory",
+          comment_text: stage.approval.comments,
+          created_at: stage.approval.approved_at || stage.approval.created_at,
+          is_resolved: false,
+          isApprovalComment: true,
+        },
+        ...specificComments,
+      ];
+    }
+  } else if (stage.type === "stage") {
+    const roleMap = {
+      library: "librarian",
+      cashier: "cashier",
+      registrar: "registrar",
+    };
+    const role = roleMap[stage.key];
+    specificComments = clearanceComments.filter(
+      (c) => c.commenter_role === role || isTargetComment(c)
+    );
+
+    if (stage.comments && stage.comments.trim()) {
+      specificComments = [
+        {
+          id: `stage-${stage.key}`,
+          commenter_name: stage.title,
+          commenter_role: role || "admin",
+          comment_text: stage.comments,
+          is_resolved: false,
+          isStageComment: true,
+        },
+        ...specificComments,
+      ];
+    }
+  }
+
+  const unresolvedCount = specificComments.filter(
+    (c) => !c.is_resolved && c.commenter_id !== studentId
+  ).length;
+
+  if (specificComments.length === 0) {
+    return (
+      <div className={`p-6 mt-2 rounded-2xl text-center transition-colors ${isDarkMode ? "bg-[#202124]/50 border border-[#3c4043]" : "bg-[#f8fafd] border border-[#e8eaed]"}`}>
+        <div className={`w-12 h-12 mx-auto rounded-full flex items-center justify-center mb-3 ${isDarkMode ? "bg-[#3c4043]" : "bg-white border border-[#e8eaed] shadow-sm"}`}>
+          <ChatBubbleIcon className={`w-6 h-6 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`} />
+        </div>
+        <p className={`text-[14px] font-medium tracking-tight ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>No feedback yet</p>
+        <p className={`text-[13px] mt-1 ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>
+          When reviewers leave comments, they will appear here.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`flex flex-col mt-2 rounded-2xl overflow-hidden transition-all duration-300 ${isDarkMode ? "bg-[#282a2d] border border-[#3c4043]" : "bg-white border border-[#dadce0] shadow-[0_1px_2px_0_rgba(60,64,67,0.1)]"}`}>
+      <div className={`px-5 py-4 border-b flex items-center justify-between ${isDarkMode ? "border-[#3c4043] bg-[#2d2f31]" : "border-[#e8eaed] bg-slate-50/50"}`}>
+        <div className="flex items-center gap-2">
+          <ChatBubbleIcon className={`w-[18px] h-[18px] ${isDarkMode ? "text-primary-400" : "text-primary-600"}`} />
+          <h4 className={`text-[14px] font-medium tracking-tight ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>
+            Feedback & Comments
+          </h4>
+        </div>
+        {unresolvedCount > 0 && (
+          <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide uppercase ${isDarkMode ? "bg-[#fce8e6]/10 text-[#f28b82] border border-[#f28b82]/30" : "bg-[#fce8e6] text-[#c5221f] border border-[#f2b8b5]"}`}>
+            {unresolvedCount} Unresolved
+          </span>
+        )}
+      </div>
+
+      <div className={`p-5 max-h-[360px] overflow-y-auto space-y-5 ${isDarkMode ? "bg-[#202124] scrollbar-thin scrollbar-thumb-[#3c4043]" : "bg-[#f8fafd] scrollbar-thin scrollbar-thumb-gray-200"}`}>
+        {specificComments.map((comment) => (
+          <div key={comment.id} className="flex gap-4">
+            <div className={`w-[36px] h-[36px] rounded-full flex-shrink-0 flex items-center justify-center font-bold text-[13px] text-white shadow-sm ${comment.is_resolved ? "bg-[#34a853]" : "bg-primary-500"}`}>
+              {comment.commenter_name?.charAt(0).toUpperCase() || "?"}
             </div>
-            <div>
-              <h4 className="font-bold text-sm text-gray-900">
-                {target.title}
-              </h4>
-              <p className="text-xs text-gray-500">
-                {target.type === "signatory"
-                  ? "Signatory feedback & comments"
-                  : "Stage comments & discussion"}
-              </p>
+            <div className="flex-1 min-w-0 flex flex-col items-start">
+              <div className="flex items-baseline justify-between gap-2 mb-1 w-full">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`font-medium text-[14px] ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>
+                    {comment.commenter_name}
+                  </span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded border uppercase font-semibold tracking-wider ${comment.commenter_role === "signatory" || comment.commenter_role === "department_head" ? isDarkMode ? "bg-purple-900/30 text-purple-300 border-purple-800/50" : "bg-purple-50 text-purple-700 border-purple-200" : isDarkMode ? "bg-blue-900/30 text-blue-300 border-blue-800/50" : "bg-blue-50 text-blue-700 border-blue-200"}`}>
+                    {comment.commenter_role === "signatory" ? "Signatory" : comment.commenter_role === "librarian" ? "Library" : comment.commenter_role === "cashier" ? "Cashier" : comment.commenter_role === "registrar" ? "Registrar" : comment.commenter_role === "student" ? "Student" : "Staff"}
+                  </span>
+                </div>
+                {comment.created_at && (
+                  <span className={`text-[12px] whitespace-nowrap ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>
+                    {new Date(comment.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                )}
+              </div>
+              <div className={`mt-1 py-2.5 px-4 rounded-[16px] rounded-tl-[4px] text-[14px] leading-relaxed relative max-w-[90%] inline-block ${comment.is_resolved ? (isDarkMode ? "bg-[#3c4043]/50 text-[#9aa0a6]" : "bg-white border border-[#e8eaed] text-[#5f6368] opacity-75") : (isDarkMode ? "bg-[#3c4043] text-[#e8eaed]" : "bg-white shadow-sm border border-[#e8eaed] text-[#202124]")}`}>
+                {comment.comment_text.replace(/^\[TO:[^\]]+\]\s*/, "")}
+              </div>
             </div>
           </div>
-          <motion.button
-            whileHover={{ scale: 1.1, rotate: 90 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={onClose}
-            className="w-8 h-8 rounded-xl bg-gray-100 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-colors text-gray-400"
+        ))}
+      </div>
+
+      <div className={`p-4 border-t ${isDarkMode ? "border-[#3c4043] bg-[#2d2f31]" : "border-[#e8eaed] bg-white"}`}>
+        <form onSubmit={handleReplySubmit} className="relative flex items-end gap-3">
+          <textarea
+            disabled={isSubmitting}
+            placeholder="Reply to this thread..."
+            className={`w-full flex-1 resize-none rounded-2xl border pl-4 pr-12 py-3.5 text-[14px] focus:outline-none focus:ring-1 transition-all max-h-[140px] ${isDarkMode ? "bg-[#202124] border-[#5f6368] text-[#e8eaed] placeholder-[#9aa0a6] focus:border-primary-400 focus:ring-primary-400" : "bg-[#f1f3f4] border-transparent text-[#202124] placeholder-[#5f6368] hover:bg-[#e8eaed] focus:bg-white focus:border-primary-500 focus:ring-primary-500 shadow-inner"}`}
+            style={{ minHeight: '52px', overflow: 'hidden' }}
+            value={replyText}
+            onChange={(e) => {
+              setReplyText(e.target.value);
+              e.target.style.height = 'auto';
+              e.target.style.height = (e.target.scrollHeight) + 'px';
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleReplySubmit(e);
+              }
+            }}
+            rows={1}
+          />
+          <button
+            type="submit"
+            disabled={isSubmitting || !replyText.trim()}
+            className={`absolute right-3 bottom-2.5 p-2 rounded-xl flex items-center justify-center transition-all ${isSubmitting || !replyText.trim() ? "opacity-30 cursor-not-allowed" : isDarkMode ? "hover:bg-[#3c4043] bg-primary-900/30 text-primary-400" : "hover:bg-primary-50 active:scale-95 bg-primary-500 text-white shadow-md hover:shadow-lg hover:bg-primary-600"}`}
           >
-            <XMarkIcon className="w-4 h-4" />
-          </motion.button>
+            {isSubmitting ? (
+              <svg className="animate-spin h-[18px] w-[18px]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : (
+              <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+            )}
+          </button>
+        </form>
+        <div className={`mt-2 flex justify-between items-center text-[11px] ${isDarkMode ? "text-[#5f6368]" : "text-[#9aa0a6]"}`}>
+           <span></span>
+           <span className="mr-1">Press <strong className="font-medium text-[12px]">Enter</strong> inside to send</span>
         </div>
+      </div>
+    </div>
+  );
+};
 
-        <div className="p-6">
-          {(() => {
-            let specificComments = [];
+const UploadedDocumentsList = ({ requestId, studentId, isDarkMode, refreshKey }) => {
+  const [documents, setDocuments] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-            if (target.type === "signatory" && target.approval) {
-              specificComments = clearanceComments.filter(
-                (c) => c.commenter_id === target.approval.professor_id,
-              );
+  const loadingTimerRef = useRef(null);
 
-              if (target.approval.comments && target.approval.comments.trim()) {
-                specificComments = [
-                  {
-                    id: `approval-${target.approval.id}`,
-                    commenter_name:
-                      target.approval.professor?.full_name || "Signatory",
-                    commenter_role: "signatory",
-                    comment_text: target.approval.comments,
-                    created_at:
-                      target.approval.approved_at || target.approval.created_at,
-                    is_resolved: false,
-                    isApprovalComment: true,
-                  },
-                  ...specificComments,
-                ];
-              }
-            } else if (target.type === "stage") {
-              const roleMap = {
-                library: "librarian",
-                cashier: "cashier",
-                registrar: "registrar",
-              };
-              const role = roleMap[target.key];
-              specificComments = clearanceComments.filter(
-                (c) => c.commenter_role === role,
-              );
+  const fetchDocuments = useCallback(async () => {
+    if (!requestId) return;
+    
+    // Only show skeleton if the request takes more than 150ms
+    loadingTimerRef.current = setTimeout(() => setLoading(true), 150);
+    
+    try {
+      const response = await authAxios.get(`/documents/request/${requestId}`);
+      if (response.data.success) {
+        setDocuments(response.data.documents || []);
+      }
+    } catch (error) {
+      console.error("Error fetching documents:", error);
+    } finally {
+      if (loadingTimerRef.current) clearTimeout(loadingTimerRef.current);
+      setLoading(false);
+    }
+  }, [requestId]);
 
-              if (target.stageComment && target.stageComment.trim()) {
-                specificComments = [
-                  {
-                    id: `stage-${target.key}`,
-                    commenter_name: target.title,
-                    commenter_role: role || "admin",
-                    comment_text: target.stageComment,
-                    is_resolved: false,
-                    isStageComment: true,
-                  },
-                  ...specificComments,
-                ];
-              }
-            }
+  useEffect(() => {
+    fetchDocuments();
+  }, [fetchDocuments, refreshKey]);
 
-            const unresolvedCount = specificComments.filter(
-              (c) => !c.is_resolved,
-            ).length;
+  // Live updates when documents are added/removed
+  useRealtimeSubscription("request_documents", fetchDocuments, {
+    filter: `request_id=eq.${requestId}`,
+    enabled: !!requestId,
+  });
 
-            if (specificComments.length === 0) {
-              return (
-                <div className="text-center py-8">
-                  <div className="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-3">
-                    <ChatBubbleIcon className="w-7 h-7 text-gray-300" />
-                  </div>
-                  <p className="text-sm font-medium text-gray-400">
-                    No comments yet
-                  </p>
-                  <p className="text-xs text-gray-300 mt-1">
-                    {target.type === "signatory"
-                      ? "This signatory hasn't left any feedback"
-                      : "This office hasn't left any feedback"}
-                  </p>
+  const handleDelete = async (docId) => {
+    try {
+      const response = await authAxios.delete(`/documents/${docId}`);
+      if (response.data.success) {
+        toast.success("Document deleted");
+        
+        // Let postgres_changes handle cross-client sync
+        fetchDocuments();
+      }
+    } catch {
+      toast.error("Failed to delete document");
+    }
+  };
+
+  const getFileSize = (bytes) => {
+    if (!bytes || bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+  };
+
+  if (loading && documents.length === 0) {
+    return (
+      <div className={`mt-4 rounded-2xl border transition-all duration-300 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043]" : "bg-white border-[#dadce0] shadow-[0_1px_2px_0_rgba(60,64,67,0.1)]"}`}>
+        <div className={`px-5 py-4 border-b flex items-center justify-between ${isDarkMode ? "border-[#3c4043] bg-[#2d2f31]" : "border-[#e8eaed] bg-slate-50/50"}`}>
+          <div className="flex items-center gap-2">
+            <div className={`w-[18px] h-[18px] rounded-full animate-pulse ${isDarkMode ? "bg-[#5f6368]" : "bg-blue-200"}`} />
+            <h4 className={`h-4 w-32 rounded animate-pulse ${isDarkMode ? "bg-[#5f6368]" : "bg-gray-200"}`} />
+          </div>
+        </div>
+        <div className={`p-4 space-y-2 ${isDarkMode ? "bg-[#202124]" : "bg-[#f8fafd]"}`}>
+          {[1].map((i) => (
+            <div key={i} className={`flex items-center justify-between p-3 rounded-xl border transition-all ${isDarkMode ? "bg-[#282a2d] border-[#3c4043]" : "bg-white border-[#e8eaed]"}`}>
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className={`w-10 h-10 rounded-xl flex-shrink-0 animate-pulse ${isDarkMode ? "bg-[#5f6368]" : "bg-blue-100"}`} />
+                <div className="flex flex-col gap-1.5 flex-1">
+                  <div className={`h-3 w-2/3 max-w-[200px] rounded animate-pulse ${isDarkMode ? "bg-[#5f6368]" : "bg-gray-200"}`} />
+                  <div className={`h-2.5 w-1/3 max-w-[100px] rounded animate-pulse ${isDarkMode ? "bg-[#3c4043]" : "bg-gray-100"}`} />
                 </div>
-              );
-            }
-
-            return (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 mb-3">
-                  <div
-                    className={`w-2 h-2 rounded-full ${unresolvedCount > 0 ? "bg-orange-500" : "bg-green-500"}`}
-                  />
-                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {specificComments.length} Comment
-                    {specificComments.length !== 1 ? "s" : ""}
-                    {unresolvedCount > 0 && ` · ${unresolvedCount} unresolved`}
-                  </p>
-                </div>
-                {specificComments.map((comment) => (
-                  <div
-                    key={comment.id}
-                    className={`border-l-4 pl-4 py-3 rounded-r-xl bg-white shadow-sm ${
-                      comment.is_resolved
-                        ? "border-green-300 opacity-60"
-                        : target.type === "signatory"
-                          ? "border-purple-400"
-                          : "border-blue-400"
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div
-                        className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
-                          comment.is_resolved
-                            ? "bg-green-400"
-                            : target.type === "signatory"
-                              ? "bg-gradient-to-br from-purple-400 to-indigo-500"
-                              : "bg-gradient-to-br from-blue-400 to-indigo-500"
-                        }`}
-                      >
-                        <span className="text-white text-xs font-bold">
-                          {comment.commenter_name?.charAt(0) || "?"}
-                        </span>
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <span className="font-semibold text-sm text-gray-900">
-                            {comment.commenter_name}
-                          </span>
-                          <span
-                            className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
-                              comment.commenter_role === "signatory" ||
-                              comment.commenter_role === "department_head"
-                                ? "bg-purple-50 text-purple-700 border-purple-200"
-                                : "bg-blue-50 text-blue-700 border-blue-200"
-                            }`}
-                          >
-                            {comment.commenter_role === "signatory"
-                              ? "Signatory"
-                              : comment.commenter_role === "librarian"
-                                ? "Library"
-                                : comment.commenter_role === "cashier"
-                                  ? "Cashier"
-                                  : comment.commenter_role === "registrar"
-                                    ? "Registrar"
-                                    : "Staff"}
-                          </span>
-                          {comment.is_resolved ? (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200 font-medium">
-                              Resolved
-                            </span>
-                          ) : (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200 font-medium">
-                              Unresolved
-                            </span>
-                          )}
-                        </div>
-                        <p
-                          className={`text-sm whitespace-pre-wrap leading-relaxed mt-1 ${
-                            comment.is_resolved
-                              ? "text-gray-400 line-through decoration-1"
-                              : "text-gray-700"
-                          }`}
-                        >
-                          {comment.comment_text}
-                        </p>
-                        {comment.created_at && (
-                          <p className="text-xs text-gray-400 mt-2">
-                            {new Date(comment.created_at).toLocaleString(
-                              "en-US",
-                              {
-                                month: "short",
-                                day: "numeric",
-                                year: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              },
-                            )}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
               </div>
-            );
-          })()}
-        </div>
-
-        {/* Reply Box Footer */}
-        <div className="sticky bottom-0 z-10 p-4 border-t border-green-100/60 bg-white/90 backdrop-blur-md rounded-b-2xl">
-          <form onSubmit={handleReplySubmit} className="flex flex-col gap-2">
-            <textarea
-              disabled={isSubmitting}
-              placeholder="Type your reply to this message thread..."
-              className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50/50 p-3 text-sm text-gray-900 placeholder-gray-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-50 min-h-[80px]"
-              value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleReplySubmit(e);
-                }
-              }}
-            />
-            <div className="flex justify-between items-center mt-1">
-              <span className="text-xs text-gray-400 hidden sm:inline-block">Press <span className="font-semibold text-gray-500">Enter</span> to send, <span className="font-semibold text-gray-500">Shift + Enter</span> for new line.</span>
-              <button
-                type="submit"
-                disabled={isSubmitting || !replyText.trim()}
-                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:opacity-50 transition-colors ml-auto mt-1 sm:mt-0"
-               >
-                {isSubmitting ? "Sending..." : "Send Reply"}
-              </button>
+              <div className={`w-8 h-8 rounded-lg flex-shrink-0 animate-pulse ${isDarkMode ? "bg-[#5f6368]" : "bg-gray-200"}`} />
             </div>
-          </form>
+          ))}
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    );
+  }
+
+  if (!loading && documents.length === 0) {
+    return (
+      <div className={`mt-4 rounded-2xl border transition-all duration-300 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043]" : "bg-white border-[#dadce0] shadow-[0_1px_2px_0_rgba(60,64,67,0.1)]"}`}>
+        <div className={`px-5 py-4 border-b flex items-center justify-between ${isDarkMode ? "border-[#3c4043] bg-[#2d2f31]" : "border-[#e8eaed] bg-slate-50/50"}`}>
+          <div className="flex items-center gap-2">
+            <DocumentIcon className={`w-[18px] h-[18px] ${isDarkMode ? "text-primary-400" : "text-primary-600"}`} />
+            <h4 className={`text-[14px] font-medium tracking-tight ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>
+              Uploaded Documents
+            </h4>
+          </div>
+        </div>
+        <div className={`p-6 flex flex-col items-center justify-center ${isDarkMode ? "bg-[#202124]" : "bg-[#f8fafd]"}`}>
+          <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 ${isDarkMode ? "bg-[#3c4043]" : "bg-white shadow-sm border border-[#e8eaed]"}`}>
+            <svg className={`w-6 h-6 ${isDarkMode ? "text-[#5f6368]" : "text-gray-400"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <p className={`text-[14px] font-medium ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>No Documents</p>
+          <p className={`text-[12px] mt-1 ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>No supporting documents uploaded yet.</p>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className={`mt-4 rounded-2xl border transition-all duration-300 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043]" : "bg-white border-[#dadce0] shadow-[0_1px_2px_0_rgba(60,64,67,0.1)]"}`}>
+      <div className={`px-5 py-4 border-b flex items-center justify-between ${isDarkMode ? "border-[#3c4043] bg-[#2d2f31]" : "border-[#e8eaed] bg-slate-50/50"}`}>
+        <div className="flex items-center gap-2">
+          <DocumentIcon className={`w-[18px] h-[18px] ${isDarkMode ? "text-primary-400" : "text-primary-600"}`} />
+          <h4 className={`text-[14px] font-medium tracking-tight ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>
+            Uploaded Documents
+          </h4>
+        </div>
+        <span className={`text-[12px] font-medium px-2.5 py-0.5 rounded-full ${isDarkMode ? "bg-[#8ab4f8] text-[#202124]" : "bg-[#1a73e8] text-white"}`}>
+          {documents.length}
+        </span>
+      </div>
+      <div className={`p-4 space-y-2 ${isDarkMode ? "bg-[#202124]" : "bg-[#f8fafd]"}`}>
+        {documents.map((doc) => (
+          <div
+            key={doc.id}
+            className={`flex items-center justify-between p-3 rounded-xl border transition-all group ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] hover:border-[#8ab4f8]/40" : "bg-white border-[#e8eaed] hover:border-[#1a73e8]/40 hover:shadow-sm"}`}
+          >
+            <div
+              className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
+              onClick={() => {
+                if (doc.file_url) window.open(doc.file_url, "_blank", "noopener,noreferrer");
+              }}
+              title="Click to preview"
+            >
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isDarkMode ? "bg-[#3c4043]" : "bg-blue-50"}`}>
+                {doc.file_type?.includes("image") ? (
+                  <svg className={`w-5 h-5 ${isDarkMode ? "text-[#8ab4f8]" : "text-blue-600"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                ) : (
+                  <svg className={`w-5 h-5 ${isDarkMode ? "text-[#8ab4f8]" : "text-blue-600"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className={`text-[13px] font-medium truncate ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}>
+                  {doc.file_name}
+                </p>
+                <p className={`text-[11px] flex items-center gap-1.5 ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>
+                  <span>{getFileSize(doc.file_size)}</span>
+                  <span>&bull;</span>
+                  <span>{new Date(doc.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  if (!doc.file_url) return;
+                  try {
+                    const response = await fetch(doc.file_url);
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = doc.file_name || "document";
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    setTimeout(() => URL.revokeObjectURL(url), 60000);
+                  } catch {
+                    window.open(doc.file_url, "_blank", "noopener,noreferrer");
+                  }
+                }}
+                className={`p-2 rounded-lg transition-colors ${isDarkMode ? "text-[#9aa0a6] hover:bg-[#3c4043] hover:text-[#8ab4f8]" : "text-gray-400 hover:bg-blue-50 hover:text-blue-600"}`}
+                title="Download file"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              </button>
+              {doc.uploaded_by === studentId && (
+                <button
+                  onClick={() => handleDelete(doc.id)}
+                  className={`p-2 rounded-lg transition-colors ${isDarkMode ? "text-[#9aa0a6] hover:bg-[#5c1010]/30 hover:text-[#f28b82]" : "text-gray-400 hover:bg-red-50 hover:text-red-500"}`}
+                  title="Delete"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 };
 
@@ -740,7 +865,7 @@ const DocumentUploadModal = ({ target, requestId, studentId, onClose, onUploadSu
     setIsUploading(true);
     const formData = new FormData();
     const newFile = new File([file], `[${target.title}] ${file.name}`, { type: file.type });
-    
+
     formData.append("file", newFile);
     formData.append("request_id", requestId);
     formData.append("user_id", studentId);
@@ -752,6 +877,8 @@ const DocumentUploadModal = ({ target, requestId, studentId, onClose, onUploadSu
       if (response.data.success) {
         toast.success("Document uploaded successfully");
         if (onUploadSuccess) onUploadSuccess();
+        
+        // Let postgres_changes handle cross-client sync
         onClose();
       } else {
         throw new Error(response.data.error || "Upload failed");
@@ -982,7 +1109,6 @@ export default function StudentDashboardGraduation({
   const [applying, setApplying] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Replaces useState for activeView with URL parameters for browser back-button support
   const urlTab = searchParams.get("tab");
   const activeView = urlTab || sessionStorage.getItem("tab_student") || "home";
 
@@ -993,20 +1119,18 @@ export default function StudentDashboardGraduation({
     },
     [setSearchParams]
   );
-  
-  // Sync the URL initially if it doesn't have a tab but sessionStorage does
+
   useEffect(() => {
     if (!urlTab) {
       setSearchParams({ tab: activeView }, { replace: true });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, []);
   const [expandedStages, setExpandedStages] = useState({ professors: true });
   const [cancelling, setCancelling] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showAppModal, setShowAppModal] = useState(false);
   const [appPortion, setAppPortion] = useState("undergraduate");
-  const [commentTarget, setCommentTarget] = useState(null);
   const [documentTarget, setDocumentTarget] = useState(null);
   const [clearanceComments, setClearanceComments] = useState([]);
   const [requestHistoryLog, setRequestHistoryLog] = useState([]);
@@ -1025,8 +1149,11 @@ export default function StudentDashboardGraduation({
     [studentId],
   );
 
+  const loadingTimerRef = useRef(null);
   const fetchClearanceStatus = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
+    if (!silent) {
+      loadingTimerRef.current = setTimeout(() => setLoading(true), 150);
+    }
     try {
       const response = await authAxios.get(`/graduation/status/${studentId}`);
       if (response.data.success) {
@@ -1045,7 +1172,8 @@ export default function StudentDashboardGraduation({
       console.error("Error fetching clearance status:", error);
       if (!silent) toast.error("Failed to load clearance status");
     } finally {
-      setLoading(false);
+      if (loadingTimerRef.current) clearTimeout(loadingTimerRef.current);
+      if (!silent) setLoading(false);
     }
   }, [studentId, fetchClearanceComments]);
 
@@ -1062,7 +1190,7 @@ export default function StudentDashboardGraduation({
     () => {
       if (activeReqId) fetchClearanceComments(activeReqId);
     },
-    { enabled: !!activeReqId },
+    { filter: `clearance_id=eq.${activeReqId}`, enabled: !!activeReqId },
   );
 
   useRealtimeSubscription("requests", () => fetchClearanceStatus(true));
@@ -1114,8 +1242,6 @@ export default function StudentDashboardGraduation({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [showCancelModal]);
 
-
-
   const handleApplyClick = (portion) => {
     setAppPortion(portion);
     setShowAppModal(true);
@@ -1159,7 +1285,6 @@ export default function StudentDashboardGraduation({
 
         setClearanceStatus({ success: true, hasRequest: false });
         setClearanceComments([]);
-        setCommentTarget(null);
       }
     } catch (error) {
       toast.error(error.response?.data?.error || "Failed to cancel clearance");
@@ -1168,39 +1293,10 @@ export default function StudentDashboardGraduation({
     }
   };
 
-  // eslint-disable-next-line no-unused-vars
   const toggleStage = (key) =>
     setExpandedStages((prev) => ({ ...prev, [key]: !prev[key] }));
 
-  const openSignatoryComments = async (approval) => {
-    const reqId =
-      clearanceStatus?.request?.request_id || clearanceStatus?.request?.id;
 
-    await fetchClearanceComments(reqId);
-    setCommentTarget({
-      type: "signatory",
-      key: `signatory-${approval.id}`,
-      title: approval.professor?.full_name || "Signatory",
-      requestId: reqId,
-      approval,
-    });
-  };
-
-  const openStageComments = async (stage) => {
-    const reqId =
-      clearanceStatus?.request?.request_id || clearanceStatus?.request?.id;
-
-    await fetchClearanceComments(reqId);
-    setCommentTarget({
-      type: "stage",
-      key: stage.key,
-      title: stage.title,
-      requestId: reqId,
-      stageComment: stage.comments || null,
-    });
-  };
-
-  const closeCommentPanel = () => setCommentTarget(null);
 
   const handleRequestReevaluation = async (stage) => {
     try {
@@ -1293,6 +1389,11 @@ export default function StudentDashboardGraduation({
       }[key];
       const st = r[sField] || "pending";
       const cm = r[cField];
+      const roleMap = { library: "librarian", cashier: "cashier", registrar: "registrar" };
+      const role = roleMap[key];
+      const adminCC = clearanceComments.filter(c => c.commenter_role === role);
+      const ccUnresolved = adminCC.filter(c => !c.is_resolved).length;
+      
       return {
         key,
         title,
@@ -1300,8 +1401,8 @@ export default function StudentDashboardGraduation({
         iconComponent: icon,
         status: locked && st === "pending" ? "locked" : st,
         comments: cm,
-        hasComments: !!(cm && cm.trim()),
-        unresolvedCount: cm ? 1 : 0,
+        hasComments: !!(cm && cm.trim()) || adminCC.length > 0,
+        unresolvedCount: ccUnresolved + ((cm && st !== "approved") ? 1 : 0),
         type: "stage",
       };
     };
@@ -1411,11 +1512,9 @@ export default function StudentDashboardGraduation({
     try {
       qrDataUrl = await QRCode.toDataURL(verifyUrl, { width: 80, margin: 1 });
     } catch {
-      /* QR generation failed, skip */
+
     }
 
-    // Build stage rows with signatory name + date columns
-    // eslint-disable-next-line no-unused-vars
     const profApprovals = clearanceStatus.professorApprovals || [];
     const stageRows = stages
       .map((s, i) => {
@@ -1436,7 +1535,7 @@ export default function StudentDashboardGraduation({
             cashier: "cashier_approved_at",
             registrar: "registrar_approved_at",
           }[s.key];
-          // eslint-disable-next-line no-unused-vars
+
           const byField = {
             library: "library_approved_by",
             cashier: "cashier_approved_by",
@@ -2193,16 +2292,30 @@ export default function StudentDashboardGraduation({
                       unresolvedCount={stage.unresolvedCount}
                       hasComments={stage.hasComments}
                       onViewComments={() => {
-                        if (stage.type === "signatory" && stage.approval) {
-                          openSignatoryComments(stage.approval);
-                        } else {
-                          openStageComments(stage);
-                        }
+                        setExpandedStages((prev) => ({
+                          ...prev,
+                          [stage.key]: true,
+                        }));
                       }}
                       onUploadDocument={() => setDocumentTarget(stage)}
                       onRequestReevaluation={handleRequestReevaluation}
                       isDarkMode={isDarkMode}
-                    />
+                    >
+                      <UploadedDocumentsList
+                        requestId={activeReqId}
+                        studentId={studentId}
+                        isDarkMode={isDarkMode}
+                        refreshKey={clearanceStatus?.request?.updated_at}
+                      />
+                      <InlineCommentThread
+                        stage={stage}
+                        requestId={activeReqId}
+                        studentId={studentId}
+                        clearanceComments={clearanceComments}
+                        onCommentAdded={() => fetchClearanceComments(activeReqId)}
+                        isDarkMode={isDarkMode}
+                      />
+                    </StageNode>
                   ))}
                 </div>
               </GlassCard>
@@ -2221,30 +2334,30 @@ export default function StudentDashboardGraduation({
                       Clearance Activity Timeline
                     </h3>
                   </div>
-                  
+
                   <div className="space-y-6">
                     {requestHistoryLog.map((logItem, idx) => {
                       const date = new Date(logItem.created_at);
-                      
+
                       let color = "blue";
                       if (logItem.action === "approved" || logItem.action === "created") color = "emerald";
                       if (logItem.action === "rejected") color = "red";
-                      
+
                       let actorName = logItem.stage_name ? logItem.stage_name.charAt(0).toUpperCase() + logItem.stage_name.slice(1) : (logItem.profiles?.full_name || "System");
                       if (logItem.action === "created") actorName = "You";
 
                       let titleText = logItem.action === "created" ? "Applied for clearance" : `${actorName} ${logItem.action}`;
                       if (logItem.action === "commented") titleText = `${actorName} left a comment`;
-                      
+
                       return (
                          <div key={logItem.id} className="relative pl-8 sm:pl-10">
                            {/* Connecting Line */}
                            {idx !== requestHistoryLog.length - 1 && (
                              <div className={`absolute left-[11px] sm:left-[15px] top-[30px] bottom-[-24px] w-[2px] rounded-full ${isDarkMode ? "bg-[#3c4043]" : "bg-gray-100"}`} />
                            )}
-                           
+
                            {/* Dot */}
-                           <div className={`absolute left-0 sm:left-1 top-1 w-6 h-6 rounded-full flex items-center justify-center ring-[4px] sm:ring-[6px] ${isDarkMode ? "ring-[#202124]" : "ring-white"} 
+                           <div className={`absolute left-0 sm:left-1 top-1 w-6 h-6 rounded-full flex items-center justify-center ring-[4px] sm:ring-[6px] ${isDarkMode ? "ring-[#202124]" : "ring-white"}
                               ${color === 'emerald' ? 'bg-[#10b981]' : color === 'red' ? 'bg-[#ef4444]' : 'bg-[#3b82f6]'}`}
                            >
                              <div className={`w-2 h-2 rounded-full ${isDarkMode ? "bg-[#202124]" : "bg-white"}`} />
@@ -2378,17 +2491,6 @@ export default function StudentDashboardGraduation({
       )}
 
       <AnimatePresence mode="wait">
-        {commentTarget && (
-          <CommentPopupModal
-            key={commentTarget.key}
-            target={commentTarget}
-            requestId={commentTarget.requestId}
-            studentId={studentId}
-            onClose={closeCommentPanel}
-            clearanceComments={clearanceComments}
-            onCommentAdded={() => fetchClearanceComments(activeReqId)}
-          />
-        )}
       </AnimatePresence>
       <AnimatePresence>
         {showAppModal && (

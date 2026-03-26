@@ -144,7 +144,6 @@ export default function AllUsersView({ adminId, isDark = false }) {
 
       if (!matchesSearch) return false;
 
-      // 2. Role Filter
       if (roleFilter === "students" && user.role !== "student") return false;
       if (roleFilter === "staff" && user.role === "student") return false;
 

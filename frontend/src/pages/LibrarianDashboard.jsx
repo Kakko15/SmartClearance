@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import RequestComments from "../components/features/RequestComments";
+import RequestDocuments from "../components/features/RequestDocuments";
 import useRealtimeSubscription from "../hooks/useRealtimeSubscription";
 import DashboardLayout, {
   GlassCard,
@@ -44,7 +45,7 @@ export default function LibraryAdminDashboard({
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  // G5: Bulk selection state
+
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
@@ -493,7 +494,12 @@ export default function LibraryAdminDashboard({
                   </div>
 
                   {selectedRequest.id && (
-                    <div className="mb-4">
+                    <div className="mb-4 space-y-2">
+                      <RequestDocuments
+                        requestId={selectedRequest.id}
+                        userId={adminId}
+                        isDarkMode={isDarkMode}
+                      />
                       <RequestComments
                         requestId={selectedRequest.id}
                         userRole="librarian"

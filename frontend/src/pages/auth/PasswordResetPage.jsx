@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
@@ -17,6 +17,13 @@ export default function PasswordResetPage() {
   const [resettingPw, setResettingPw] = useState(false);
   const [showResetPw, setShowResetPw] = useState(false);
   const [isNewPwFocused, setIsNewPwFocused] = useState(false);
+  const [hasValidToken, setHasValidToken] = useState(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setHasValidToken(!!session);
+    });
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -132,6 +139,40 @@ export default function PasswordResetPage() {
   );
 
   const pwMatch = newPassword === confirmNewPassword;
+
+  if (hasValidToken === null) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center ${isDarkMode ? "bg-slate-950" : "bg-gray-50"}`}>
+        <div className={`w-8 h-8 border-3 border-t-transparent rounded-full animate-spin ${isDarkMode ? "border-slate-600" : "border-slate-300"}`} />
+      </div>
+    );
+  }
+
+  if (hasValidToken === false) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center p-4 ${isDarkMode ? "bg-slate-950" : "bg-gray-50"}`}>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`w-full max-w-md p-8 rounded-3xl shadow-xl border text-center ${isDarkMode ? "bg-slate-900 border-slate-700" : "bg-white border-gray-200"}`}
+        >
+          <img src={logo} alt="Logo" className="w-14 h-14 mx-auto mb-4" />
+          <h2 className={`text-2xl font-bold mb-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+            Invalid or Expired Link
+          </h2>
+          <p className={`text-sm mb-6 ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+            This password reset link is invalid or has expired. Please request a new one.
+          </p>
+          <button
+            onClick={() => navigate("/select-role")}
+            className="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all"
+          >
+            Go to Login
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div

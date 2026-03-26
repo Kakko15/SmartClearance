@@ -85,7 +85,7 @@ export default function StudentNotifications({ isDarkMode = false }) {
       const { data } = await authAxios.get("/notifications");
       if (data.success) setNotifications(data.notifications || []);
     } catch {
-      /* silent */
+
     } finally {
       setLoading(false);
     }
@@ -104,7 +104,7 @@ export default function StudentNotifications({ isDarkMode = false }) {
         ),
       );
     } catch {
-      /* silent */
+
     }
   };
 
@@ -119,7 +119,7 @@ export default function StudentNotifications({ isDarkMode = false }) {
         })),
       );
     } catch {
-      /* silent */
+
     } finally {
       setMarkingAll(false);
     }
@@ -164,7 +164,7 @@ export default function StudentNotifications({ isDarkMode = false }) {
 
   return (
     <div className="space-y-4">
-      {/* Filter bar + Mark all read */}
+
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex gap-2 flex-wrap">
           {FILTER_TABS.map((f) => (
@@ -207,7 +207,6 @@ export default function StudentNotifications({ isDarkMode = false }) {
         )}
       </div>
 
-      {/* Notification list */}
       {filtered.length === 0 ? (
         <GlassCard isDark={isDarkMode} className="p-12 text-center border-none shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] rounded-3xl relative overflow-hidden">
           <div className="absolute inset-0 pointer-events-none opacity-20 z-0">
@@ -265,8 +264,8 @@ export default function StudentNotifications({ isDarkMode = false }) {
                         ? (isDarkMode
                           ? "shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] ring-1 ring-primary-500/50"
                           : "shadow-[0_2px_6px_0_rgba(60,64,67,0.15),0_1px_2px_0_rgba(60,64,67,0.3)] ring-1 ring-primary-500/30")
-                        : (isDarkMode 
-                          ? "shadow-[0_1px_2px_0_rgba(60,64,67,0.3)] opacity-80 hover:opacity-100" 
+                        : (isDarkMode
+                          ? "shadow-[0_1px_2px_0_rgba(60,64,67,0.3)] opacity-80 hover:opacity-100"
                           : "shadow-[0_1px_2px_0_rgba(60,64,67,0.15)] opacity-85 hover:opacity-100")
                     }`}
                     onClick={() => isUnread && markAsRead(n.id)}
@@ -294,10 +293,10 @@ export default function StudentNotifications({ isDarkMode = false }) {
                               {timeAgo(n.created_at)}
                             </span>
                             {isUnread && (
-                              <motion.div 
+                              <motion.div
                                 initial={{ scale: 0 }}
                                 animate={{ scale: 1 }}
-                                className="w-2.5 h-2.5 rounded-full bg-primary-500 flex-shrink-0" 
+                                className="w-2.5 h-2.5 rounded-full bg-primary-500 flex-shrink-0"
                               />
                             )}
                           </div>

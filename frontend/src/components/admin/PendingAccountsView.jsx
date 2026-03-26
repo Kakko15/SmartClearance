@@ -10,7 +10,7 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
   const [actionLoading, setActionLoading] = useState(null);
   const [rejectReason, setRejectReason] = useState("");
   const [selectedAccount, setSelectedAccount] = useState(null);
-  // Bulk selection
+
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkRejectReason, setBulkRejectReason] = useState("");

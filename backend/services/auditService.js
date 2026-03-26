@@ -37,6 +37,8 @@ const ACTIONS = {
   SECRET_CODE_CREATED: "secret_code_created",
   SECRET_CODE_TOGGLED: "secret_code_toggled",
   SECRET_CODE_DELETED: "secret_code_deleted",
+
+  COMMENT_DELETED_BY_ADMIN: "comment_deleted_by_admin",
 };
 
 module.exports = { logAction, ACTIONS };

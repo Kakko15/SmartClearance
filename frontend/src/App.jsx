@@ -32,7 +32,7 @@ const TAB_ID = `loader_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 function DashboardSkeletonShell({ isDark }) {
   return (
     <div className={`min-h-screen flex ${isDark ? "bg-[#030712]" : "bg-[#f8f9fa]"} overflow-hidden`}>
-      {/* Sidebar Skeleton */}
+
       <div className={`hidden lg:flex w-[280px] flex-col h-screen border-r ${isDark ? "bg-[#282a2d] border-[#3c4043]" : "bg-white border-[#dadce0]"} p-6 flex-shrink-0`}>
         <div className={`w-36 h-8 rounded-lg animate-pulse mb-10 ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`} />
         <div className="space-y-3">
@@ -41,10 +41,9 @@ function DashboardSkeletonShell({ isDark }) {
           ))}
         </div>
       </div>
-      
-      {/* Main Content Area */}
+
       <div className="flex-1 flex flex-col min-h-screen min-w-0">
-        {/* Header Skeleton */}
+
         <header className={`h-[72px] border-b flex items-center justify-between px-6 flex-shrink-0 ${isDark ? "bg-[#282a2d]/50 border-[#3c4043]" : "bg-white/50 border-[#dadce0]"}`}>
           <div className="flex items-center gap-4">
             <div className={`w-10 h-10 rounded-xl animate-pulse lg:hidden ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`} />
@@ -55,8 +54,7 @@ function DashboardSkeletonShell({ isDark }) {
             <div className={`w-10 h-10 rounded-xl animate-pulse ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`} />
           </div>
         </header>
-        
-        {/* Content Skeleton Area (Will be instantly replaced by actual page skeleton to feel seamless) */}
+
         <main className="flex-1 p-6 sm:p-8 space-y-6">
           <div className={`w-1/4 h-10 rounded-xl animate-pulse mt-4 ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`} />
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -288,7 +286,9 @@ function App() {
                   Object.keys(localStorage).some(
                     (k) => k.startsWith("sb-") && k.endsWith("-auth-token"),
                   ) ? (
-                  <DashboardSkeletonShell isDark={isDarkMode} />
+                  <div className={`min-h-screen flex items-center justify-center ${isDarkMode ? "bg-[#030712]" : "bg-[#FAFAFA]"}`}>
+                    <div className={`w-8 h-8 border-3 border-t-transparent rounded-full animate-spin ${isDarkMode ? "border-slate-600" : "border-slate-300"}`} />
+                  </div>
                 ) : (
                   <motion.div
                     key="auth"
@@ -354,21 +354,20 @@ function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </AnimatePresence>
-        {showSettings && (
+        {showSettings && user && (
           <Settings
             user={user}
             profile={profile}
             onClose={() => setShowSettings(false)}
             theme={themePreference}
-            setTheme={(t) => toggleTheme(t)}
             onAvatarUpdate={async (url) => {
               try {
                 const { data } = await supabase.auth.updateUser({
                   data: { avatar_url: url },
                 });
                 if (data?.user) setUser(data.user);
-              } catch (_err) {
-                // Fallback: update local state even if persist fails
+              } catch (avatarErr) {
+                console.warn("Avatar update failed, applying optimistic update:", avatarErr.message);
                 setUser((prev) => ({
                   ...prev,
                   user_metadata: { ...prev.user_metadata, avatar_url: url },

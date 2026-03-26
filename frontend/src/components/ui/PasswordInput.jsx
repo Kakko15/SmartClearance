@@ -14,7 +14,7 @@ export default function PasswordInput({
   showStrength: _showStrength = false,
   className = "",
   isDark = false,
-  status = null, // "success" | "error" | null
+  status = null,
 }) {
   const [showPassword, setShowPassword] = useState(false);
 

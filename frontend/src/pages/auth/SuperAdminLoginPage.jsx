@@ -14,7 +14,6 @@ export default function SuperAdminLoginPage() {
   const { handleLoginSuccess, user, profile, setSelectedRole } = useAuth();
   const navigate = useNavigate();
 
-  // If already authenticated as super_admin, go to dashboard
   useEffect(() => {
     if (user && profile?.role === "super_admin") {
       navigate("/dashboard", { replace: true });

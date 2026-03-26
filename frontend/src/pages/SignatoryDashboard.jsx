@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import RequestComments from "../components/features/RequestComments";
+import RequestDocuments from "../components/features/RequestDocuments";
 import DashboardLayout, {
   GlassCard,
   StatusBadge,
@@ -49,10 +50,19 @@ export default function ProfessorDashboard({
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [needsDesignation, setNeedsDesignation] = useState(
+    () => professorInfo?.role === "signatory" && !professorInfo?.designation,
+  );
+  const [selectedDesignation, setSelectedDesignation] = useState("");
+  const [savingDesignation, setSavingDesignation] = useState(false);
 
+  const loadingTimerRef = useRef(null);
+  
   const fetchStudents = useCallback(
     async (silent = false) => {
-      if (!silent) setLoading(true);
+      if (!silent) {
+        loadingTimerRef.current = setTimeout(() => setLoading(true), 150);
+      }
       try {
         const response = await authAxios.get(
           `graduation/professor/students/${professorId}`,
@@ -62,6 +72,7 @@ export default function ProfessorDashboard({
         console.error("Error fetching students:", error);
         if (!silent) toast.error("Failed to load student data");
       } finally {
+        if (loadingTimerRef.current) clearTimeout(loadingTimerRef.current);
         if (!silent) setLoading(false);
       }
     },
@@ -210,7 +221,7 @@ export default function ProfessorDashboard({
       setActiveView={setActiveView}
       userInfo={{
         name: professorInfo?.full_name,
-        subtitle: "Signatory",
+        subtitle: professorInfo?.designation || "Signatory",
         avatar: user?.user_metadata?.avatar_url,
       }}
       onSignOut={onSignOut}
@@ -219,6 +230,107 @@ export default function ProfessorDashboard({
       toggleTheme={toggleTheme}
       isDarkMode={isDarkMode}
     >
+      {needsDesignation && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+            className={`w-full max-w-md rounded-[24px] overflow-hidden shadow-2xl border ${
+              isDarkMode
+                ? "bg-[#202124] border-[#3c4043]"
+                : "bg-white border-[#dadce0]"
+            }`}
+          >
+            <div className={`px-8 pt-8 pb-4 text-center`}>
+              <div
+                className={`w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center ${
+                  isDarkMode ? "bg-[#8ab4f8]/20" : "bg-[#e8f0fe]"
+                }`}
+              >
+                <svg className={`w-8 h-8 ${isDarkMode ? "text-[#8ab4f8]" : "text-[#1a73e8]"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+                </svg>
+              </div>
+              <h2
+                className={`text-[22px] font-medium mb-2 ${
+                  isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"
+                }`}
+                style={{ fontFamily: "Google Sans, sans-serif" }}
+              >
+                Set Your Designation
+              </h2>
+              <p
+                className={`text-[14px] mb-6 ${
+                  isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"
+                }`}
+              >
+                Please select your designation to start receiving student clearance requests.
+              </p>
+            </div>
+            <div className="px-8 pb-8">
+              <div className="space-y-2">
+                {[
+                  "Department Chairman",
+                  "College Dean",
+                  "Director of Student Affairs",
+                  "NSTP Director",
+                  "Executive Officer",
+                  "Dean of Graduate School",
+                ].map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setSelectedDesignation(d)}
+                    className={`w-full text-left px-4 py-3 rounded-[12px] border transition-all text-[14px] font-medium ${
+                      selectedDesignation === d
+                        ? isDarkMode
+                          ? "bg-[#8ab4f8]/15 border-[#8ab4f8] text-[#8ab4f8]"
+                          : "bg-[#e8f0fe] border-[#1a73e8] text-[#1a73e8]"
+                        : isDarkMode
+                          ? "border-[#3c4043] text-[#e8eaed] hover:bg-[#3c4043]/40"
+                          : "border-[#dadce0] text-[#202124] hover:bg-[#f8f9fa]"
+                    }`}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+              <motion.button
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
+                disabled={!selectedDesignation || savingDesignation}
+                onClick={async () => {
+                  setSavingDesignation(true);
+                  try {
+                    const response = await authAxios.put("profile/designation", {
+                      designation: selectedDesignation,
+                    });
+                    if (response.data.success) {
+                      toast.success(`Designation set to ${selectedDesignation}`);
+                      setNeedsDesignation(false);
+                      if (professorInfo) professorInfo.designation = selectedDesignation;
+                      fetchStudents();
+                    }
+                  } catch (err) {
+                    console.error("Failed to save designation:", err);
+                    toast.error("Failed to save designation. Please try again.");
+                  } finally {
+                    setSavingDesignation(false);
+                  }
+                }}
+                className={`w-full mt-6 px-6 py-3 rounded-full font-medium text-[14px] transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                  isDarkMode
+                    ? "bg-[#8ab4f8] text-[#202124] hover:bg-[#aecbfa]"
+                    : "bg-[#1a73e8] text-white hover:bg-[#1557b0]"
+                }`}
+                style={{ fontFamily: "Google Sans, sans-serif" }}
+              >
+                {savingDesignation ? "Saving..." : "Continue"}
+              </motion.button>
+            </div>
+          </motion.div>
+        </div>
+      )}
       {activeView !== "delegation" && (
         <div className="max-w-5xl mx-auto space-y-6">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
@@ -573,7 +685,12 @@ export default function ProfessorDashboard({
                             )}
 
                             {student.request_id && (
-                              <div className="mt-5">
+                              <div className="mt-5 space-y-2">
+                                <RequestDocuments
+                                  requestId={student.request_id}
+                                  userId={professorId}
+                                  isDarkMode={isDarkMode}
+                                />
                                 <RequestComments
                                   requestId={student.request_id}
                                   userRole="signatory"

@@ -150,6 +150,7 @@ export default function SignupForm({
   const [recaptchaToken, setRecaptchaToken] = useState(null);
   const [recaptchaExpired, setRecaptchaExpired] = useState(false);
   const [adminSecretCode, setAdminSecretCode] = useState("");
+  const [signatoryDesignation, setSignatoryDesignation] = useState("");
   const [show2FASetup, setShow2FASetup] = useState(
     () => !!restoredTwoFactor?.userId && !!restoredTwoFactor?.email,
   );
@@ -226,7 +227,7 @@ export default function SignupForm({
     } catch (err) {
       console.error("Email check failed:", err);
       setEmailError("");
-      return false; // allow submit on network error — backend will catch duplicates
+      return false;
     } finally {
       setCheckingEmail(false);
     }
@@ -321,6 +322,10 @@ export default function SignupForm({
         }
       }
 
+      if (signUpData.role === "signatory" && !signatoryDesignation) {
+        throw new Error("Please select your designation");
+      }
+
       const response = await fetch(
         `${import.meta.env.VITE_API_URL}/auth/signup`,
         {
@@ -332,6 +337,7 @@ export default function SignupForm({
             firstName: signUpData.firstName.trim(),
             lastName: signUpData.lastName.trim(),
             role: signUpData.role,
+            designation: signUpData.role === "signatory" ? signatoryDesignation : undefined,
             adminSecretCode:
               selectedRole !== "student" ? adminSecretCode : null,
             recaptchaToken: recaptchaToken,
@@ -418,7 +424,9 @@ export default function SignupForm({
               await onLoginSuccess(session.user);
               return;
             }
-          } catch (_e) {}
+          } catch (sessionErr) {
+            console.warn("Post-signup session retrieval failed:", sessionErr.message);
+          }
           toast.success("Please sign in with your new account.");
           setTimeout(() => {
             if (onSwitchMode) onSwitchMode();
@@ -592,6 +600,38 @@ export default function SignupForm({
               ]}
             />
           </SpotlightBorder>
+        </div>
+      )}
+
+      {(selectedRole === "staff" || selectedRole === "signatory") && signUpData.role === "signatory" && (
+        <div className="relative z-[19]">
+          <label
+            className={`block text-sm font-bold mb-1.5 ml-1 ${isDark ? "text-slate-300" : "text-gray-700"}`}
+          >
+            Designation <span className="text-red-500">*</span>
+          </label>
+          <SpotlightBorder isDark={isDark}>
+            <CustomSelect
+              label=""
+              value={signatoryDesignation}
+              onChange={(val) => setSignatoryDesignation(val)}
+              isDark={isDark}
+              placeholder="Select your designation"
+              options={[
+                { value: "Department Chairman", label: "Department Chairman" },
+                { value: "College Dean", label: "College Dean" },
+                { value: "Director of Student Affairs", label: "Director of Student Affairs" },
+                { value: "NSTP Director", label: "NSTP Director" },
+                { value: "Executive Officer", label: "Executive Officer" },
+                { value: "Dean of Graduate School", label: "Dean of Graduate School" },
+              ]}
+            />
+          </SpotlightBorder>
+          <p
+            className={`text-xs mt-1.5 ml-1 ${isDark ? "text-slate-500" : "text-gray-500"}`}
+          >
+            Choose the designation that matches your role in the clearance process
+          </p>
         </div>
       )}
 

@@ -82,7 +82,8 @@ router.post("/upload", requireAuth, upload.single("file"), async (req, res) => {
     }
 
     const timestamp = Date.now();
-    const fileName = `${request_id}/${timestamp}-${file.originalname}`;
+    const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+    const fileName = `${request_id}/${timestamp}-${safeName}`;
 
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from("request-documents")
@@ -99,16 +100,13 @@ router.post("/upload", requireAuth, upload.single("file"), async (req, res) => {
       });
     }
 
-    const { data: urlData } = supabase.storage
-      .from("request-documents")
-      .getPublicUrl(fileName);
-
+    // Store the storage path so we can generate signed URLs later
     const { data: docData, error: docError } = await supabase
       .from("request_documents")
       .insert({
         request_id: request_id,
         uploaded_by: user_id,
-        file_url: urlData.publicUrl,
+        file_url: fileName,
         file_name: file.originalname,
         file_size: file.size,
         file_type: file.mimetype,
@@ -139,11 +137,24 @@ router.get("/request/:request_id", requireAuth, async (req, res) => {
     const { request_id } = req.params;
     const user_id = req.user.id;
 
-    const { data: request } = await supabase
+    // Try both 'id' and 'request_id' columns for lookup
+    let request;
+    const { data: byId } = await supabase
       .from("requests")
       .select("student_id")
       .eq("id", request_id)
-      .single();
+      .maybeSingle();
+
+    if (byId) {
+      request = byId;
+    } else {
+      const { data: byReqId } = await supabase
+        .from("requests")
+        .select("student_id")
+        .eq("request_id", request_id)
+        .maybeSingle();
+      request = byReqId;
+    }
 
     if (!request) {
       return res.status(404).json({
@@ -164,20 +175,110 @@ router.get("/request/:request_id", requireAuth, async (req, res) => {
       });
     }
 
+    // Use plain select to avoid FK constraint name mismatches
     const { data: documents, error } = await supabase
       .from("request_documents")
-      .select("*, profiles!request_documents_uploaded_by_fkey(full_name, role)")
+      .select("*")
       .eq("request_id", request_id)
       .order("created_at", { ascending: false });
 
     if (error) throw error;
 
+    // Generate signed URLs for each document (valid for 1 hour)
+    const docsWithUrls = await Promise.all(
+      (documents || []).map(async (doc) => {
+        // file_url may be a storage path ("59/123-file.png") or a full public URL (legacy)
+        let filePath = doc.file_url;
+        if (filePath && filePath.includes("/request-documents/")) {
+          filePath = filePath.split("/request-documents/").pop();
+        }
+        // Decode any URI-encoded characters
+        if (filePath) filePath = decodeURIComponent(filePath);
+
+        try {
+          const { data: signedData, error: signedError } = await supabase.storage
+            .from("request-documents")
+            .createSignedUrl(filePath, 3600);
+
+          if (signedError) {
+            console.error(`Signed URL error for ${filePath}:`, signedError.message);
+          }
+          return {
+            ...doc,
+            file_url: signedError ? null : signedData.signedUrl,
+          };
+        } catch (e) {
+          console.error(`Signed URL exception for ${filePath}:`, e.message);
+          return { ...doc, file_url: null };
+        }
+      })
+    );
+
     res.json({
       success: true,
-      documents: documents || [],
+      documents: docsWithUrls,
     });
   } catch (error) {
     console.error("Error fetching documents:", error);
+    safeErrorResponse(res, error);
+  }
+});
+
+// Download endpoint - generates a signed URL redirect
+router.get("/download/:id", requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user_id = req.user.id;
+
+    const { data: doc, error: docError } = await supabase
+      .from("request_documents")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (docError || !doc) {
+      return res.status(404).json({ success: false, error: "Document not found" });
+    }
+
+    // Check authorization
+    const { data: request } = await supabase
+      .from("requests")
+      .select("student_id")
+      .eq("id", doc.request_id)
+      .maybeSingle();
+
+    const userRole = req.userRole;
+    const isOwner = request && request.student_id === user_id;
+    const isAdmin = isStaffRole(userRole) || isManagementRole(userRole);
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ success: false, error: "Unauthorized" });
+    }
+
+    // Extract storage path
+    let filePath = doc.file_url;
+    if (filePath && filePath.includes("/request-documents/")) {
+      filePath = filePath.split("/request-documents/").pop();
+    }
+    if (filePath) filePath = decodeURIComponent(filePath);
+
+    // Download the file from Supabase storage
+    const { data: fileData, error: downloadError } = await supabase.storage
+      .from("request-documents")
+      .download(filePath);
+
+    if (downloadError) {
+      console.error("Download error:", downloadError);
+      return res.status(500).json({ success: false, error: "Failed to download file" });
+    }
+
+    const buffer = Buffer.from(await fileData.arrayBuffer());
+    res.setHeader("Content-Type", doc.file_type || "application/octet-stream");
+    res.setHeader("Content-Disposition", `inline; filename="${doc.file_name}"`);
+    res.setHeader("Content-Length", buffer.length);
+    res.send(buffer);
+  } catch (error) {
+    console.error("Download proxy error:", error);
     safeErrorResponse(res, error);
   }
 });
@@ -213,8 +314,12 @@ router.delete("/:id", requireAuth, async (req, res) => {
       });
     }
 
-    const urlParts = document.file_url.split("/request-documents/");
-    const filePath = urlParts[1];
+    // Extract storage path - handles both formats
+    let filePath = document.file_url;
+    if (filePath && filePath.includes("/request-documents/")) {
+      filePath = filePath.split("/request-documents/").pop();
+    }
+    if (filePath) filePath = decodeURIComponent(filePath);
 
     if (!filePath) {
       console.warn(

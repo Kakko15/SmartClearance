@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-// eslint-disable-next-line no-unused-vars
+
 import { motion } from "framer-motion";
 import { GlassCard } from "../ui/DashboardLayout";
 import { authAxios } from "../../services/api";
@@ -24,7 +24,7 @@ export default function StudentOverview({
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    // Fetch unread notifications count
+
     const fetchUnread = async () => {
       try {
         const { data } = await authAxios.get("/notifications");
@@ -32,33 +32,29 @@ export default function StudentOverview({
           setUnreadCount(data.items.filter((n) => !n.read_at).length);
         }
       } catch {
-        // Silent catch
+
       }
     };
     fetchUnread();
   }, []);
 
-  // Calculate Progress
   const approvedStages = stages.filter((s) => s.status === "approved").length;
   const totalStages = stages.length;
-  
+
   const hasRequest = !!clearanceStatus?.hasRequest;
   const request = clearanceStatus?.request || null;
   const isCompleted = request?.is_completed;
 
-  // Calculate Days Since Applied
   let daysSinceApplied = 0;
   if (hasRequest && request?.created_at) {
     const diff = new Date() - new Date(request.created_at);
     daysSinceApplied = Math.floor(diff / (1000 * 60 * 60 * 24));
   }
 
-  // Activity Feed Construction (Max 5)
   const buildActivityFeed = () => {
     if (!hasRequest) return [];
     const activities = [];
-    
-    // Application Submitted
+
     activities.push({
       date: new Date(request.created_at),
       title: "Application Submitted",
@@ -67,13 +63,12 @@ export default function StudentOverview({
       color: "blue",
     });
 
-    // Admin stages
     const adminStages = [
       { key: "library", title: "Library Clearance", date: request.library_approved_at, status: request.library_status },
       { key: "cashier", title: "Financial Clearance", date: request.cashier_approved_at, status: request.cashier_status },
       { key: "registrar", title: "Registrar Validation", date: request.registrar_approved_at, status: request.registrar_status },
     ];
-    
+
     adminStages.forEach(st => {
       if (st.date && st.status !== 'pending') {
         activities.push({
@@ -86,7 +81,6 @@ export default function StudentOverview({
       }
     });
 
-    // Professor Approvals
     if (clearanceStatus?.professorApprovals) {
       clearanceStatus.professorApprovals.forEach((prof) => {
         if (prof.status !== 'pending' && prof.approved_at) {
@@ -111,34 +105,28 @@ export default function StudentOverview({
        });
     }
 
-    // Sort descending by date and take top 5
     return activities.sort((a, b) => b.date - a.date).slice(0, 5);
   };
 
   const activityFeed = buildActivityFeed();
 
-  // Greeting
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const firstName = studentInfo?.full_name?.split(" ")[0] || "Student";
 
   return (
     <div className="max-w-[1100px] mx-auto space-y-8 animate-fade-in w-full pb-10">
-      
-      {/* 1. HERO SECTION (Ultra-Premium Card) */}
+
       <div className={`relative overflow-hidden rounded-[32px] sm:rounded-[40px] shadow-[0_8px_30px_rgb(0,0,0,0.06)] ${isDarkMode ? "bg-gradient-to-br from-[#0c1f15] via-[#091511] to-black border border-[#2a3c33]" : "bg-gradient-to-br from-[#0b3b24] via-[#0a4d2e] to-[#042817]"}`}>
-        
-        {/* Dynamic Glowing Orbs */}
+
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#22c55e] opacity-[0.15] blur-[100px] rounded-full mix-blend-screen pointer-events-none translate-x-1/3 -translate-y-1/3 transition-all duration-1000" />
         <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-[#10b981] opacity-[0.12] blur-[80px] rounded-full mix-blend-screen pointer-events-none -translate-x-1/3 translate-y-1/3 transition-all duration-1000" />
-        
-        {/* Micro-dot overlay pattern for texture */}
+
         <div className="absolute inset-0 opacity-[0.04] dark:opacity-[0.06] pointer-events-none" style={{ backgroundImage: "radial-gradient(#ffffff 1.5px, transparent 1.5px)", backgroundSize: "28px 28px" }} />
 
-        {/* Content Container */}
         <div className="relative z-10 px-8 py-12 sm:px-14 sm:py-20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-10">
            <div className="max-w-xl">
-             <motion.h1 
+             <motion.h1
                initial={{ opacity: 0, y: 15 }}
                animate={{ opacity: 1, y: 0 }}
                className="text-4xl sm:text-[46px] leading-[1.1] font-semibold tracking-[-0.03em] text-white mb-4"
@@ -146,7 +134,7 @@ export default function StudentOverview({
              >
                {greeting}, <span className="text-[#6ee7b7]">{firstName}</span>!
              </motion.h1>
-             <motion.p 
+             <motion.p
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
@@ -155,15 +143,15 @@ export default function StudentOverview({
                {isCompleted ? "You're successfully cleared for graduation. Outstanding work, and congratulations!" : hasRequest ? "Let's get you fully cleared for graduation. Stay on top of your application below." : "Ready to take the final step towards graduation? The clearance process is fully digitized."}
              </motion.p>
            </div>
-           
-           <motion.div 
+
+           <motion.div
              initial={{ opacity: 0, scale: 0.95 }}
              animate={{ opacity: 1, scale: 1 }}
              transition={{ delay: 0.2, type: "spring", stiffness: 300, damping: 20 }}
              className="flex gap-3 shrink-0"
            >
              {!hasRequest ? (
-               <button 
+               <button
                  onClick={() => setActiveView("status")}
                  className="group relative px-8 py-4 bg-white text-[#0b3b24] hover:bg-[#f0fdf4] rounded-[20px] font-bold text-[16px] tracking-wide shadow-[0_12px_40px_rgba(0,0,0,0.2)] hover:shadow-[0_12px_40px_rgba(16,185,129,0.3)] transition-all active:scale-[0.97] flex items-center gap-3 overflow-hidden border border-white"
                >
@@ -172,7 +160,7 @@ export default function StudentOverview({
                  Start Clearance
                </button>
              ) : (
-                <button 
+                <button
                  onClick={() => setActiveView("status")}
                  className="group relative px-8 py-4 bg-white text-[#0b3b24] hover:bg-[#f0fdf4] rounded-[20px] font-bold text-[16px] tracking-wide shadow-[0_12px_40px_rgba(0,0,0,0.2)] hover:shadow-[0_12px_40px_rgba(16,185,129,0.3)] transition-all active:scale-[0.97] flex items-center gap-3 overflow-hidden border border-white"
                >
@@ -185,10 +173,8 @@ export default function StudentOverview({
         </div>
       </div>
 
-      {/* 2. STATS GRID (The 4 Dashboards) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        
-        {/* Stat 1: Progress */}
+
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} onClick={() => setActiveView("status")} className="cursor-pointer group h-full">
           <GlassCard isDark={isDarkMode} className={`p-6 sm:p-7 rounded-[28px] sm:border-t-[4px] border-t-emerald-500 border-x border-b ${isDarkMode ? "bg-[#181a1b] border-x-[#2a2d2f] border-b-[#2a2d2f] hover:border-x-gray-600 hover:border-b-gray-600" : "bg-white border-x-gray-100 border-b-gray-100 hover:border-x-gray-200 hover:border-b-gray-200"} shadow-[0_2px_10px_rgba(0,0,0,0.02)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.05)] transition-all duration-300 h-full flex flex-col justify-between relative`}>
              <div className="flex justify-between items-start mb-6">
@@ -205,7 +191,6 @@ export default function StudentOverview({
           </GlassCard>
         </motion.div>
 
-        {/* Stat 2: Days Elapsed */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="h-full">
           <GlassCard isDark={isDarkMode} className={`p-6 sm:p-7 rounded-[28px] sm:border-t-[4px] border-t-blue-500 border-x border-b ${isDarkMode ? "bg-[#181a1b] border-x-[#2a2d2f] border-b-[#2a2d2f]" : "bg-white border-x-gray-100 border-b-gray-100"} hover:shadow-[0_12px_30px_rgba(0,0,0,0.04)] shadow-[0_2px_10px_rgba(0,0,0,0.02)] transition-all duration-300 h-full flex flex-col justify-between relative group`}>
              <div className="flex justify-between items-start mb-6">
@@ -222,7 +207,6 @@ export default function StudentOverview({
           </GlassCard>
         </motion.div>
 
-        {/* Stat 3: Est Completion */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="h-full">
           <GlassCard isDark={isDarkMode} className={`p-6 sm:p-7 rounded-[28px] sm:border-t-[4px] border-t-amber-400 border-x border-b ${isDarkMode ? "bg-[#181a1b] border-x-[#2a2d2f] border-b-[#2a2d2f]" : "bg-white border-x-gray-100 border-b-gray-100"} hover:shadow-[0_12px_30px_rgba(0,0,0,0.04)] shadow-[0_2px_10px_rgba(0,0,0,0.02)] transition-all duration-300 h-full flex flex-col justify-between relative group`}>
              <div className="flex justify-between items-start mb-6">
@@ -239,7 +223,6 @@ export default function StudentOverview({
           </GlassCard>
         </motion.div>
 
-        {/* Stat 4: Notifications */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} onClick={() => setActiveView("notifications")} className="cursor-pointer group h-full">
           <GlassCard isDark={isDarkMode} className={`p-6 sm:p-7 rounded-[28px] sm:border-t-[4px] border-t-purple-500 border-x border-b ${isDarkMode ? "bg-[#181a1b] border-x-[#2a2d2f] border-b-[#2a2d2f] hover:border-x-gray-600 hover:border-b-gray-600" : "bg-white border-x-gray-100 border-b-gray-100 hover:border-x-gray-200 hover:border-b-gray-200"} hover:shadow-[0_12px_30px_rgba(0,0,0,0.05)] shadow-[0_2px_10px_rgba(0,0,0,0.02)] transition-all duration-300 h-full flex flex-col justify-between relative`}>
              <div className="flex justify-between items-start mb-6 relative">
@@ -259,10 +242,8 @@ export default function StudentOverview({
 
       </div>
 
-      {/* 3. BOTTOM SECTION: Activity & Shortcuts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
-         
-         {/* Recent Activity Timeline */}
+
          <div className="lg:col-span-2 space-y-4">
            <div className="flex items-center justify-between px-2">
              <h2 className={`text-[20px] font-semibold tracking-tight ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`} style={{ fontFamily: "Google Sans, sans-serif" }}>Recent Activity</h2>
@@ -270,7 +251,7 @@ export default function StudentOverview({
                <button onClick={() => setActiveView("history")} className={`text-[14px] font-medium transition-colors ${isDarkMode ? 'text-emerald-400 hover:text-emerald-300' : 'text-emerald-600 hover:text-emerald-700'}`}>View all</button>
              )}
            </div>
-           
+
            <div className="h-full">
               <GlassCard isDark={isDarkMode} className={`rounded-[32px] border ${isDarkMode ? 'bg-[#181a1b] border-[#2a2d2f]' : 'bg-white border-gray-100'} shadow-[0_4px_20px_rgba(0,0,0,0.03)] h-[380px] overflow-hidden`}>
                 {!hasRequest ? (
@@ -293,17 +274,16 @@ export default function StudentOverview({
                   <div className="h-full w-full overflow-y-auto p-6 sm:p-8 custom-scrollbar">
                     {activityFeed.map((item, idx) => {
                       return (
-                        <motion.div 
+                        <motion.div
                           initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 * idx }}
                           key={idx} className="relative pl-12 py-3 group"
                         >
-                           {/* Connecting Line */}
+
                            {idx !== activityFeed.length - 1 && (
                              <div className={`absolute left-[23px] top-[40px] bottom-[-16px] w-[2px] rounded-full transition-colors ${isDarkMode ? "bg-[#2a2d2f]" : "bg-gray-100 group-hover:bg-gray-200"}`} />
                            )}
-                           
-                           {/* Icon Status Dot */}
-                           <div className={`absolute left-0 top-3 w-12 h-12 rounded-full flex items-center justify-center ring-8 ${isDarkMode ? 'ring-[#181a1b]' : 'ring-white'} 
+
+                           <div className={`absolute left-0 top-3 w-12 h-12 rounded-full flex items-center justify-center ring-8 ${isDarkMode ? 'ring-[#181a1b]' : 'ring-white'}
                               ${item.color === 'green' ? 'bg-[#e6f4ea] text-[#137333] dark:bg-[#137333]/20 dark:text-[#81c995]' :
                                 item.color === 'blue' ? 'bg-[#e8f0fe] text-[#1a73e8] dark:bg-[#1a73e8]/20 dark:text-[#8ab4f8]' :
                                 item.color === 'emerald' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400' :
@@ -330,12 +310,11 @@ export default function StudentOverview({
            </div>
          </div>
 
-         {/* 3. Quick Actions Panel */}
          <div className="space-y-4">
            <h2 className={`px-2 text-[20px] font-semibold tracking-tight ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`} style={{ fontFamily: "Google Sans, sans-serif" }}>Tools</h2>
            <div className="flex flex-col gap-4 sm:gap-6">
-              
-              <button 
+
+              <button
                 onClick={() => setActiveView("certificate")}
                 className={`relative flex flex-col justify-end p-7 rounded-[32px] overflow-hidden group transition-all duration-300 h-[178px] text-left border ${isDarkMode ? 'bg-[#181a1b] hover:bg-[#282a2d] border-[#2a2d2f]' : 'bg-white hover:bg-[#f0fdf4] border-gray-100 hover:border-emerald-200'} shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_30px_rgba(16,185,129,0.06)]`}
               >
@@ -352,7 +331,7 @@ export default function StudentOverview({
                   </div>
               </button>
 
-              <button 
+              <button
                 onClick={() => setActiveView("history")}
                className={`relative flex flex-col justify-end p-7 rounded-[32px] overflow-hidden group transition-all duration-300 h-[178px] text-left border ${isDarkMode ? 'bg-[#181a1b] hover:bg-[#282a2d] border-[#2a2d2f]' : 'bg-white hover:bg-blue-50 border-gray-100 hover:border-blue-200'} shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_30px_rgba(59,130,246,0.06)]`}
               >

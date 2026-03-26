@@ -105,8 +105,6 @@ const verifyOtpLimiter = rateLimit({
   skipSuccessfulRequests: true,
 });
 
-
-
 try {
   const t = getEmailTransporter();
   t.verify()
@@ -119,7 +117,9 @@ try {
         err.message,
       );
     });
-} catch (_) {}
+} catch (smtpInitErr) {
+  console.warn("[SMTP] Init error:", smtpInitErr.message);
+}
 
 router.post("/setup", optionalAuth, async (req, res) => {
   try {
@@ -361,7 +361,7 @@ router.post(
         });
       }
 
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const otp = crypto.randomInt(100000, 1000000).toString();
       const newResendCount = existing ? resendCount + 1 : 0;
 
       const nextCooldownMs = Math.min(
@@ -390,7 +390,6 @@ router.post(
 
       const expiryMinutes = Math.round(OTP_EXPIRY_MS / 60000);
       const transporter = getEmailTransporter();
-
 
       const htmlBody = buildGoogleEmail(
         "Login Verification",

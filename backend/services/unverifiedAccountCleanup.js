@@ -8,7 +8,6 @@ async function cleanupUnverifiedAccounts() {
       Date.now() - UNVERIFIED_ACCOUNT_MAX_AGE_MS,
     ).toISOString();
 
-    // Fetch all users with pagination (Supabase defaults to 50 per page)
     let allUsers = [];
     let page = 1;
     const perPage = 1000;
@@ -43,11 +42,13 @@ async function cleanupUnverifiedAccounts() {
     let deleted = 0;
     for (const user of unverifiedUsers) {
       try {
-        // Delete dependent records first (before FK constraints block profile deletion)
+
         await supabase.from("otp_tokens").delete().eq("user_id", user.id);
         await supabase.from("professor_approvals").delete().eq("professor_id", user.id);
         await supabase.from("student_professors").delete().eq("student_id", user.id);
+        await supabase.from("student_professors").delete().eq("professor_id", user.id);
         await supabase.from("notifications").delete().eq("user_id", user.id);
+        await supabase.from("auth_audit_log").delete().eq("user_id", user.id);
         await supabase.from("profile_edit_requests").delete().eq("user_id", user.id);
 
         const { error: profileError } = await supabase

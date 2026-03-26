@@ -16,7 +16,7 @@ function generateVerificationCode() {
 
 async function generateCertificate(requestId) {
   try {
-    // DB-level guard: check for existing certificate first (replaces in-memory lock)
+
     const { data: existingCert, error: certCheckError } = await supabase
       .from("clearance_certificates")
       .select("*")

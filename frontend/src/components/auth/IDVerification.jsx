@@ -236,7 +236,6 @@ function studentNumberMatchesOCR(expectedStudentNumber, ocrText) {
       return true;
     }
 
-    // Last-chance fallback for non-TS IDs: allow approximate digits anywhere in OCR text.
     if (hasApproximateDigitsWindow(expectedDigits, upperText, 1)) {
       return true;
     }
@@ -302,7 +301,6 @@ export default function IDVerification({
   const [dragging, setDragging] = useState(false);
   const faceDescriptorRef = useRef(null);
 
-  // Revoke blob URL on unmount to prevent memory leaks
   useEffect(() => {
     return () => {
       if (idPreview) URL.revokeObjectURL(idPreview);
@@ -352,7 +350,7 @@ export default function IDVerification({
 
     try {
       const processFile = await resizeImage(file, 1280);
-      // Yield so the "Processing your ID..." spinner renders before heavy work begins
+
       await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
       const qualityCheck = await validateImageQuality(processFile);
@@ -438,7 +436,7 @@ export default function IDVerification({
 
       setOcrProgress(100);
       setProcessingStage("face_detect");
-      // Give the browser two full frames to paint the progress update before starting heavy ML work
+
       await new Promise((r) =>
         requestAnimationFrame(() =>
           requestAnimationFrame(() => setTimeout(r, 50)),
@@ -458,7 +456,6 @@ export default function IDVerification({
         return;
       }
 
-      // Revoke previous blob URL before creating a new one
       if (idPreview) URL.revokeObjectURL(idPreview);
       setIdPreview(URL.createObjectURL(file));
       setVerificationResult({
@@ -478,7 +475,6 @@ export default function IDVerification({
     }
   };
 
-  // Keep ref in sync so handleDrop always calls the latest version
   handleIDUploadRef.current = handleIDUpload;
 
   return (

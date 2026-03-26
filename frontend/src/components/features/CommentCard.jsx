@@ -9,8 +9,14 @@ export default function CommentCard({
   onDelete,
   isDarkMode = false,
 }) {
+  const getCleanText = (text) => text?.replace(/^\[TO:[^\]]+\]\s*/, "") || "";
+  const getPrefix = (text) => {
+    const match = text?.match(/^(\[TO:[^\]]+\]\s*)/);
+    return match ? match[1] : "";
+  };
+
   const [isEditing, setIsEditing] = useState(false);
-  const [editText, setEditText] = useState(comment.comment_text);
+  const [editText, setEditText] = useState(getCleanText(comment.comment_text));
   const canDelete = () => {
     return comment.commenter_id === userId;
   };
@@ -157,7 +163,7 @@ export default function CommentCard({
           {canEdit() && !isEditing && (
             <button
               onClick={() => {
-                setEditText(comment.comment_text);
+                setEditText(getCleanText(comment.comment_text));
                 setIsEditing(true);
               }}
               className={`p-1.5 rounded-full transition-colors flex items-center justify-center ${
@@ -212,12 +218,13 @@ export default function CommentCard({
             </button>
             <button
               onClick={() => {
-                if (editText.trim() && editText !== comment.comment_text) {
-                  onEdit(comment.id, editText);
+                const newFullText = getPrefix(comment.comment_text) + editText.trim();
+                if (editText.trim() && newFullText !== comment.comment_text) {
+                  onEdit(comment.id, newFullText);
                 }
                 setIsEditing(false);
               }}
-              disabled={!editText.trim() || editText === comment.comment_text}
+              disabled={!editText.trim() || (getPrefix(comment.comment_text) + editText.trim()) === comment.comment_text}
               className={`text-[13px] px-4 py-1.5 rounded-full font-medium transition-colors ${
                 isDarkMode
                   ? "bg-[#8ab4f8] text-[#202124] hover:bg-[#8ab4f8]/90 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -234,7 +241,7 @@ export default function CommentCard({
             isDarkMode ? "text-[#e8eaed]" : "text-[#3c4043]"
           }`}
         >
-          {comment.comment_text}
+          {getCleanText(comment.comment_text)}
           {comment.updated_at && comment.updated_at !== comment.created_at && (
             <span
               className={`text-[11px] ml-2 italic ${

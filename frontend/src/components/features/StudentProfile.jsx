@@ -42,7 +42,7 @@ export default function StudentProfile({
       const { data } = await authAxios.get("/profiles/edit-requests");
       if (data.success) setEditRequests(data.requests || []);
     } catch {
-      /* silent */
+
     } finally {
       setLoadingEdits(false);
     }
@@ -106,39 +106,39 @@ export default function StudentProfile({
 
   return (
     <div className="space-y-6">
-      {/* Profile Header Card */}
+
       <GlassCard
         isDark={isDarkMode}
         className="p-6 sm:p-8 rounded-3xl overflow-hidden relative border-none shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)]"
       >
-        {/* Abstract Mesh Background */}
+
         <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
-          <motion.div 
-            animate={{ 
+          <motion.div
+            animate={{
               scale: [1, 1.1, 1],
               rotate: [0, 5, -5, 0],
               opacity: [0.2, 0.3, 0.2]
             }}
             transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-            className={`absolute -right-10 -top-20 w-80 h-80 rounded-full ${isDarkMode ? "bg-primary-500" : "bg-primary-300"}`} 
-            style={{ filter: "blur(80px)" }} 
+            className={`absolute -right-10 -top-20 w-80 h-80 rounded-full ${isDarkMode ? "bg-primary-500" : "bg-primary-300"}`}
+            style={{ filter: "blur(80px)" }}
           />
-          <motion.div 
-            animate={{ 
+          <motion.div
+            animate={{
               scale: [1, 1.2, 1],
               translateY: [0, 10, -10, 0],
               opacity: [0.15, 0.25, 0.15]
             }}
             transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
-            className={`absolute -left-20 -bottom-20 w-72 h-72 rounded-full ${isDarkMode ? "bg-emerald-500" : "bg-emerald-300"}`} 
-            style={{ filter: "blur(80px)" }} 
+            className={`absolute -left-20 -bottom-20 w-72 h-72 rounded-full ${isDarkMode ? "bg-emerald-500" : "bg-emerald-300"}`}
+            style={{ filter: "blur(80px)" }}
           />
-          {/* Frosted glass overlay for smoothness */}
+
           <div className={`absolute inset-0 backdrop-blur-[2px] ${isDarkMode ? "bg-[#282a2d]/40" : "bg-white/60"}`} />
         </div>
 
         <div className="relative z-10 flex flex-col sm:flex-row items-center sm:items-start gap-5">
-          {/* Avatar */}
+
           <div className="relative">
             {avatar ? (
               <img
@@ -160,7 +160,6 @@ export default function StudentProfile({
             </div>
           </div>
 
-          {/* Info */}
           <div className="flex-1 text-center sm:text-left">
             <h3
               className={`text-xl font-medium ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}
@@ -192,7 +191,6 @@ export default function StudentProfile({
         </div>
       </GlassCard>
 
-      {/* Account Details */}
       <GlassCard isDark={isDarkMode} className="rounded-3xl overflow-hidden border-none shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)]">
         <div
           className={`px-6 py-4 border-b ${isDarkMode ? "border-[#3c4043]" : "border-[#e8eaed]"}`}
@@ -211,7 +209,7 @@ export default function StudentProfile({
         </div>
 
         <div className="p-2 space-y-1">
-          {/* Email (read-only) */}
+
           <div className={`px-4 py-4 flex items-center justify-between rounded-2xl transition-colors ${isDarkMode ? "hover:bg-white/[0.02]" : "hover:bg-black/[0.02]"}`}>
             <div className="flex items-center gap-3">
               <div
@@ -251,7 +249,6 @@ export default function StudentProfile({
             </span>
           </div>
 
-          {/* Editable fields */}
           {profileFields.map((field) => {
             const Icon = FIELD_ICONS[field.key];
             const hasPending = !!pendingEditsMap[field.key];
@@ -259,17 +256,16 @@ export default function StudentProfile({
             return (
               <div key={field.key} className={`px-4 py-4 rounded-2xl transition-colors ${editingField === field.key ? (isDarkMode ? "bg-white/[0.03]" : "bg-black/[0.03]") : (isDarkMode ? "hover:bg-white/[0.02]" : "hover:bg-black/[0.02]")}`}>
                 <div className="flex items-start sm:items-center gap-4">
-                  {/* Left Icon */}
+
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 mt-1 sm:mt-0 ${isDarkMode ? "bg-[#3c4043]" : "bg-[#f1f3f4]"}`}>
                     <Icon className={`w-5 h-5 ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`} />
                   </div>
-                  
-                  {/* Middle Content */}
+
                   <div className="flex-1 min-w-0">
                     <p className={`text-[11px] font-bold uppercase tracking-wider ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>
                       {FIELD_LABELS[field.key]}
                     </p>
-                    
+
                     {editingField === field.key ? (
                       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-2 flex flex-col sm:flex-row gap-3">
                         <input
@@ -277,8 +273,8 @@ export default function StudentProfile({
                           value={editValue}
                           onChange={(e) => setEditValue(e.target.value)}
                           className={`flex-1 min-w-0 px-3 py-2 text-[15px] outline-none border-b-2 transition-all rounded-t-lg ${
-                            isDarkMode 
-                              ? "bg-white/5 hover:bg-white/10 text-white border-[#5f6368] focus:border-primary-400 focus:bg-white/10" 
+                            isDarkMode
+                              ? "bg-white/5 hover:bg-white/10 text-white border-[#5f6368] focus:border-primary-400 focus:bg-white/10"
                               : "bg-black/5 hover:bg-black/10 text-[#202124] border-[#9aa0a6] focus:border-primary-600 focus:bg-black/10"
                           }`}
                           autoFocus
@@ -290,8 +286,8 @@ export default function StudentProfile({
                             onClick={handleRequestEdit}
                             disabled={submitting || !editValue.trim() || editValue.trim() === field.value}
                             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                              isDarkMode 
-                                ? "bg-primary-500 text-[#202124] hover:bg-primary-400" 
+                              isDarkMode
+                                ? "bg-primary-500 text-[#202124] hover:bg-primary-400"
                                 : "bg-primary-600 text-white hover:bg-primary-700"
                             } disabled:opacity-50 shadow-sm`}
                           >
@@ -313,8 +309,7 @@ export default function StudentProfile({
                       </p>
                     )}
                   </div>
-                  
-                  {/* Right Action */}
+
                   {editingField !== field.key && (
                     <div className="flex-shrink-0 ml-2 sm:ml-4">
                       {hasPending ? (
@@ -329,8 +324,8 @@ export default function StudentProfile({
                             setEditValue(field.value === "—" ? "" : field.value);
                           }}
                           className={`flex items-center justify-center p-2 rounded-full transition-colors ${
-                            isDarkMode 
-                              ? "text-[#9aa0a6] hover:bg-white/10 hover:text-[#e8eaed]" 
+                            isDarkMode
+                              ? "text-[#9aa0a6] hover:bg-white/10 hover:text-[#e8eaed]"
                               : "text-[#5f6368] hover:bg-black/5 hover:text-[#202124]"
                           }`}
                           title="Edit"
@@ -347,7 +342,6 @@ export default function StudentProfile({
         </div>
       </GlassCard>
 
-      {/* Edit Request History */}
       {!loadingEdits && editRequests.length > 0 && (
         <GlassCard isDark={isDarkMode} className="rounded-3xl overflow-hidden border-none shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] mt-6">
           <div

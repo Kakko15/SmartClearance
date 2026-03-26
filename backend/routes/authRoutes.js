@@ -5,6 +5,12 @@ const rateLimit = require("express-rate-limit");
 const supabase = require("../supabaseClient");
 const { safeErrorResponse, sanitizeErrorMessage } = require("../utils/safeError");
 const { createClient } = require("@supabase/supabase-js");
+
+const loginClient = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY,
+  { auth: { autoRefreshToken: false, persistSession: false } },
+);
 const twoFactorRoutes = require("./twoFactorRoutes");
 const { validatePassword } = require("../utils/validatePassword");
 const {
@@ -59,8 +65,13 @@ function getEnvInt(name, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function normalizeEmail(value) {
-  return typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim().toLowerCase();
+  if (!EMAIL_REGEX.test(trimmed)) return "";
+  return trimmed;
 }
 
 function getIpKey(req) {
@@ -241,11 +252,6 @@ router.post(
         });
       }
 
-      const loginClient = createClient(
-        process.env.SUPABASE_URL,
-        process.env.SUPABASE_SERVICE_KEY,
-        { auth: { autoRefreshToken: false, persistSession: false } },
-      );
 
       const { data, error } = await loginClient.auth.signInWithPassword({
         email,
@@ -376,6 +382,7 @@ router.post("/signup", signupLimiter, async (req, res) => {
       courseYear,
       recaptchaToken,
       adminSecretCode,
+      designation,
     } = req.body;
 
     if (!email || !password || !firstName || !lastName || !role) {
@@ -396,7 +403,23 @@ router.post("/signup", signupLimiter, async (req, res) => {
       return res.status(403).json({
         success: false,
         error:
-          "Student accounts must be created by administration. Please contact your admin office.",
+          "This signup form is for personnel accounts only. Students should use the Student Portal to sign up.",
+      });
+    }
+
+    const VALID_DESIGNATIONS = [
+      "Department Chairman",
+      "College Dean",
+      "Director of Student Affairs",
+      "NSTP Director",
+      "Executive Officer",
+      "Dean of Graduate School",
+    ];
+
+    if (role === "signatory" && designation && !VALID_DESIGNATIONS.includes(designation)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid signatory designation",
       });
     }
 
@@ -496,6 +519,7 @@ router.post("/signup", signupLimiter, async (req, res) => {
         student_number: null,
         course_year: null,
         account_enabled: true,
+        ...(role === "signatory" && designation ? { designation } : {}),
       })
       .select()
       .single();
@@ -511,7 +535,6 @@ router.post("/signup", signupLimiter, async (req, res) => {
       });
     }
 
-    // Fire-and-forget: secret code update, audit log, and email (non-critical, don't block response)
     supabase
       .from("admin_secret_codes")
       .update({
@@ -675,7 +698,6 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
       return res.status(400).json({ success: false, error: pwCheck.error });
     }
 
-    // Run reCAPTCHA verification and student number check in parallel (independent operations)
     const [recaptchaResult, { data: existingProfile }] = await Promise.all([
       recaptchaToken
         ? verifyRecaptcha(recaptchaToken)
@@ -770,7 +792,6 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
       });
     }
 
-    // Fire-and-forget: audit log (non-critical)
     supabase.from("auth_audit_log").insert({
       user_id: authData.user.id,
       action: "student_signup_with_face_verification",
@@ -788,7 +809,6 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
       );
     });
 
-    // Fire-and-forget: send verification email (SMTP is slow, don't block response)
     sendVerificationEmail(authData.user.id, email).catch((emailErr) => {
       console.error(
         "Verification email failed (student signup):",
@@ -828,7 +848,7 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
 });
 
 async function sendVerificationEmail(userId, email) {
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const otp = crypto.randomInt(100000, 1000000).toString();
 
   await setToken(userId, TOKEN_TYPES.EMAIL_VERIFY, {
     tokenValue: otp,

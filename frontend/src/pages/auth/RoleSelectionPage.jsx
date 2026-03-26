@@ -84,7 +84,7 @@ export default function RoleSelectionPage({ onRoleSelect, isDark }) {
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
           onClick={() => navigate("/home")}
-          className={`group flex items-center gap-2 px-5 py-2.5 rounded-full transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] backdrop-blur-md border 
+          className={`group flex items-center gap-2 px-5 py-2.5 rounded-full transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] backdrop-blur-md border
             ${isDark ? "bg-white/5 border-white/10 hover:bg-white/10 text-slate-300 hover:text-white" : "bg-white/50 border-black/5 hover:bg-white hover:shadow-md hover:border-black/10 text-slate-600 hover:text-slate-900"}`}
         >
           <span
@@ -111,19 +111,19 @@ export default function RoleSelectionPage({ onRoleSelect, isDark }) {
         <motion.div
           animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 0] }}
           transition={{ duration: 35, repeat: Infinity, ease: "linear" }}
-          className={`absolute w-[60vw] h-[60vw] rounded-full opacity-[0.14] mix-blend-screen filter blur-[100px] 
+          className={`absolute w-[60vw] h-[60vw] rounded-full opacity-[0.14] mix-blend-screen filter blur-[100px]
             ${isDark ? "bg-emerald-800 -translate-x-1/2 -translate-y-1/4" : "bg-emerald-200 -translate-x-1/2 -translate-y-1/4"}`}
         />
         <motion.div
           animate={{ scale: [1, 1.1, 1], rotate: [0, -90, 0] }}
           transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
-          className={`absolute w-[70vw] h-[70vw] rounded-full opacity-[0.14] mix-blend-screen filter blur-[120px] 
+          className={`absolute w-[70vw] h-[70vw] rounded-full opacity-[0.14] mix-blend-screen filter blur-[120px]
             ${isDark ? "bg-blue-900 translate-x-1/4 translate-y-1/3" : "bg-blue-200/60 translate-x-1/4 translate-y-1/4"}`}
         />
       </div>
 
       {}
-      <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.03] mix-blend-overlay pointer-events-none z-0" />
+      
 
       {}
       <main className="relative z-10 flex flex-col items-center justify-center w-full max-w-[840px] mx-auto px-6 py-20 min-h-screen">

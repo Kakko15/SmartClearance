@@ -236,8 +236,6 @@ async function tryCompleteRequest(requestId) {
     const certificateNumber = generateCertificateNumber();
     const now = new Date().toISOString();
 
-    // DB-level guard: UPDATE ... WHERE is_completed = false
-    // If another process already completed this request, no rows will match.
     let updated;
     const { data: fullData, error: fullErr } = await supabase
       .from("requests")
@@ -255,7 +253,7 @@ async function tryCompleteRequest(requestId) {
       .single();
 
     if (fullErr) {
-      // Fallback: certificate columns may not exist in schema
+
       const { data: fallbackData } = await supabase
         .from("requests")
         .update({
@@ -272,7 +270,7 @@ async function tryCompleteRequest(requestId) {
       updated = fullData;
     }
 
-    if (!updated) return; // Another process already completed this request
+    if (!updated) return;
 
     await restoreApprovals(requestId, preSnapshot);
 

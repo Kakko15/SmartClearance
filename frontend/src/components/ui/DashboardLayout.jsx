@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion"; // eslint-disable-line no-unused-vars
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeftIcon,
   ArrowRightOnRectangleIcon,
@@ -36,7 +36,7 @@ export default function DashboardLayout({
 
   useEffect(() => {
     if (profileDropdownOpen) {
-      setThemePrefState(localStorage.getItem("theme") || "system"); // eslint-disable-line react-hooks/set-state-in-effect
+      setThemePrefState(localStorage.getItem("theme") || "system");
     }
   }, [profileDropdownOpen, isDarkMode]);
 
@@ -561,7 +561,7 @@ export default function DashboardLayout({
              if (!startX) return;
              const endX = e.changedTouches[0].clientX;
              const diff = startX - endX;
-             
+
              if (Math.abs(diff) > 70) {
                const idx = menuItems.findIndex((m) => m.id === activeView);
                if (diff > 0 && idx !== -1 && idx < menuItems.length - 1) {
@@ -587,7 +587,6 @@ export default function DashboardLayout({
           </AnimatePresence>
         </div>
 
-        {/* Bottom Navigation for Mobile */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 z-[100] border-t pb-safe flex justify-around items-center px-2 py-1.5 shadow-[0_-4px_24px_rgba(0,0,0,0.05)] transition-colors duration-300 min-h-[64px] bg-white/95 backdrop-blur-xl border-gray-200 dark:bg-[#181a1b]/95 dark:border-[#2a2d2f]">
           {menuItems.slice(0, 5).map((item) => {
             const isActive = activeView === item.id;

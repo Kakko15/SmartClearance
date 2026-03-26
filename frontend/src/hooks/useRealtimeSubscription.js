@@ -29,23 +29,20 @@ export default function useRealtimeSubscription(table, onUpdate, options = {}) {
     };
     if (filter) channelConfig.filter = filter;
 
-    const channel = supabase
+    const pgChannel = supabase
       .channel(channelName)
       .on("postgres_changes", channelConfig, () => {
         debouncedUpdate();
       })
       .subscribe((status, err) => {
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          console.warn(
-            `Realtime subscription error on "${table}":`,
-            err || status,
-          );
+          console.warn(`Realtime error on "${table}":`, err || status);
         }
       });
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
-      supabase.removeChannel(channel);
+      supabase.removeChannel(pgChannel);
     };
   }, [table, event, filter, enabled, debouncedUpdate]);
 }

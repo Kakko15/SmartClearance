@@ -365,21 +365,31 @@ const PrismaticBurst = ({
       io?.disconnect();
       try {
         container.removeChild(gl.canvas);
-      } catch (_e) {}
+      } catch (glErr) {
+        console.warn("WebGL canvas cleanup:", glErr.message);
+      }
       try {
         meshRef.current?.remove?.();
-      } catch (_e) {}
+      } catch (glErr) {
+        console.warn("WebGL mesh cleanup:", glErr.message);
+      }
       try {
         triRef.current?.remove?.();
-      } catch (_e) {}
+      } catch (glErr) {
+        console.warn("WebGL triangle cleanup:", glErr.message);
+      }
       try {
         programRef.current?.remove?.();
-      } catch (_e) {}
+      } catch (glErr) {
+        console.warn("WebGL program cleanup:", glErr.message);
+      }
       try {
         const glCtx = rendererRef.current?.gl;
         if (glCtx && gradTexRef.current?.texture)
           glCtx.deleteTexture(gradTexRef.current.texture);
-      } catch (_e) {}
+      } catch (glErr) {
+        console.warn("WebGL texture cleanup:", glErr.message);
+      }
       programRef.current = null;
       rendererRef.current = null;
       gradTexRef.current = null;

@@ -87,7 +87,7 @@ export function AuthProvider({ children }) {
       let { data, error } = await supabase
         .from("profiles")
         .select(
-          "id, full_name, role, student_number, course_year, account_enabled, totp_enabled",
+          "id, full_name, role, student_number, course_year, account_enabled, totp_enabled, designation",
         )
         .eq("id", sessionUser.id)
         .single()
@@ -97,7 +97,7 @@ export function AuthProvider({ children }) {
         const fallback = await supabase
           .from("profiles")
           .select(
-            "id, full_name, role, student_number, course_year, account_enabled",
+            "id, full_name, role, student_number, course_year, account_enabled, designation",
           )
           .eq("id", sessionUser.id)
           .single()
@@ -141,27 +141,33 @@ export function AuthProvider({ children }) {
       if (!isMounted) return;
 
       const twoFAVerified = sessionStorage.getItem("2fa_verified");
-      if (data.totp_enabled && twoFAVerified !== sessionUser.id) {
+
+      // If the user already verified or skipped 2FA in this session, don't prompt again
+      if (twoFAVerified === sessionUser.id) {
+        // Already handled 2FA for this session – skip all 2FA gates
+      } else if (data.totp_enabled) {
+        // 2FA is enabled but not yet verified this session – require verification
         setPendingUser(sessionUser);
         setPendingProfile(data);
         setTwoFactorPending("verify");
         setInitializing(false);
         return;
-      }
-
-      const requires2FA = [
-        "librarian",
-        "cashier",
-        "registrar",
-        "signatory",
-        "super_admin",
-      ].includes(data.role);
-      if (requires2FA && !data.totp_enabled) {
-        setPendingUser(sessionUser);
-        setPendingProfile(data);
-        setTwoFactorPending("setup");
-        setInitializing(false);
-        return;
+      } else {
+        const requires2FA = [
+          "librarian",
+          "cashier",
+          "registrar",
+          "signatory",
+          "super_admin",
+        ].includes(data.role);
+        if (requires2FA) {
+          // 2FA not set up yet – prompt setup
+          setPendingUser(sessionUser);
+          setPendingProfile(data);
+          setTwoFactorPending("setup");
+          setInitializing(false);
+          return;
+        }
       }
 
       setUser(sessionUser);
@@ -301,7 +307,7 @@ export function AuthProvider({ children }) {
       isMounted = false;
       authListener?.subscription?.unsubscribe();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, []);
 
   const handleSignOut = async () => {
@@ -364,6 +370,10 @@ export function AuthProvider({ children }) {
   };
 
   const complete2FA = () => {
+    if (!pendingUser) {
+      console.warn("complete2FA called but pendingUser is null");
+      return;
+    }
     const userId = pendingUser.id;
     sessionStorage.setItem("2fa_verified", userId);
     setUser(pendingUser);

@@ -11,7 +11,7 @@ const {
 } = require("../services/notificationService");
 const { generateCertificate } = require("../services/certificateService");
 const { classifyAndRouteRequest } = require("../services/aiRequestRouter");
-const { requireAuth } = require("../middleware/authMiddleware");
+const { requireAuth, requireRole } = require("../middleware/authMiddleware");
 const { safeErrorResponse } = require("../utils/safeError");
 const {
   ROLES,
@@ -89,7 +89,7 @@ async function logHistory(
   }
 }
 
-router.post("/create", requireAuth, async (req, res) => {
+router.post("/create", requireAuth, requireRole("student"), async (req, res) => {
   try {
     const student_id = req.user.id;
     const {
@@ -550,7 +550,6 @@ router.get("/admin/:role", requireAuth, async (req, res) => {
     };
     const stageName = ROLE_TO_STAGE[role] || role.replace("_admin", "");
 
-    // Determine which doc_type + stage_index combinations match this stage
     const { data: docTypes, error: docError } = await supabase
       .from("document_types")
       .select("id, required_stages");
@@ -568,7 +567,6 @@ router.get("/admin/:role", requireAuth, async (req, res) => {
       });
     }
 
-    // If no doc types have this stage, return empty immediately
     if (matchingConditions.length === 0) {
       return res.json({ success: true, requests: [] });
     }
@@ -593,6 +591,26 @@ router.get("/admin/:role", requireAuth, async (req, res) => {
 router.get("/:id/history", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
+    const callerId = req.user.id;
+    const callerRole = req.userRole;
+
+    const { data: request, error: reqError } = await supabase
+      .from("requests")
+      .select("student_id")
+      .eq("id", id)
+      .single();
+
+    if (reqError || !request) {
+      return res.status(404).json({ success: false, error: "Request not found" });
+    }
+
+    if (
+      request.student_id !== callerId &&
+      !isClearanceRole(callerRole) &&
+      !isManagementRole(callerRole)
+    ) {
+      return res.status(403).json({ success: false, error: "Unauthorized" });
+    }
 
     const { data, error } = await supabase
       .from("request_history")

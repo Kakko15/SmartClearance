@@ -73,7 +73,7 @@ export default function useIdleTimeout({
     if (now - lastThrottleRef.current < THROTTLE_MS) return;
     lastThrottleRef.current = now;
 
-    sessionStorage.setItem(STORAGE_KEY, now.toString());
+    localStorage.setItem(STORAGE_KEY, now.toString());
 
     if (warningFiredRef.current) {
       warningFiredRef.current = false;
@@ -90,7 +90,7 @@ export default function useIdleTimeout({
       return;
     }
 
-    const lastActive = parseInt(sessionStorage.getItem(STORAGE_KEY) || "0", 10);
+    const lastActive = parseInt(localStorage.getItem(STORAGE_KEY) || "0", 10);
     const elapsed = Date.now() - lastActive;
 
     if (lastActive > 0 && elapsed >= timeoutMs) {
@@ -104,7 +104,7 @@ export default function useIdleTimeout({
     }
 
     if (!lastActive) {
-      sessionStorage.setItem(STORAGE_KEY, Date.now().toString());
+      localStorage.setItem(STORAGE_KEY, Date.now().toString());
     }
 
     const remaining =

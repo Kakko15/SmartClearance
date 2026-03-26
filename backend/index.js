@@ -9,10 +9,27 @@ const app = express();
 
 const { allowedOrigins } = require("./constants/allowedOrigins");
 
-// L-7: Security headers
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://www.google.com", "https://www.gstatic.com"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:", "blob:", "https:"],
+        connectSrc: ["'self'", ...allowedOrigins, "https://*.supabase.co"],
+        workerSrc: ["'self'", "blob:"],
+        childSrc: ["'self'", "blob:"],
+        frameSrc: ["'self'", "https://www.google.com"],
+        objectSrc: ["'none'"],
+        upgradeInsecureRequests: [],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+  }),
+);
 
-// L-8: HTTP request logging
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
 app.use(
@@ -28,7 +45,6 @@ app.use(
   }),
 );
 
-// L-9: Reduced from 10MB to 1MB to prevent abuse
 app.use(express.json({ limit: "1mb" }));
 
 const PORT = process.env.PORT || 5000;
@@ -118,30 +134,25 @@ if (process.env.NODE_ENV === "production") {
     }),
   );
 
-  // Run once on startup after 30s warm-up
   setTimeout(() => {
     cleanupUnverifiedAccounts().catch(() => {});
     checkDeadlineReminders().catch(() => {});
   }, 30 * 1000);
 }
 
-// L-10: Graceful shutdown handler
 function gracefulShutdown(signal) {
   console.log(`\n[${signal}] Shutting down gracefully...`);
 
-  // Stop accepting new connections
   server.close(() => {
     console.log("[Shutdown] HTTP server closed.");
     process.exit(0);
   });
 
-  // Stop all scheduled cron tasks
   for (const task of scheduledTasks) {
     task.stop();
   }
   console.log(`[Shutdown] ${scheduledTasks.length} cron task(s) stopped.`);
 
-  // Force exit after 10s if connections are still hanging
   setTimeout(() => {
     console.error("[Shutdown] Forcing exit after timeout.");
     process.exit(1);
@@ -150,4 +161,3 @@ function gracefulShutdown(signal) {
 
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
-

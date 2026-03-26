@@ -61,7 +61,6 @@ router.use((req, _res, next) => {
   return graduationWriteLimiter(req, _res, next);
 });
 
-
 router.post("/apply", requireAuth, requireRole("student"), async (req, res) => {
   try {
     const {
@@ -206,7 +205,6 @@ router.post("/apply", requireAuth, requireRole("student"), async (req, res) => {
 
     const wantedIds = wantedSignatories.map((p) => p.id);
 
-    // Clean up any unwanted approvals from a prior application attempt
     if (wantedIds.length > 0) {
       const { data: existingApprovals } = await supabase
         .from("professor_approvals")
@@ -339,7 +337,6 @@ router.delete(
 
         const reqId = existingRequest.id;
 
-        // Delete clearance_comments
         const { error: commentsDeleteError } = await supabase
           .from("clearance_comments")
           .delete()
@@ -352,7 +349,6 @@ router.delete(
           );
         }
 
-        // Delete clearance_status_history
         const { error: historyDeleteError } = await supabase
           .from("clearance_status_history")
           .delete()
@@ -365,7 +361,6 @@ router.delete(
           );
         }
 
-        // Delete professor_approvals
         const { error: approvalDeleteError } = await supabase
           .from("professor_approvals")
           .delete()
@@ -378,7 +373,6 @@ router.delete(
           );
         }
 
-        // Delete request_documents (C-4 fix)
         const { error: docsDeleteError } = await supabase
           .from("request_documents")
           .delete()
@@ -391,7 +385,6 @@ router.delete(
           );
         }
 
-        // Delete request_history (C-4 fix)
         const { error: reqHistoryDeleteError } = await supabase
           .from("request_history")
           .delete()
@@ -404,7 +397,6 @@ router.delete(
           );
         }
 
-        // Delete escalation_history (C-4 fix)
         const { error: escalationDeleteError } = await supabase
           .from("escalation_history")
           .delete()
@@ -417,7 +409,6 @@ router.delete(
           );
         }
 
-        // Delete clearance_certificates (C-4 fix)
         const { error: certDeleteError } = await supabase
           .from("clearance_certificates")
           .delete()
@@ -430,7 +421,18 @@ router.delete(
           );
         }
 
-        // Finally, delete the request itself
+        const { error: notifDeleteError } = await supabase
+          .from("notifications")
+          .delete()
+          .eq("related_request_id", reqId);
+
+        if (notifDeleteError) {
+          console.warn(
+            "Notifications cleanup warning:",
+            notifDeleteError.message,
+          );
+        }
+
         const { error: deleteError } = await supabase
           .from("requests")
           .delete()
@@ -616,8 +618,12 @@ router.get(
   async (req, res) => {
     try {
       const { professorId } = req.params;
+      const page = Math.max(1, parseInt(req.query.page) || 1);
+      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
 
-      const { data: rawApprovals, error } = await supabase
+      const { data: rawApprovals, error, count } = await supabase
         .from("professor_approvals")
         .select(
           `
@@ -644,13 +650,13 @@ router.get(
           professor_approvals(id, status, approved_at, professor_id, professor:professor_id(full_name, designation))
         )
       `,
+          { count: "exact" },
         )
         .eq("professor_id", professorId)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(from, to);
 
       if (error) throw error;
-
-
 
       const healedRawApprovals = [];
       for (const app of (rawApprovals || []).filter(
@@ -713,6 +719,12 @@ router.get(
       res.json({
         success: true,
         approvals,
+        pagination: {
+          page,
+          limit,
+          total: count || 0,
+          totalPages: Math.ceil((count || 0) / limit),
+        },
       });
     } catch (error) {
       console.error("Error getting professor students:", error);

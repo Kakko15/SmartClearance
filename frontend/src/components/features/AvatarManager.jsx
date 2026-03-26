@@ -200,7 +200,6 @@ export default function AvatarManager({
       });
       if (error) throw error;
 
-      // Sync to profiles table so other users can see it
       await supabase
         .from("profiles")
         .update({ avatar_url: dataUrl })

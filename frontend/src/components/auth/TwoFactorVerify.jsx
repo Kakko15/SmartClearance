@@ -126,7 +126,7 @@ export default function TwoFactorVerify({
       const cleanCode = codeToSubmit.replace(/\D/g, "");
       if (cleanCode.length !== 6) return;
       if (submittingRef.current) return;
-      // L7 FIX: Read from refs instead of stale closure state
+
       if (expiredRef.current || lockedRef.current) return;
       submittingRef.current = true;
       setVerifying(true);
@@ -185,7 +185,7 @@ export default function TwoFactorVerify({
     if (value && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
-    // Auto-submit when all 6 digits entered.
+
     if (digitOnly.length === 6) {
       setTimeout(() => submitCode(newCode), 100);
     }
@@ -263,7 +263,7 @@ export default function TwoFactorVerify({
     setMethod(newMethod);
     sessionStorage.setItem("2fa_method", newMethod);
     setCode("");
-    // When switching back to email, restore emailSent state from session storage
+
     if (newMethod === "email") {
       const expiresAt = Number(
         sessionStorage.getItem("2fa_email_expires_at") || 0,

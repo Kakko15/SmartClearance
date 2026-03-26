@@ -35,7 +35,7 @@ router.get("/me", requireAuth, async (req, res) => {
     const { data, error } = await supabase
       .from("profiles")
       .select(
-        "id, full_name, role, student_number, course_year, account_enabled, nstp_serial_no, major",
+        "id, full_name, role, student_number, course_year, account_enabled, nstp_serial_no, major, designation",
       )
       .eq("id", req.user.id)
       .single();
@@ -220,6 +220,140 @@ router.post(
 
       res.json({ success: true, message: `Edit request ${action}` });
     } catch (error) {
+      safeErrorResponse(res, error);
+    }
+  },
+);
+
+const VALID_DESIGNATIONS = [
+  "Department Chairman",
+  "College Dean",
+  "Director of Student Affairs",
+  "NSTP Director",
+  "Executive Officer",
+  "Dean of Graduate School",
+];
+
+router.put(
+  "/designation",
+  requireAuth,
+  requireRole("signatory"),
+  async (req, res) => {
+    try {
+      const { designation } = req.body;
+
+      if (!designation || !VALID_DESIGNATIONS.includes(designation)) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid designation. Must be one of: " + VALID_DESIGNATIONS.join(", "),
+        });
+      }
+
+      const { error } = await supabase
+        .from("profiles")
+        .update({ designation })
+        .eq("id", req.user.id)
+        .eq("role", "signatory");
+
+      if (error) throw error;
+
+      // Retroactively link this signatory to existing pending graduation requests
+      try {
+        const {
+          isUndergradDesignation,
+          DESIGNATIONS,
+        } = require("../constants/designations");
+
+        const isUndergrad = isUndergradDesignation(designation);
+        const isGradDean = designation === DESIGNATIONS.DEAN_GRADUATE_SCHOOL;
+
+        let portionFilter;
+        if (isUndergrad) {
+          portionFilter = "undergraduate";
+        } else if (isGradDean) {
+          portionFilter = "graduate";
+        }
+
+        if (portionFilter) {
+          const { data: pendingRequests } = await supabase
+            .from("requests")
+            .select("id, student_id")
+            .eq("clearance_type", "graduation")
+            .eq("is_completed", false)
+            .eq("portion", portionFilter);
+
+          if (pendingRequests && pendingRequests.length > 0) {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("full_name")
+              .eq("id", req.user.id)
+              .single();
+
+            const signatoryName = profile?.full_name || "Signatory";
+
+            // Create student_professors links
+            const links = pendingRequests.map((r) => ({
+              student_id: r.student_id,
+              professor_id: req.user.id,
+              course_code: "GRAD",
+              course_name: signatoryName + " Clearance",
+              is_active: true,
+            }));
+
+            await supabase.from("student_professors").upsert(links, {
+              onConflict: "student_id,professor_id",
+              ignoreDuplicates: true,
+            });
+
+            // Create professor_approvals records
+            const approvals = pendingRequests.map((r) => ({
+              request_id: r.id,
+              professor_id: req.user.id,
+              status: "pending",
+              comments: null,
+              approved_at: null,
+            }));
+
+            const { error: approvalErr } = await supabase
+              .from("professor_approvals")
+              .upsert(approvals, {
+                onConflict: "request_id,professor_id",
+              });
+
+            if (approvalErr) {
+              console.warn("Retroactive approvals upsert warning:", approvalErr.message);
+            } else if (approvals.length > 0) {
+              console.log(
+                `[Designation] Retroactively created ${approvals.length} approval(s) for signatory ${req.user.id} (${designation})`,
+              );
+
+              // Update professors counts on each request
+              for (const r of pendingRequests) {
+                const { data: allApps } = await supabase
+                  .from("professor_approvals")
+                  .select("id, status")
+                  .eq("request_id", r.id);
+
+                if (allApps) {
+                  await supabase
+                    .from("requests")
+                    .update({
+                      professors_total_count: allApps.length,
+                      professors_approved_count: allApps.filter((a) => a.status === "approved").length,
+                    })
+                    .eq("id", r.id);
+                }
+              }
+            }
+          }
+        }
+      } catch (retroErr) {
+        console.warn("Retroactive approval creation warning:", retroErr.message);
+      }
+
+      res.json({ success: true, message: "Designation updated successfully" });
+    } catch (error) {
+      console.error("Error updating designation:", error);
       safeErrorResponse(res, error);
     }
   },

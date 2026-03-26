@@ -4,6 +4,7 @@ const rateLimit = require("express-rate-limit");
 const supabase = require("../supabaseClient");
 const { requireAuth } = require("../middleware/authMiddleware");
 const { safeErrorResponse } = require("../utils/safeError");
+const { logAction, ACTIONS } = require("../services/auditService");
 const {
   getUserProfile,
   isAdminRole,
@@ -35,9 +36,6 @@ const commentReadLimiter = rateLimit({
   message: { success: false, error: "Too many requests. Please try again later." },
 });
 
-// ─── Static routes MUST come before parameterized routes ───
-// (BUG-020 fix: reordered to prevent /:clearanceId from matching "create")
-
 router.post("/create", commentWriteLimiter, requireAuth, async (req, res) => {
   try {
     const { request_id, user_id, comment_text } = req.body;
@@ -64,8 +62,6 @@ router.post("/create", commentWriteLimiter, requireAuth, async (req, res) => {
     }
 
     const userProfile = await getUserProfile(user_id);
-
-    // Removed restriction to allow Student-to-Admin Messaging
 
     const { data: comment, error } = await supabase
       .from("clearance_comments")
@@ -140,8 +136,6 @@ router.get("/request/:request_id", commentReadLimiter, requireAuth, async (req, 
   }
 });
 
-// ─── Parameterized routes (after static routes) ───
-
 router.post("/:clearanceId/comments", commentWriteLimiter, requireAuth, async (req, res) => {
   try {
     const { clearanceId } = req.params;
@@ -178,8 +172,6 @@ router.post("/:clearanceId/comments", commentWriteLimiter, requireAuth, async (r
     }
 
     const userProfile = await getUserProfile(user_id);
-
-    // Removed restriction to allow Student-to-Admin Messaging
 
     const { data: clearanceRequest, error: reqError } = await supabase
       .from("requests")
@@ -355,6 +347,17 @@ router.delete("/:commentId", commentWriteLimiter, requireAuth, async (req, res) 
       .eq("id", commentId);
 
     if (deleteError) throw deleteError;
+
+    if (user_id !== comment.commenter_id) {
+      logAction(user_id, ACTIONS.COMMENT_DELETED_BY_ADMIN, {
+        targetId: commentId,
+        targetType: "clearance_comment",
+        metadata: {
+          originalAuthor: comment.commenter_id,
+          requestId: comment.clearance_request_id,
+        },
+      });
+    }
 
     res.json({
       success: true,

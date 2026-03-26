@@ -15,6 +15,115 @@ import AvatarManager from "./AvatarManager";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
+const DESIGNATION_OPTIONS = [
+  "Department Chairman",
+  "College Dean",
+  "Director of Student Affairs",
+  "NSTP Director",
+  "Executive Officer",
+  "Dean of Graduate School",
+];
+
+function DesignationEditor({ user, profile, isDark, inputClass, textSecondary, btnPrimary }) {
+  const [editing, setEditing] = useState(false);
+  const [selected, setSelected] = useState(profile?.designation || "");
+  const [saving, setSaving] = useState(false);
+
+  const getAuthHeaders = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const headers = { "Content-Type": "application/json" };
+    if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+    return headers;
+  };
+
+  const handleSave = async () => {
+    if (!selected) {
+      toast.error("Please select a designation");
+      return;
+    }
+    setSaving(true);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`${API_URL}/profile/designation`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ designation: selected }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        profile.designation = selected;
+        toast.success("Designation updated successfully");
+        setEditing(false);
+      } else {
+        toast.error(data.error || "Failed to update designation");
+      }
+    } catch {
+      toast.error("Failed to update designation");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!editing) {
+    return (
+      <div>
+        <label className={`block text-[13px] font-medium mb-1.5 ${textSecondary}`}>
+          Designation
+        </label>
+        <div className="flex gap-2 items-center">
+          <input
+            type="text"
+            value={profile?.designation || "Not set"}
+            disabled
+            className={`${inputClass} flex-1 opacity-70 cursor-not-allowed font-medium`}
+          />
+          <button
+            onClick={() => { setSelected(profile?.designation || ""); setEditing(true); }}
+            className={`px-4 py-2.5 rounded-full text-[13px] font-medium border transition-all hover:bg-black/5 dark:hover:bg-white/5 active:scale-95 shrink-0 ${
+              isDark ? "border-[#5f6368] text-[#8ab4f8]" : "border-[#dadce0] text-primary-700"
+            }`}
+          >
+            Change
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <label className={`block text-[13px] font-medium mb-1.5 ${textSecondary}`}>
+        Designation
+      </label>
+      <select
+        value={selected}
+        onChange={(e) => setSelected(e.target.value)}
+        className={`${inputClass} font-medium cursor-pointer`}
+      >
+        <option value="">Select designation...</option>
+        {DESIGNATION_OPTIONS.map((d) => (
+          <option key={d} value={d}>{d}</option>
+        ))}
+      </select>
+      <div className="flex gap-2 mt-2">
+        <button
+          onClick={handleSave}
+          disabled={saving || !selected}
+          className={`${btnPrimary} text-[13px]`}
+        >
+          {saving ? "Saving..." : "Save"}
+        </button>
+        <button
+          onClick={() => { setEditing(false); setSelected(profile?.designation || ""); }}
+          className={`px-4 py-2 rounded-full text-[13px] font-medium ${textSecondary} hover:opacity-80 transition-all`}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Settings({
   user,
   profile,
@@ -47,8 +156,7 @@ export default function Settings({
   const has2FA = !!profile?.totp_enabled;
   const lastSignIn = user?.last_sign_in_at;
 
-  // Reset authenticator state
-  const [resetStep, setResetStep] = useState(null); // null | "password" | "scan" | "verify"
+  const [resetStep, setResetStep] = useState(null);
   const [resetPassword, setResetPassword] = useState("");
   const [resetQrCode, setResetQrCode] = useState(null);
   const [resetManualKey, setResetManualKey] = useState("");
@@ -133,7 +241,7 @@ export default function Settings({
         setResetCode("");
         setResetQrCode(null);
         setResetManualKey("");
-        // Optimistically update the UI to show 2FA is enabled without refreshing
+
         if (!has2FA) {
           profile.totp_enabled = true;
         }
@@ -489,6 +597,16 @@ export default function Settings({
                           className={`${inputClass} opacity-70 cursor-not-allowed font-medium tracking-wide`}
                         />
                       </div>
+                      {profile?.role === "signatory" && (
+                        <DesignationEditor
+                          user={user}
+                          profile={profile}
+                          isDark={isDark}
+                          inputClass={inputClass}
+                          textSecondary={textSecondary}
+                          btnPrimary={btnPrimary}
+                        />
+                      )}
                       {profile?.student_number && (
                         <div>
                           <label

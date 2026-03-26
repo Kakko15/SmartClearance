@@ -16,7 +16,7 @@ export default function EmailVerification({
   const [code, setCode] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
-  // L10 FIX: Guard ref to prevent double-submit from rapid clicks
+
   const submittingRef = useRef(false);
   const [countdown, setCountdown] = useState(0);
   const [resendCooldown, setResendCooldown] = useState(60);
@@ -33,11 +33,8 @@ export default function EmailVerification({
     return clearTimers;
   }, [clearTimers]);
 
-  // L9 FIX: Use userId-scoped sessionStorage keys to prevent collision between tabs/flows
   const storagePrefix = `email_verify_${userId}_`;
 
-  // Start expiry countdown on mount — restore from sessionStorage if available
-  // so navigating away and back doesn't reset the countdown.
   useEffect(() => {
     const storedExpiry = sessionStorage.getItem(`${storagePrefix}expires_at`);
     if (storedExpiry) {
@@ -49,7 +46,7 @@ export default function EmailVerification({
         sessionStorage.removeItem(`${storagePrefix}expires_at`);
       }
     } else {
-      // First mount — set 10 min expiry
+
       const expiresAt = Date.now() + 600 * 1000;
       sessionStorage.setItem(
         `${storagePrefix}expires_at`,
@@ -159,7 +156,7 @@ export default function EmailVerification({
       toast.error("Please enter the 6-digit code");
       return;
     }
-    // L10 FIX: Prevent double-submit from rapid clicks
+
     if (submittingRef.current) return;
     submittingRef.current = true;
     setVerifying(true);

@@ -180,8 +180,7 @@ export default function SignupFormWithFaceVerification({
   });
 
   const [idDescriptor, setIdDescriptor] = useState(() => {
-    // Restore face descriptor from sessionStorage if available.
-    // It's stored as a JSON array and converted back to Float32Array.
+
     const saved = sessionStorage.getItem("signupIdDescriptor");
     if (saved) {
       try {
@@ -223,7 +222,7 @@ export default function SignupFormWithFaceVerification({
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [touched, setTouched] = useState({});
   const recaptchaRef = useRef(null);
-  // Keep password in a ref as backup
+
   const passwordRef = useRef(formData.password);
 
   const handleClearFields = () => {
@@ -354,7 +353,6 @@ export default function SignupFormWithFaceVerification({
   const handleStep1Submit = async (e) => {
     e.preventDefault();
 
-    // Mark all fields as touched so errors show
     const allFields = [
       "firstName",
       "lastName",
@@ -632,7 +630,9 @@ export default function SignupFormWithFaceVerification({
               await onLoginSuccess(session.user);
               return;
             }
-          } catch (_e) {}
+          } catch (sessionErr) {
+            console.warn("Post-signup session retrieval failed:", sessionErr.message);
+          }
           toast.success("Please sign in with your new account.");
           setTimeout(() => {
             if (onSwitchMode) onSwitchMode();
@@ -652,7 +652,9 @@ export default function SignupFormWithFaceVerification({
               await onLoginSuccess(session.user);
               return;
             }
-          } catch (_e) {}
+          } catch (sessionErr) {
+            console.warn("Post-signup session retrieval failed:", sessionErr.message);
+          }
           toast.success("Please sign in with your new account.");
           setTimeout(() => {
             if (onSwitchMode) onSwitchMode();
