@@ -234,6 +234,11 @@ function App() {
               element={
                 isAuthenticated ? (
                   <Navigate to="/dashboard" replace />
+                ) : initializing &&
+                  Object.keys(localStorage).some(
+                    (k) => k.startsWith("sb-") && k.endsWith("-auth-token")
+                  ) ? (
+                  <DashboardSkeletonShell isDark={isDarkMode} />
                 ) : (
                   <motion.div
                     key="landing"
@@ -257,6 +262,11 @@ function App() {
               element={
                 isAuthenticated ? (
                   <Navigate to="/dashboard" replace />
+                ) : initializing &&
+                  Object.keys(localStorage).some(
+                    (k) => k.startsWith("sb-") && k.endsWith("-auth-token")
+                  ) ? (
+                  <DashboardSkeletonShell isDark={isDarkMode} />
                 ) : (
                   <motion.div
                     key="roleSelection"
@@ -286,9 +296,7 @@ function App() {
                   Object.keys(localStorage).some(
                     (k) => k.startsWith("sb-") && k.endsWith("-auth-token"),
                   ) ? (
-                  <div className={`min-h-screen flex items-center justify-center ${isDarkMode ? "bg-[#030712]" : "bg-[#FAFAFA]"}`}>
-                    <div className={`w-8 h-8 border-3 border-t-transparent rounded-full animate-spin ${isDarkMode ? "border-slate-600" : "border-slate-300"}`} />
-                  </div>
+                  <DashboardSkeletonShell isDark={isDarkMode} />
                 ) : (
                   <motion.div
                     key="auth"

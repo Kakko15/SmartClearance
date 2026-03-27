@@ -115,7 +115,7 @@ export default function StudentOverview({
   const firstName = studentInfo?.full_name?.split(" ")[0] || "Student";
 
   return (
-    <div className="max-w-[1100px] mx-auto space-y-8 animate-fade-in w-full pb-10">
+    <div className="w-full max-w-[1600px] mx-auto space-y-8 animate-fade-in pb-10">
 
       <div className={`relative overflow-hidden rounded-[32px] sm:rounded-[40px] shadow-[0_8px_30px_rgb(0,0,0,0.06)] ${isDarkMode ? "bg-gradient-to-br from-[#0c1f15] via-[#091511] to-black border border-[#2a3c33]" : "bg-gradient-to-br from-[#0b3b24] via-[#0a4d2e] to-[#042817]"}`}>
 

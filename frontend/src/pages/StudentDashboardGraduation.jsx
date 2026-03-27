@@ -41,10 +41,9 @@ const UnresolvedBadge = ({ count = 0 }) => {
     <motion.span
       initial={{ scale: 0, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
-      transition={{ type: "spring", stiffness: 400, damping: 20 }}
-      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#fce8e6] text-[#c5221f] border border-transparent"
+      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold tracking-[0.05em] uppercase bg-[#fce8e6] text-[#c5221f] border border-transparent shadow-sm"
     >
-      {count === 1 ? "Unresolved" : `${count} Unresolved`}
+      {count === 1 ? "1 UNRESOLVED" : `${count} UNRESOLVED`}
     </motion.span>
   );
 };
@@ -77,227 +76,134 @@ const StageNode = ({
   children,
   isDarkMode = false,
 }) => {
-  const isLast = index === total - 1;
+  const indexStr = (index + 1).toString().padStart(2, '0');
+
   const statusConfig = {
     approved: {
-      dotClass: "bg-[#1e8e3e]",
-      icon: <CheckIcon className="w-3.5 h-3.5 text-white" />,
-      lineClass: isDarkMode ? "bg-[#1e8e3e]/30" : "bg-[#1e8e3e]",
-      titleClass: isDarkMode ? "text-[#e8eaed]" : "text-[#202124]",
-      subtitleClass: isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]",
-      badgeClass: isDarkMode
-        ? "bg-[#1e8e3e]/20 text-[#81c995]"
-        : "bg-[#e6f4ea] text-[#0d652d]",
-      badgeText: "APPROVED",
-      boxClass: isDarkMode
-        ? "border-[#1e8e3e] bg-[#1e8e3e]/10 text-[#81c995]"
-        : "border-[#1e8e3e] bg-[#e6f4ea]/30 text-[#1e8e3e]",
+      bg: isDarkMode ? "bg-[#202124] border-[#3c4043]" : "bg-white border-[#dadce0]",
+      icon: <CheckIcon className="w-5 h-5 text-emerald-500" />,
+      iconBg: isDarkMode ? "bg-emerald-500/10 text-emerald-400" : "bg-emerald-50 text-emerald-600",
+      badge: "COMPLETED",
+      badgeBg: isDarkMode ? "bg-emerald-500/20 text-emerald-400" : "bg-emerald-600 text-white shadow-sm",
     },
     rejected: {
-      dotClass: "bg-[#d93025]",
-      icon: <XMarkIcon className="w-3.5 h-3.5 text-white" />,
-      lineClass: isDarkMode ? "bg-[#d93025]/30" : "bg-[#d93025]",
-      titleClass: isDarkMode ? "text-[#e8eaed]" : "text-[#202124]",
-      subtitleClass: isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]",
-      badgeClass: isDarkMode
-        ? "bg-[#d93025]/20 text-[#f28b82]"
-        : "bg-[#fce8e6] text-[#b31412]",
-      badgeText: "REJECTED",
-      boxClass: isDarkMode
-        ? "border-[#d93025] bg-[#d93025]/10 text-[#f28b82]"
-        : "border-[#fce8e6] bg-[#fce8e6]/30 text-[#d93025]",
+      bg: isDarkMode ? "bg-[#202124] border-[#3c4043] border-l-4 border-l-rose-500" : "bg-white border-[#dadce0] border-l-4 border-l-rose-500 shadow-sm",
+      icon: <XMarkIcon className="w-5 h-5 text-rose-500" />,
+      iconBg: isDarkMode ? "bg-rose-500/10 text-rose-400" : "bg-rose-50 text-rose-600",
+      badge: "REJECTED",
+      badgeBg: isDarkMode ? "bg-rose-500/20 text-rose-400" : "bg-rose-600 text-white shadow-sm",
     },
     pending: {
-      dotClass: isDarkMode
-        ? "bg-[#34a853] ring-[3px] ring-[#34a853]/20"
-        : "bg-[#2e8e45] ring-[3px] ring-[#e6f4ea]",
-      icon: <ClockIcon className="w-[13px] h-[13px] text-white" />,
-      lineClass: isDarkMode ? "bg-[#5f6368]" : "bg-[#e8eaed]",
-      titleClass: isDarkMode ? "text-[#e8eaed]" : "text-[#202124]",
-      subtitleClass: isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]",
-      badgeClass: isDarkMode
-        ? "bg-[#34a853]/20 text-[#81c995]"
-        : "bg-[#e6f4ea] text-[#0d652d]",
-      badgeText: "IN PROGRESS",
-      boxClass: isDarkMode
-        ? "border-[#5f6368] text-[#9aa0a6] bg-transparent"
-        : "border-[#e8eaed] text-[#9aa0a6] bg-transparent",
+      bg: isDarkMode 
+        ? "bg-[#202124] border-[#3c4043] border-l-4 border-l-primary-500 shadow-md" 
+        : "bg-white border-[#dadce0] border-l-4 border-l-primary-500 shadow-[0_4px_16px_rgba(0,0,0,0.06)]",
+      icon: <ClockIcon className="w-5 h-5 text-primary-500" />,
+      iconBg: isDarkMode ? "bg-primary-500/10 text-primary-400" : "bg-primary-50 text-primary-600",
+      badge: "PENDING",
+      badgeBg: isDarkMode ? "bg-primary-500/20 text-primary-400" : "bg-primary-100 text-primary-700 font-bold",
     },
     locked: {
-      dotClass: isDarkMode ? "bg-[#5f6368]" : "bg-[#e8eaed]",
+      bg: isDarkMode ? "bg-[#202124]/50 border-[#3c4043]/50 opacity-80" : "bg-slate-50/70 border-[#e8eaed] opacity-80",
       icon: null,
-      lineClass: isDarkMode ? "bg-[#5f6368]" : "bg-[#e8eaed]",
-      titleClass: isDarkMode ? "text-[#9aa0a6]" : "text-[#70757a]",
-      subtitleClass: isDarkMode ? "text-[#5f6368]" : "text-[#9aa0a6]",
-      badgeClass: isDarkMode
-        ? "bg-[#202124] text-[#9aa0a6] border border-[#3c4043]"
-        : "bg-[#f8f9fa] text-[#70757a] border border-[#f1f3f4]",
-      badgeText: "LOCKED",
-      boxClass: isDarkMode
-        ? "border-[#3c4043] text-[#5f6368] bg-transparent"
-        : "border-[#f1f3f4] text-[#dadce0] bg-transparent",
+      iconBg: isDarkMode ? "bg-[#3c4043] text-gray-500" : "bg-slate-100 text-slate-400",
+      badge: "LOCKED",
+      badgeBg: isDarkMode ? "bg-transparent text-[#5f6368] border border-[#3c4043]" : "bg-white text-slate-400 border border-slate-200",
     },
   };
 
   const config = statusConfig[stage.status] || statusConfig.pending;
+  const isLocked = stage.status === "locked";
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: -5 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: index * 0.05 }}
-      className="relative flex gap-4 sm:gap-6"
+      layout
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.03, duration: 0.4 }}
+      className={`w-full rounded-[24px] overflow-hidden transition-all duration-300 transform-gpu ${config.bg} border ${!isLocked ? "cursor-pointer hover:shadow-md" : ""}`}
+      onClick={!isLocked ? onToggle : undefined}
     >
-      <div className="flex flex-col items-center flex-shrink-0 w-8 pt-[18px] relative z-10">
-        <div
-          className={`w-[22px] h-[22px] rounded-full flex items-center justify-center z-10 transition-all duration-300 ${config.dotClass} ${stage.status === "locked" ? "scale-[0.5]" : "shadow-sm"}`}
-        >
-          {config.icon}
+      <div className="relative p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+        <div className="flex items-center gap-5">
+          <motion.div
+            layout
+            className={`w-[48px] h-[48px] rounded-[16px] flex items-center justify-center flex-shrink-0 ${config.iconBg}`}
+          >
+            {stage.avatarUrl ? (
+              <img src={stage.avatarUrl} alt={stage.title} className="w-full h-full object-cover rounded-[16px]" />
+            ) : stage.title ? (
+              config.icon ? config.icon : <span className="text-xl font-bold">{stage.title.charAt(0)}</span>
+            ) : null}
+          </motion.div>
+          
+          <div className="flex flex-col">
+            <h4 className={`text-[17px] sm:text-[19px] font-bold tracking-tight mb-0.5 ${isDarkMode ? "text-[#e8eaed]" : "text-slate-800"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>
+              {stage.title}
+            </h4>
+            <p className={`text-[13px] sm:text-[14px] leading-relaxed ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>
+              {stage.description}
+            </p>
+          </div>
         </div>
-        {!isLast && (
-          <div
-            className={`absolute top-[40px] bottom-[-18px] w-[2px] transition-colors duration-300 ${config.lineClass}`}
-          />
-        )}
-      </div>
 
-      <div
-        className={`flex-1 flex flex-col justify-center ${isLast ? "pb-0" : "pb-6"}`}
-      >
-        <div
-          onClick={stage.status !== "locked" ? onToggle : undefined}
-          className={`group rounded-[16px] p-2 sm:p-2.5 transition-all duration-200 ${stage.status !== "locked" ? "cursor-pointer" : ""} ${isDarkMode ? "hover:bg-[#3c4043]/30" : "hover:bg-slate-50"} ${isExpanded && stage.status !== "locked" ? (isDarkMode ? "bg-[#3c4043]/30" : "bg-slate-50") : "bg-transparent"}`}
-        >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0">
-            <div className="flex items-center gap-5">
-              <div
-                className={`w-[48px] h-[48px] rounded-[14px] flex items-center justify-center border transition-colors overflow-hidden ${stage.avatarUrl ? "" : config.boxClass}`}
-              >
-                {stage.avatarUrl ? (
-                  <img
-                    src={stage.avatarUrl}
-                    alt={stage.title}
-                    className="w-full h-full object-cover"
-                  />
-                ) : stage.title ? (
-                  <span
-                    className={`text-lg font-bold ${stage.status === "locked" ? (isDarkMode ? "text-[#5f6368]" : "text-[#dadce0]") : isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}
-                  >
-                    {stage.title.charAt(0)}
-                  </span>
-                ) : (
-                  stage.iconComponent
-                )}
-              </div>
+        <div className="flex items-center flex-wrap gap-2.5 self-start sm:self-auto pl-[68px] sm:pl-0">
+          <span className={`px-3 py-1 rounded-full text-[11px] font-bold tracking-[0.05em] ${config.badgeBg} uppercase`}>
+            {config.badge}
+          </span>
+          <UnresolvedBadge count={unresolvedCount} />
 
-              <div className="flex flex-col justify-center">
-                <h4
-                  className={`font-bold text-[15px] tracking-tight transition-colors ${config.titleClass}`}
-                  style={{ fontFamily: "Google Sans, sans-serif" }}
-                >
-                  {stage.title}
-                </h4>
-                <p
-                  className={`text-[13px] mt-0.5 transition-colors ${config.subtitleClass}`}
-                >
-                  {stage.description}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 self-start sm:self-auto ml-[68px] sm:ml-0 px-2 sm:px-0">
-              <span
-                className={`px-4 py-[5px] rounded-full text-[11px] font-bold uppercase tracking-wider transition-colors ${config.badgeClass}`}
-                style={{
-                  fontFamily: "Google Sans, sans-serif",
-                  letterSpacing: "0.04em",
-                }}
-              >
-                {config.badgeText}
-              </span>
-              <UnresolvedBadge count={unresolvedCount} />
+          {/* Action Buttons */}
+          {(!isLocked) && (
+            <div className="flex items-center gap-2">
               {stage.status === "rejected" && onRequestReevaluation && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRequestReevaluation(stage);
-                  }}
-                  className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-colors ${isDarkMode ? "bg-blue-500/15 hover:bg-blue-500/25 text-blue-400 border border-blue-500/20" : "bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200"}`}
-                  title="Request re-evaluation"
-                >
-                  Re-evaluate
+                <button onClick={(e) => { e.stopPropagation(); onRequestReevaluation(stage); }} className={`px-3 py-1.5 rounded-xl text-[12px] font-bold transition-all shadow-sm ${isDarkMode ? "bg-rose-500/20 hover:bg-rose-500/30 text-rose-400" : "bg-rose-100 hover:bg-rose-200 text-rose-700"}`} title="Request re-evaluation">
+                  Evaluate
                 </button>
               )}
+              
               {stage.status !== "locked" && !stage.hasChildren && onUploadDocument && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onUploadDocument(stage);
-                  }}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${isDarkMode ? "bg-blue-500/10 hover:bg-blue-500/20 text-blue-400" : "bg-blue-50 hover:bg-blue-100 text-blue-600"}`}
-                  title="Upload proof or supporting document"
-                >
+                <button onClick={(e) => { e.stopPropagation(); onUploadDocument(stage); }} className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all ${isDarkMode ? "bg-transparent hover:bg-blue-500/20 text-blue-400 border border-[#3c4043]" : "bg-white hover:bg-blue-50 text-blue-600 border border-slate-200"}`} title="Upload document">
                   <ArrowUpTrayIcon className="w-4 h-4" />
                 </button>
               )}
+              
               {hasComments && !stage.hasChildren && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onViewComments();
-                  }}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${isDarkMode ? "bg-orange-500/10 hover:bg-orange-500/20 text-orange-400" : "bg-orange-50 hover:bg-orange-100 text-orange-600"}`}
-                  title="View comments"
-                >
+                <button onClick={(e) => { e.stopPropagation(); onViewComments(); }} className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all ${isDarkMode ? "bg-transparent hover:bg-orange-500/20 text-orange-400 border border-[#3c4043]" : "bg-white hover:bg-orange-50 text-orange-600 border border-slate-200"}`} title="View comments">
                   <ChatBubbleIcon className="w-4 h-4" />
                 </button>
               )}
-              {children && (
-                <div
-                  className={`transition-transform duration-200 ${isExpanded ? "rotate-180" : ""} ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}
-                >
-                  <ChevronDownIcon className="w-5 h-5" />
-                </div>
-              )}
-            </div>
-          </div>
-
-          <AnimatePresence>
-            {isExpanded && children && (
-              <motion.div
-                onClick={(e) => e.stopPropagation()}
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                <div
-                  className={`mt-4 pt-4 border-t ${isDarkMode ? "border-[#3c4043]" : "border-[#e8eaed]"}`}
-                >
-                  {children}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {stage.comments && (
-          <div className="pl-[68px] pr-4">
-            <div
-              className={`mt-2 px-4 py-3 rounded-xl text-[13px] font-medium leading-relaxed flex gap-3 ${isDarkMode ? "bg-[#3c4043]/50 text-[#e8eaed] border border-[#5f6368]" : "bg-[#f8f9fa] border border-[#e8eaed] text-[#3c4043]"}`}
-            >
-              <ChatBubbleIcon className="w-4 h-4 mt-0.5 flex-shrink-0 text-[#1a73e8]" />
-              <div>
-                <span className="font-bold block mb-0.5 text-[#1a73e8]">
-                  {stage.title}
-                </span>
-                {stage.comments}
+              
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-transform duration-300 ${isExpanded ? "rotate-180" : ""} ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>
+                <ChevronDownIcon className="w-5 h-5" />
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
+
+      <AnimatePresence>
+        {isExpanded && children && (
+          <motion.div layout onClick={(e) => e.stopPropagation()} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.3 }} className="overflow-hidden">
+            <div className={`mx-6 mb-6 pt-5 border-t ${isDarkMode ? "border-[#3c4043]" : "border-slate-100"} relative z-20`}>
+              {children}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {stage.comments && (
+        <div className="px-6 pb-6">
+          <div className={`p-4 rounded-xl text-[13px] leading-relaxed flex items-start gap-3 backdrop-blur-md ${isDarkMode ? "bg-primary-500/10 border border-primary-500/20 text-primary-100" : "bg-primary-50/50 border border-primary-100 text-slate-700"}`}>
+            <ChatBubbleIcon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${isDarkMode ? "text-primary-400" : "text-primary-600"}`} />
+            <div>
+              <span className={`font-semibold block mb-1 ${isDarkMode ? "text-primary-300" : "text-primary-700"}`}>
+                System Note &mdash; {stage.title}
+              </span>
+              <p className="opacity-90">{stage.comments}</p>
+            </div>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 };
@@ -425,6 +331,8 @@ const InlineCommentThread = ({
 }) => {
   const [replyText, setReplyText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editCommentText, setEditCommentText] = useState("");
 
   const handleReplySubmit = async (e) => {
     e.preventDefault();
@@ -457,6 +365,37 @@ const InlineCommentThread = ({
       toast.error(error.response?.data?.error || error.message || "Failed to post reply.");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const submitEdit = async (commentId, originalTag) => {
+    if (!editCommentText.trim()) return;
+    try {
+      const finalComment = originalTag ? `${originalTag} ${editCommentText.trim()}` : editCommentText.trim();
+      const response = await authAxios.put(`/comments/${commentId}`, {
+        user_id: studentId,
+        comment_text: finalComment
+      });
+      if (response.data.success) {
+        toast.success("Comment updated successfully");
+        setEditingCommentId(null);
+        if (onCommentAdded) onCommentAdded();
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to update comment");
+    }
+  };
+
+  const deleteComment = async (commentId) => {
+    if (!window.confirm("Are you sure you want to delete this comment?")) return;
+    try {
+      const response = await authAxios.delete(`/comments/${commentId}`);
+      if (response.data.success) {
+        toast.success("Comment deleted successfully");
+        if (onCommentAdded) onCommentAdded();
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to delete comment");
     }
   };
 
@@ -527,21 +466,16 @@ const InlineCommentThread = ({
 
   if (specificComments.length === 0) {
     return (
-      <div className={`p-6 mt-2 rounded-2xl text-center transition-colors ${isDarkMode ? "bg-[#202124]/50 border border-[#3c4043]" : "bg-[#f8fafd] border border-[#e8eaed]"}`}>
-        <div className={`w-12 h-12 mx-auto rounded-full flex items-center justify-center mb-3 ${isDarkMode ? "bg-[#3c4043]" : "bg-white border border-[#e8eaed] shadow-sm"}`}>
-          <ChatBubbleIcon className={`w-6 h-6 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`} />
-        </div>
-        <p className={`text-[14px] font-medium tracking-tight ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>No feedback yet</p>
-        <p className={`text-[13px] mt-1 ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>
-          When reviewers leave comments, they will appear here.
-        </p>
+      <div className={`mt-4 pt-4 border-t flex flex-col items-center justify-center p-6 transition-colors ${isDarkMode ? "border-[#3c4043] text-[#9aa0a6]" : "border-[#e8eaed] text-[#5f6368]"}`}>
+        <ChatBubbleIcon className="w-6 h-6 mb-2 opacity-50" />
+        <p className="text-[14px] font-medium tracking-tight" style={{ fontFamily: "Google Sans, sans-serif" }}>No feedback yet.</p>
       </div>
     );
   }
 
   return (
-    <div className={`flex flex-col mt-2 rounded-2xl overflow-hidden transition-all duration-300 ${isDarkMode ? "bg-[#282a2d] border border-[#3c4043]" : "bg-white border border-[#dadce0] shadow-[0_1px_2px_0_rgba(60,64,67,0.1)]"}`}>
-      <div className={`px-5 py-4 border-b flex items-center justify-between ${isDarkMode ? "border-[#3c4043] bg-[#2d2f31]" : "border-[#e8eaed] bg-slate-50/50"}`}>
+    <div className={`flex flex-col mt-4 pt-4 border-t transition-all duration-300 ${isDarkMode ? "border-[#3c4043]" : "border-[#e8eaed]"}`}>
+      <div className={`px-2 py-2 mb-2 flex items-center justify-between`}>
         <div className="flex items-center gap-2">
           <ChatBubbleIcon className={`w-[18px] h-[18px] ${isDarkMode ? "text-primary-400" : "text-primary-600"}`} />
           <h4 className={`text-[14px] font-medium tracking-tight ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>
@@ -549,20 +483,26 @@ const InlineCommentThread = ({
           </h4>
         </div>
         {unresolvedCount > 0 && (
-          <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide uppercase ${isDarkMode ? "bg-[#fce8e6]/10 text-[#f28b82] border border-[#f28b82]/30" : "bg-[#fce8e6] text-[#c5221f] border border-[#f2b8b5]"}`}>
-            {unresolvedCount} Unresolved
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold tracking-[0.05em] uppercase bg-[#fce8e6] text-[#c5221f] border border-transparent shadow-sm">
+            {unresolvedCount === 1 ? "1 UNRESOLVED" : `${unresolvedCount} UNRESOLVED`}
           </span>
         )}
       </div>
 
-      <div className={`p-5 max-h-[360px] overflow-y-auto space-y-5 ${isDarkMode ? "bg-[#202124] scrollbar-thin scrollbar-thumb-[#3c4043]" : "bg-[#f8fafd] scrollbar-thin scrollbar-thumb-gray-200"}`}>
-        {specificComments.map((comment) => (
-          <div key={comment.id} className="flex gap-4">
-            <div className={`w-[36px] h-[36px] rounded-full flex-shrink-0 flex items-center justify-center font-bold text-[13px] text-white shadow-sm ${comment.is_resolved ? "bg-[#34a853]" : "bg-primary-500"}`}>
+      <div className={`px-2 py-4 max-h-[360px] overflow-y-auto space-y-5 bg-transparent scrollbar-thin ${isDarkMode ? "scrollbar-thumb-[#3c4043]" : "scrollbar-thumb-gray-200"}`}>
+        {specificComments.map((comment) => {
+          const isOwnComment = comment.commenter_id === studentId && !comment.isApprovalComment && !comment.isStageComment;
+          const matchTag = comment.comment_text.match(/^(\[TO:[^\]]+\]\s*)/);
+          const originalTag = matchTag ? matchTag[1].trim() : "";
+          const displayStr = comment.comment_text.replace(/^\[TO:[^\]]+\]\s*/, "");
+          
+          return (
+          <div key={comment.id} className="group flex gap-4">
+            <div className={`w-[36px] h-[36px] mt-1 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-[13px] text-white shadow-sm ${comment.is_resolved ? "bg-[#34a853]" : "bg-primary-500"}`}>
               {comment.commenter_name?.charAt(0).toUpperCase() || "?"}
             </div>
-            <div className="flex-1 min-w-0 flex flex-col items-start">
-              <div className="flex items-baseline justify-between gap-2 mb-1 w-full">
+            <div className="flex-1 min-w-0 flex flex-col items-start relative">
+              <div className="flex items-baseline justify-between gap-2 mb-1 w-full relative">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={`font-medium text-[14px] ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>
                     {comment.commenter_name}
@@ -577,15 +517,47 @@ const InlineCommentThread = ({
                   </span>
                 )}
               </div>
-              <div className={`mt-1 py-2.5 px-4 rounded-[16px] rounded-tl-[4px] text-[14px] leading-relaxed relative max-w-[90%] inline-block ${comment.is_resolved ? (isDarkMode ? "bg-[#3c4043]/50 text-[#9aa0a6]" : "bg-white border border-[#e8eaed] text-[#5f6368] opacity-75") : (isDarkMode ? "bg-[#3c4043] text-[#e8eaed]" : "bg-white shadow-sm border border-[#e8eaed] text-[#202124]")}`}>
-                {comment.comment_text.replace(/^\[TO:[^\]]+\]\s*/, "")}
-              </div>
+              
+              {editingCommentId === comment.id ? (
+                <div className="w-full mt-1.5 mb-2 relative">
+                  <textarea
+                    autoFocus
+                    value={editCommentText}
+                    onChange={(e) => {
+                      setEditCommentText(e.target.value);
+                      e.target.style.height = 'auto';
+                      e.target.style.height = e.target.scrollHeight + 'px';
+                    }}
+                    className={`w-full min-h-[60px] p-3 text-[14px] leading-relaxed rounded-xl border focus:outline-none focus:ring-1 resize-none ${isDarkMode ? "bg-[#282a2d] border-[#5f6368] text-[#e8eaed] focus:border-blue-400 focus:ring-blue-400" : "bg-white border-blue-300 shadow-sm text-slate-800 focus:border-blue-500 focus:ring-blue-500"}`}
+                  />
+                  <div className="flex justify-end gap-2 mt-2">
+                    <button onClick={() => setEditingCommentId(null)} className={`px-3 py-1.5 rounded-lg text-[12px] font-bold uppercase tracking-wide transition-colors ${isDarkMode ? "text-slate-400 hover:text-slate-200 hover:bg-[#3c4043]" : "text-slate-500 hover:text-slate-700 hover:bg-slate-100"}`}>Cancel</button>
+                    <button onClick={() => submitEdit(comment.id, originalTag)} className={`px-3 py-1.5 rounded-lg text-[12px] font-bold uppercase tracking-wide transition-colors ${isDarkMode ? "bg-blue-600/90 text-white hover:bg-blue-500" : "bg-blue-500 text-white hover:bg-blue-600 shadow-sm"}`}>Save Changes</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="relative group/bubble max-w-full">
+                  <div className={`mt-1 py-2.5 px-4 rounded-[16px] rounded-tl-[4px] text-[14px] leading-relaxed inline-block max-w-full break-words ${comment.is_resolved ? (isDarkMode ? "bg-[#3c4043]/50 text-[#9aa0a6]" : "bg-white border border-[#e8eaed] text-[#5f6368] opacity-75") : (isDarkMode ? "bg-[#3c4043] text-[#e8eaed]" : "bg-white shadow-sm border border-[#e8eaed] text-[#202124]")}`}>
+                    {displayStr}
+                  </div>
+                  {isOwnComment && (
+                    <div className="absolute top-1 -right-16 opacity-0 group-hover/bubble:opacity-100 transition-opacity duration-200 flex gap-1">
+                      <button onClick={(e) => { e.stopPropagation(); setEditCommentText(displayStr); setEditingCommentId(comment.id); }} className={`p-1.5 rounded-full hover:scale-110 active:scale-95 transition-all ${isDarkMode ? "text-slate-400 hover:text-blue-400 bg-[#303134]" : "text-slate-400 hover:text-blue-600 bg-white shadow-sm border border-slate-100"}`} title="Edit Comment">
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); deleteComment(comment.id); }} className={`p-1.5 rounded-full hover:scale-110 active:scale-95 transition-all ${isDarkMode ? "text-slate-400 hover:text-rose-400 bg-[#303134]" : "text-slate-400 hover:text-rose-500 bg-white shadow-sm border border-slate-100"}`} title="Delete Comment">
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
-        ))}
+        )})}
       </div>
 
-      <div className={`p-4 border-t ${isDarkMode ? "border-[#3c4043] bg-[#2d2f31]" : "border-[#e8eaed] bg-white"}`}>
+      <div className="pt-2 pb-4 px-2 bg-transparent">
         <form onSubmit={handleReplySubmit} className="relative flex items-end gap-3">
           <textarea
             disabled={isSubmitting}
@@ -632,37 +604,60 @@ const InlineCommentThread = ({
   );
 };
 
+let documentsGlobalCache = null;
+let documentsGlobalReqId = null;
+let documentsGlobalRefreshKey = null;
+
 const UploadedDocumentsList = ({ requestId, studentId, isDarkMode, refreshKey }) => {
-  const [documents, setDocuments] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [documents, setDocuments] = useState(() => {
+    if (documentsGlobalReqId === requestId && documentsGlobalRefreshKey === refreshKey && documentsGlobalCache) return documentsGlobalCache;
+    return null;
+  });
+  const [loading, setLoading] = useState(() => {
+    return !(documentsGlobalReqId === requestId && documentsGlobalRefreshKey === refreshKey && documentsGlobalCache);
+  });
 
   const loadingTimerRef = useRef(null);
 
-  const fetchDocuments = useCallback(async () => {
+  const fetchDocuments = useCallback(async (forced = false) => {
     if (!requestId) return;
     
-    // Only show skeleton if the request takes more than 150ms
-    loadingTimerRef.current = setTimeout(() => setLoading(true), 150);
+    const hasCache = documentsGlobalReqId === requestId && documentsGlobalRefreshKey === refreshKey && documentsGlobalCache && !forced;
+    if (!hasCache) {
+      if (!loadingTimerRef.current) {
+        // Only show skeleton if the request takes more than 150ms
+        loadingTimerRef.current = setTimeout(() => setLoading(true), 150);
+      }
+    } else {
+      setLoading(false);
+    }
     
     try {
       const response = await authAxios.get(`/documents/request/${requestId}`);
       if (response.data.success) {
-        setDocuments(response.data.documents || []);
+        const docs = response.data.documents || [];
+        documentsGlobalCache = docs;
+        documentsGlobalReqId = requestId;
+        documentsGlobalRefreshKey = refreshKey;
+        setDocuments(docs);
       }
     } catch (error) {
       console.error("Error fetching documents:", error);
     } finally {
-      if (loadingTimerRef.current) clearTimeout(loadingTimerRef.current);
+      if (loadingTimerRef.current) {
+        clearTimeout(loadingTimerRef.current);
+        loadingTimerRef.current = null;
+      }
       setLoading(false);
     }
-  }, [requestId]);
+  }, [requestId, refreshKey]);
 
   useEffect(() => {
-    fetchDocuments();
-  }, [fetchDocuments, refreshKey]);
+    fetchDocuments(true);
+  }, [refreshKey, fetchDocuments]);
 
   // Live updates when documents are added/removed
-  useRealtimeSubscription("request_documents", fetchDocuments, {
+  useRealtimeSubscription("request_documents", () => fetchDocuments(true), {
     filter: `request_id=eq.${requestId}`,
     enabled: !!requestId,
   });
@@ -674,7 +669,7 @@ const UploadedDocumentsList = ({ requestId, studentId, isDarkMode, refreshKey })
         toast.success("Document deleted");
         
         // Let postgres_changes handle cross-client sync
-        fetchDocuments();
+        fetchDocuments(true);
       }
     } catch {
       toast.error("Failed to delete document");
@@ -689,10 +684,10 @@ const UploadedDocumentsList = ({ requestId, studentId, isDarkMode, refreshKey })
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
   };
 
-  if (loading && documents.length === 0) {
+  if (loading && documents === null) {
     return (
-      <div className={`mt-4 rounded-2xl border transition-all duration-300 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043]" : "bg-white border-[#dadce0] shadow-[0_1px_2px_0_rgba(60,64,67,0.1)]"}`}>
-        <div className={`px-5 py-4 border-b flex items-center justify-between ${isDarkMode ? "border-[#3c4043] bg-[#2d2f31]" : "border-[#e8eaed] bg-slate-50/50"}`}>
+      <div className={`mt-0 pt-2 transition-all duration-300`}>
+        <div className={`px-2 py-2 mb-3 flex items-center justify-between`}>
           <div className="flex items-center gap-2">
             <div className={`w-[18px] h-[18px] rounded-full animate-pulse ${isDarkMode ? "bg-[#5f6368]" : "bg-blue-200"}`} />
             <h4 className={`h-4 w-32 rounded animate-pulse ${isDarkMode ? "bg-[#5f6368]" : "bg-gray-200"}`} />
@@ -716,78 +711,144 @@ const UploadedDocumentsList = ({ requestId, studentId, isDarkMode, refreshKey })
     );
   }
 
-  if (!loading && documents.length === 0) {
+  // Prevent flash of "No documents" while initially loading
+  if (documents === null) {
+    return null;
+  }
+
+  if (documents.length === 0) {
     return (
-      <div className={`mt-4 rounded-2xl border transition-all duration-300 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043]" : "bg-white border-[#dadce0] shadow-[0_1px_2px_0_rgba(60,64,67,0.1)]"}`}>
-        <div className={`px-5 py-4 border-b flex items-center justify-between ${isDarkMode ? "border-[#3c4043] bg-[#2d2f31]" : "border-[#e8eaed] bg-slate-50/50"}`}>
-          <div className="flex items-center gap-2">
-            <DocumentIcon className={`w-[18px] h-[18px] ${isDarkMode ? "text-primary-400" : "text-primary-600"}`} />
-            <h4 className={`text-[14px] font-medium tracking-tight ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>
+      <div className={`mt-2 pt-2 transition-all duration-300`}>
+        <div className={`px-2 py-3 mb-4 flex items-center justify-between border-b ${isDarkMode ? "border-[#3c4043]" : "border-slate-100"}`}>
+          <div className="flex items-center gap-2.5">
+            <div className={`p-1.5 rounded-lg ${isDarkMode ? "bg-blue-900/30 text-blue-400" : "bg-blue-50 text-blue-600"}`}>
+               <DocumentIcon className="w-4 h-4" />
+            </div>
+            <h4 className={`text-[15px] font-bold tracking-tight ${isDarkMode ? "text-[#e8eaed]" : "text-slate-800"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>
               Uploaded Documents
             </h4>
           </div>
+          <span className={`text-[12px] font-bold px-3 py-1 rounded-full border shadow-sm ${isDarkMode ? "bg-slate-800 text-slate-400 border-[#3c4043]" : "bg-slate-50 text-slate-500 border-slate-200 shadow-[0_1px_2px_rgba(0,0,0,0.05)]"}`}>
+            0 Files
+          </span>
         </div>
-        <div className={`p-6 flex flex-col items-center justify-center ${isDarkMode ? "bg-[#202124]" : "bg-[#f8fafd]"}`}>
-          <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 ${isDarkMode ? "bg-[#3c4043]" : "bg-white shadow-sm border border-[#e8eaed]"}`}>
-            <svg className={`w-6 h-6 ${isDarkMode ? "text-[#5f6368]" : "text-gray-400"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        <div className={`mx-2 mb-4 mt-2 px-6 py-8 rounded-2xl flex flex-col items-center justify-center border-2 border-dashed transition-all duration-300 ${isDarkMode ? "border-[#3c4043] bg-[#282a2d]/50 hover:bg-[#282a2d] hover:border-[#5f6368]" : "border-slate-200 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-300"}`}>
+          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 shadow-sm ${isDarkMode ? "bg-[#3c4043] text-slate-400" : "bg-white text-slate-400 border border-slate-100"}`}>
+            <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
           </div>
-          <p className={`text-[14px] font-medium ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>No Documents</p>
-          <p className={`text-[12px] mt-1 ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>No supporting documents uploaded yet.</p>
+          <p className={`text-[14px] font-bold mb-1 ${isDarkMode ? "text-[#e8eaed]" : "text-slate-700"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>No Documents Yet</p>
+          <p className={`text-[13px] text-center max-w-[250px] leading-relaxed ${isDarkMode ? "text-[#9aa0a6]" : "text-slate-500"}`}>Upload the required files to complete this stage of your clearance.</p>
         </div>
       </div>
     );
   }
   return (
-    <div className={`mt-4 rounded-2xl border transition-all duration-300 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043]" : "bg-white border-[#dadce0] shadow-[0_1px_2px_0_rgba(60,64,67,0.1)]"}`}>
-      <div className={`px-5 py-4 border-b flex items-center justify-between ${isDarkMode ? "border-[#3c4043] bg-[#2d2f31]" : "border-[#e8eaed] bg-slate-50/50"}`}>
-        <div className="flex items-center gap-2">
-          <DocumentIcon className={`w-[18px] h-[18px] ${isDarkMode ? "text-primary-400" : "text-primary-600"}`} />
-          <h4 className={`text-[14px] font-medium tracking-tight ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>
+    <div className={`mt-2 pt-2 transition-all duration-300`}>
+      <div className={`px-2 py-3 mb-4 flex items-center justify-between border-b ${isDarkMode ? "border-[#3c4043]" : "border-slate-100"}`}>
+        <div className="flex items-center gap-2.5">
+          <div className={`p-1.5 rounded-lg ${isDarkMode ? "bg-blue-900/30 text-blue-400" : "bg-blue-50 text-blue-600"}`}>
+             <DocumentIcon className="w-4 h-4" />
+          </div>
+          <h4 className={`text-[15px] font-bold tracking-tight ${isDarkMode ? "text-[#e8eaed]" : "text-slate-800"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>
             Uploaded Documents
           </h4>
         </div>
-        <span className={`text-[12px] font-medium px-2.5 py-0.5 rounded-full ${isDarkMode ? "bg-[#8ab4f8] text-[#202124]" : "bg-[#1a73e8] text-white"}`}>
-          {documents.length}
+        <span className={`text-[12px] font-bold px-3 py-1 rounded-full border shadow-sm ${isDarkMode ? "bg-blue-900/40 text-blue-300 border-blue-800/50" : "bg-white text-blue-700 border-blue-100 shadow-[0_2px_4px_rgba(59,130,246,0.1)]"}`}>
+          {documents.length} File{documents.length !== 1 ? 's' : ''}
         </span>
       </div>
-      <div className={`p-4 space-y-2 ${isDarkMode ? "bg-[#202124]" : "bg-[#f8fafd]"}`}>
-        {documents.map((doc) => (
+      <div className="px-2 pb-4 space-y-3 bg-transparent">
+        {documents.map((doc) => {
+          const isDocType = (doc.file_type?.includes("word") || doc.file_name?.endsWith(".docx") || doc.file_name?.endsWith(".doc"));
+          const isPdfType = doc.file_type?.includes("pdf");
+          const isExcelType = doc.file_type?.includes("excel") || doc.file_type?.includes("spreadsheet") || doc.file_name?.endsWith(".xls") || doc.file_name?.endsWith(".xlsx");
+          const isImage = doc.file_type?.includes("image");
+          
+          let fileTypeVerbose = "Document";
+          if (isDocType) fileTypeVerbose = "Microsoft Word";
+          else if (isPdfType) fileTypeVerbose = "PDF Document";
+          else if (isExcelType) fileTypeVerbose = "Microsoft Excel";
+          else if (isImage) fileTypeVerbose = "Image";
+          
+          return (
           <div
             key={doc.id}
-            className={`flex items-center justify-between p-3 rounded-xl border transition-all group ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] hover:border-[#8ab4f8]/40" : "bg-white border-[#e8eaed] hover:border-[#1a73e8]/40 hover:shadow-sm"}`}
+            className={`group flex items-stretch p-0 rounded-[16px] border transition-all duration-300 ease-out relative overflow-hidden z-10 ${
+              isDarkMode 
+                ? "bg-[#202124] border-[#3c4043] hover:border-blue-500/50 hover:shadow-[0_4px_12px_rgba(0,0,0,0.3)]" 
+                : "bg-white border-slate-200 shadow-sm hover:border-blue-400 hover:shadow-[0_8px_20px_-6px_rgba(59,130,246,0.2)]"
+            }`}
           >
+            {/* Left side: Information */}
             <div
-              className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
+              className={`flex flex-col justify-center min-w-0 flex-1 p-4 sm:p-5 cursor-pointer`}
               onClick={() => {
                 if (doc.file_url) window.open(doc.file_url, "_blank", "noopener,noreferrer");
               }}
-              title="Click to preview"
+              title="Click to open"
             >
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isDarkMode ? "bg-[#3c4043]" : "bg-blue-50"}`}>
-                {doc.file_type?.includes("image") ? (
-                  <svg className={`w-5 h-5 ${isDarkMode ? "text-[#8ab4f8]" : "text-blue-600"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                ) : (
-                  <svg className={`w-5 h-5 ${isDarkMode ? "text-[#8ab4f8]" : "text-blue-600"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className={`text-[13px] font-medium truncate ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}>
-                  {doc.file_name}
+              <p 
+                className={`text-[16px] sm:text-[18px] font-semibold truncate transition-colors duration-200 underline-offset-[3px] decoration-2 group-hover:underline ${
+                  isDarkMode 
+                    ? "text-[#e8eaed] decoration-[#e8eaed]/30" 
+                    : "text-[#202124] decoration-[#202124]/30"
+                }`}
+                style={{ fontFamily: "Google Sans, sans-serif" }}
+              >
+                {doc.file_name}
+              </p>
+              
+              <div className="mt-1 flex items-center gap-2">
+                <p className={`text-[13px] sm:text-[14px] font-medium ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>
+                  {fileTypeVerbose}
                 </p>
-                <p className={`text-[11px] flex items-center gap-1.5 ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>
-                  <span>{getFileSize(doc.file_size)}</span>
-                  <span>&bull;</span>
-                  <span>{new Date(doc.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                <span className={`text-[11px] leading-none ${isDarkMode ? "text-[#5f6368]" : "text-slate-300"}`}>•</span>
+                <p className={`text-[12px] font-medium ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}>
+                  {getFileSize(doc.file_size)}
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-1 flex-shrink-0">
+            
+            {/* Right side: Preview Thumbnail */}
+            <div 
+              className={`w-[110px] sm:w-[130px] flex-shrink-0 relative overflow-hidden border-l transition-colors duration-300 ${
+                isDarkMode 
+                  ? "border-[#3c4043] bg-[#282a2d]" 
+                  : "border-slate-200 bg-slate-50"
+              }`}
+            >
+              <div 
+                className="absolute inset-0 cursor-pointer pointer-events-auto"
+                onClick={() => {
+                  if (doc.file_url) window.open(doc.file_url, "_blank", "noopener,noreferrer");
+                }}
+              >
+                {isImage && doc.file_url ? (
+                  <img src={doc.file_url} alt={doc.file_name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-[400ms] group-hover:scale-110" />
+                ) : (
+                  <div className={`absolute inset-0 w-full h-full flex flex-col p-2.5 sm:p-3 opacity-70 transition-opacity duration-300 group-hover:opacity-100 ${isDarkMode ? "bg-[#3c4043]/50" : "bg-white"}`}>
+                    <div className={`w-full h-2 mb-2 rounded-sm ${isDarkMode ? "bg-[#5f6368]" : "bg-slate-200"}`}></div>
+                    <div className={`w-3/4 h-2 mb-3 rounded-sm ${isDarkMode ? "bg-[#5f6368]" : "bg-slate-200"}`}></div>
+                    
+                    <div className="flex gap-2 mb-2">
+                       <div className={`w-1/3 h-8 rounded border ${isDarkMode ? "bg-[#3c4043] border-[#5f6368]" : "bg-slate-50 border-slate-100"}`}></div>
+                       <div className={`flex-1 h-8 rounded border ${isDarkMode ? "bg-[#3c4043] border-[#5f6368]" : "bg-slate-50 border-slate-100"}`}></div>
+                    </div>
+                    
+                    <div className={`w-full h-1.5 mb-1.5 rounded-sm ${isDarkMode ? "bg-[#5f6368]/70" : "bg-slate-100"}`}></div>
+                    <div className={`w-full h-1.5 mb-1.5 rounded-sm ${isDarkMode ? "bg-[#5f6368]/70" : "bg-slate-100"}`}></div>
+                    <div className={`w-5/6 h-1.5 mb-1.5 rounded-sm ${isDarkMode ? "bg-[#5f6368]/70" : "bg-slate-100"}`}></div>
+                    <div className={`w-4/6 h-1.5 rounded-sm ${isDarkMode ? "bg-[#5f6368]/70" : "bg-slate-100"}`}></div>
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors duration-300 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Overlay Action Buttons */}
+            <div className={`absolute right-[110px] sm:right-[130px] top-1/2 -translate-y-1/2 -translate-x-4 opacity-0 group-hover:opacity-100 group-hover:-translate-x-2 transition-all duration-300 flex items-center gap-2 pointer-events-none group-hover:pointer-events-auto`}>
               <button
                 onClick={async (e) => {
                   e.stopPropagation();
@@ -807,27 +868,38 @@ const UploadedDocumentsList = ({ requestId, studentId, isDarkMode, refreshKey })
                     window.open(doc.file_url, "_blank", "noopener,noreferrer");
                   }
                 }}
-                className={`p-2 rounded-lg transition-colors ${isDarkMode ? "text-[#9aa0a6] hover:bg-[#3c4043] hover:text-[#8ab4f8]" : "text-gray-400 hover:bg-blue-50 hover:text-blue-600"}`}
+                className={`p-2.5 rounded-full shadow-lg transition-transform hover:scale-110 active:scale-95 ${
+                  isDarkMode 
+                    ? "bg-[#303134] text-[#8ab4f8] border border-[#5f6368] hover:bg-[#3c4043]" 
+                    : "bg-white text-blue-600 border border-slate-200 hover:bg-blue-50"
+                }`}
                 title="Download file"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
               </button>
               {doc.uploaded_by === studentId && (
                 <button
-                  onClick={() => handleDelete(doc.id)}
-                  className={`p-2 rounded-lg transition-colors ${isDarkMode ? "text-[#9aa0a6] hover:bg-[#5c1010]/30 hover:text-[#f28b82]" : "text-gray-400 hover:bg-red-50 hover:text-red-500"}`}
-                  title="Delete"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(doc.id);
+                  }}
+                  className={`p-2.5 rounded-full shadow-lg transition-transform hover:scale-110 active:scale-95 ${
+                    isDarkMode 
+                      ? "bg-[#303134] text-[#f28b82] border border-[#5f6368] hover:bg-[#5c1010]/30" 
+                      : "bg-white text-rose-500 border border-slate-200 hover:bg-rose-50"
+                  }`}
+                  title="Delete Document"
                 >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
                 </button>
               )}
             </div>
           </div>
-        ))}
+        )})}
       </div>
     </div>
   );
@@ -959,140 +1031,7 @@ const DocumentUploadModal = ({ target, requestId, studentId, onClose, onUploadSu
   );
 };
 
-const ProgressBar = ({ stages, isDarkMode }) => {
-  const approved = stages.filter((s) => s.status === "approved").length;
-  const total = stages.length;
-  const pct = total > 0 ? (approved / total) * 100 : 0;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className={`mb-10 w-full relative group transition-all duration-300`}
-    >
-      <div
-        className={`p-6 sm:p-7 rounded-[28px] border transition-all duration-300 ${isDarkMode ? "bg-[#202124]/90 backdrop-blur-md border-[#3c4043] shadow-[0_8px_30px_rgba(0,0,0,0.3)]" : "bg-white/90 backdrop-blur-md border-[#dadce0] shadow-[0_8px_30px_rgba(60,64,67,0.06)]"} overflow-hidden`}
-      >
-        {}
-        <div
-          className={`absolute -right-20 -top-20 w-64 h-64 rounded-full mix-blend-multiply filter blur-[80px] opacity-40 pointer-events-none transition-all duration-700 ${isDarkMode ? "bg-primary-900/40 group-hover:bg-primary-900/50" : "bg-primary-100/60 group-hover:bg-primary-100/80"}`}
-        />
-
-        <div className="relative z-10">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
-            <div className="flex items-center gap-4">
-              <div
-                className={`w-12 h-12 rounded-[18px] flex items-center justify-center flex-shrink-0 transition-transform duration-300 group-hover:scale-105 ${isDarkMode ? "bg-[#3c4043] text-primary-400" : "bg-primary-50 text-primary-600"}`}
-              >
-                <ChartBarIcon className="w-6 h-6" />
-              </div>
-              <div>
-                <h3
-                  className={`text-[22px] font-normal tracking-tight ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}
-                  style={{ fontFamily: "Google Sans, sans-serif" }}
-                >
-                  Overall Progress
-                </h3>
-                <p
-                  className={`text-[14px] mt-0.5 ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}
-                >
-                  You have completed{" "}
-                  <strong
-                    className={
-                      isDarkMode ? "text-primary-400" : "text-primary-600"
-                    }
-                  >
-                    {approved}
-                  </strong>{" "}
-                  of{" "}
-                  <strong
-                    className={isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}
-                  >
-                    {total}
-                  </strong>{" "}
-                  clearance stages
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-col items-start sm:items-end gap-1">
-              <span
-                className={`text-[32px] font-medium leading-none tracking-tighter ${pct === 100 ? (isDarkMode ? "text-primary-400" : "text-primary-600") : isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}
-                style={{ fontFamily: "Google Sans, sans-serif" }}
-              >
-                {Math.round(pct)}%
-              </span>
-              <span
-                className={`text-[12px] font-medium uppercase tracking-wider ${isDarkMode ? "text-[#5f6368]" : "text-[#9aa0a6]"}`}
-              >
-                {pct === 100 ? "Completed" : "Completion"}
-              </span>
-            </div>
-          </div>
-
-          <div className="relative pt-2 pb-1">
-            {}
-            <div
-              className={`h-3 w-full rounded-full overflow-hidden ${isDarkMode ? "bg-[#303134] shadow-inner" : "bg-[#f1f3f4] shadow-inner"}`}
-            >
-              {}
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${pct}%` }}
-                transition={{
-                  duration: 1.5,
-                  ease: [0.34, 1.56, 0.64, 1],
-                  delay: 0.1,
-                }}
-                className={`h-full rounded-full relative overflow-hidden transition-colors ${isDarkMode ? "bg-primary-400 shadow-[0_0_12px_rgba(74,222,128,0.4)]" : "bg-primary-500"}`}
-              >
-                {}
-                {pct > 0 && pct < 100 && (
-                  <motion.div
-                    animate={{ x: ["-100%", "200%"] }}
-                    transition={{
-                      repeat: Infinity,
-                      duration: 2.5,
-                      ease: "easeInOut",
-                    }}
-                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -skew-x-12"
-                  />
-                )}
-              </motion.div>
-            </div>
-
-            {}
-            {pct > 0 && (
-              <motion.div
-                initial={{ left: 0, opacity: 0 }}
-                animate={{ left: `${pct}%`, opacity: 1 }}
-                transition={{
-                  duration: 1.5,
-                  ease: [0.34, 1.56, 0.64, 1],
-                  delay: 0.1,
-                }}
-                className="absolute top-[2px] -translate-x-1/2 flex items-center justify-center z-10"
-              >
-                <div
-                  className={`w-6 h-6 rounded-full flex items-center justify-center transition-transform duration-300 group-hover:scale-110 shadow-md ${isDarkMode ? "bg-[#202124] border-[2.5px] border-primary-400" : "bg-white border-[2.5px] border-primary-500"}`}
-                >
-                  <div
-                    className={`w-2 h-2 rounded-full ${isDarkMode ? "bg-primary-400" : "bg-primary-500"}`}
-                  ></div>
-                </div>
-                {}
-                <div
-                  className={`absolute w-12 h-12 rounded-full blur-xl opacity-50 pointer-events-none ${isDarkMode ? "bg-primary-400" : "bg-primary-500"} -z-10`}
-                />
-              </motion.div>
-            )}
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  );
-};
+const ProgressBar = () => null;
 
 export default function StudentDashboardGraduation({
   studentId,
@@ -1134,6 +1073,7 @@ export default function StudentDashboardGraduation({
   const [documentTarget, setDocumentTarget] = useState(null);
   const [clearanceComments, setClearanceComments] = useState([]);
   const [requestHistoryLog, setRequestHistoryLog] = useState([]);
+  const [docRefreshTrigger, setDocRefreshTrigger] = useState(0);
 
   const fetchClearanceComments = useCallback(
     async (reqId) => {
@@ -1816,7 +1756,7 @@ export default function StudentDashboardGraduation({
       )}
 
       {activeView === "status" && (
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="w-full max-w-[1600px] mx-auto space-y-6">
           <div className="mb-2">
             <h2
               className={`text-[28px] font-normal tracking-tight ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}
@@ -1914,7 +1854,7 @@ export default function StudentDashboardGraduation({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ staggerChildren: 0.1 }}
-              className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl mx-auto"
+              className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-[1600px] mx-auto"
             >
               {}
               <motion.div
@@ -2054,15 +1994,9 @@ export default function StudentDashboardGraduation({
             <>
               <GlassCard
                 isDark={isDarkMode}
-                className={`p-7 sm:p-9 border-none shadow-[0_4px_12px_rgba(0,0,0,0.05),0_1px_3px_rgba(0,0,0,0.02)] rounded-[28px] relative overflow-hidden transition-all duration-300 ${isDarkMode ? "bg-[#202124]" : "bg-white"}`}
+                className={`p-5 sm:p-7 border ${isDarkMode ? "border-[#3c4043] bg-[#202124]" : "border-slate-200 bg-white"} shadow-sm rounded-[24px] relative overflow-hidden transition-all duration-300`}
               >
-                {}
-                <div
-                  className={`absolute top-0 right-0 w-64 h-64 rounded-full mix-blend-multiply filter blur-[80px] opacity-40 pointer-events-none ${isDarkMode ? "bg-primary-900/20" : "bg-primary-100/50"}`}
-                  style={{ transform: "translate(30%, -30%)" }}
-                />
-
-                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6 md:gap-8">
+                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5 md:gap-8">
                   {}
                   <div className="flex items-start md:items-center gap-5 sm:gap-6 flex-1">
                     {}
@@ -2154,10 +2088,10 @@ export default function StudentDashboardGraduation({
                     <button
                       onClick={handleCancel}
                       disabled={cancelling}
-                      className={`group flex items-center justify-center gap-2 w-full md:w-auto px-6 py-2.5 rounded-full font-bold transition-all duration-300 active:scale-[0.98] text-[13px] uppercase tracking-wide disabled:opacity-50 border-2 ${
+                      className={`group flex items-center justify-center gap-2 w-full md:w-auto px-6 py-2.5 rounded-full font-bold transition-all duration-200 active:scale-[0.98] text-[13px] uppercase tracking-wide disabled:opacity-50 ${
                         isDarkMode
-                          ? "bg-transparent text-[#f28b82] border-[#f28b82]/30 hover:bg-[#f28b82]/10 hover:border-[#f28b82]/50"
-                          : "bg-white text-[#ef4444] border-slate-200 hover:border-[#ef4444] hover:bg-red-50 hover:text-[#dc2626] shadow-sm hover:shadow-md"
+                          ? "bg-transparent text-rose-400 hover:bg-rose-500/10"
+                          : "bg-transparent text-rose-600 hover:bg-rose-50"
                       }`}
                     >
                       {cancelling ? (
@@ -2192,90 +2126,113 @@ export default function StudentDashboardGraduation({
                 </div>
               </GlassCard>
 
-              <GlassCard
-                isDark={isDarkMode}
-                className="p-7 sm:p-9 border-none shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] rounded-[28px]"
-              >
-                <div className="mb-8">
-                  <div className="flex items-center justify-between">
-                    <h3
-                      className={`text-[22px] font-medium tracking-tight mb-2 ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}
-                      style={{ fontFamily: "Google Sans, sans-serif" }}
-                    >
-                      Clearance Progress Tree
-                    </h3>
-                    {}
-                    <button
-                      onClick={handlePrintClearance}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all print:hidden ${
-                        isDarkMode
-                          ? "bg-[#3c4043] hover:bg-[#5f6368] text-[#e8eaed]"
-                          : "bg-[#f1f3f4] hover:bg-[#e8eaed] text-[#3c4043]"
-                      }`}
-                      title="Print clearance progress"
-                    >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
-                        />
-                      </svg>
-                      Print
-                    </button>
+              <div className="w-full">
+                {/* Top Bento Row */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-2">
+                  
+                  {/* Left: The Next Milestone Hero Card */}
+                  <div className={`col-span-1 lg:col-span-2 rounded-[32px] p-8 sm:p-10 flex flex-col justify-center relative overflow-hidden shadow-sm border ${isDarkMode ? "bg-[#0B3D2B] border-[#135A42] shadow-[0_8px_30px_-5px_rgba(0,0,0,0.4)]" : "bg-[#074F34] border-[#074F34]/90 shadow-[0_8px_30px_-5px_rgba(7,79,52,0.3)]"} text-white group`}>
+                    <div className="absolute right-0 top-0 w-96 h-96 bg-white opacity-5 mix-blend-overlay rounded-full blur-[100px] translate-x-1/3 -translate-y-1/3 transition-transform duration-1000 group-hover:scale-110 pointer-events-none" />
+                    
+                    <div className="relative z-10 w-full h-full flex flex-col justify-center">
+                       <span className={`inline-block w-max px-3 py-1.5 mb-6 text-[11px] font-bold tracking-[0.2em] uppercase rounded-full ${isDarkMode ? "bg-primary-500/20 text-primary-300 border border-primary-500/30" : "bg-white/10 text-emerald-100 border border-white/20"} backdrop-blur-md`}>
+                         Next Milestone
+                       </span>
+
+                       {(() => {
+                         const currentPending = stages.find(s => s.status === "pending" || s.status === "rejected");
+                         const isDone = stages.length > 0 && stages.every(s => s.status === 'approved');
+
+                         if (currentPending) {
+                            return (
+                              <>
+                                <h2 className="text-[32px] sm:text-[40px] font-bold leading-tight tracking-tight mb-4" style={{ fontFamily: "Google Sans, sans-serif" }}>
+                                  {currentPending.title}
+                                </h2>
+                                <p className="text-[15px] sm:text-[16px] text-emerald-50/90 max-w-xl leading-relaxed mb-8">
+                                  {currentPending.description || "Review the requirements, submit necessary documents, and address any feedback quickly to proceed."}
+                                </p>
+                                <div className="flex flex-wrap items-center gap-4 mt-auto">
+                                   {currentPending.status === "rejected" && handleRequestReevaluation && (
+                                     <button className="px-6 py-3 rounded-2xl bg-rose-500 hover:bg-rose-400 text-white font-bold transition-all shadow-lg active:scale-95" onClick={(e) => { e.stopPropagation(); handleRequestReevaluation(currentPending); }}>
+                                        Request Re-eval
+                                     </button>
+                                   )}
+                                   <button onClick={() => setExpandedStages(prev => ({ ...prev, [currentPending.key]: true }))} className={`px-6 py-3 rounded-2xl font-bold transition-all shadow-lg active:scale-95 flex items-center gap-2 ${isDarkMode ? "bg-white text-[#0B3D2B] hover:bg-emerald-50" : "bg-emerald-400 text-[#074F34] hover:bg-emerald-300"}`}>
+                                      Check Details
+                                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                                   </button>
+                                </div>
+                              </>
+                            );
+                         } else {
+                            return (
+                              <>
+                                <h2 className="text-[32px] sm:text-[40px] font-bold leading-tight tracking-tight mb-4" style={{ fontFamily: "Google Sans, sans-serif" }}>
+                                  {isDone ? "Clearance Complete" : "No Active Milestone"}
+                                </h2>
+                                <p className="text-[15px] sm:text-[16px] text-emerald-50/90 max-w-xl leading-relaxed mb-8">
+                                  {isDone ? "Congratulations! Your university clearance is fully processed and approved." : "All submitted requirements are currently under review."}
+                                </p>
+                              </>
+                            );
+                         }
+                       })()}
+                    </div>
                   </div>
-                  <p
-                    className={`text-[14px] leading-relaxed ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}
-                  >
-                    Track your graduation clearance step-by-step. Click any
-                    active stage to expand details and view specific
-                    requirements or signatory notes.
-                  </p>
-                  {}
-                  {clearanceStatus?.request?.deadline &&
-                    !clearanceStatus?.request?.is_completed &&
-                    (() => {
-                      const daysLeft = Math.ceil(
-                        (new Date(clearanceStatus.request.deadline) -
-                          new Date()) /
-                          (1000 * 60 * 60 * 24),
-                      );
-                      const isUrgent = daysLeft <= 7;
-                      const isOverdue = daysLeft < 0;
-                      return (
-                        <div
-                          className={`mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[12px] font-semibold ${
-                            isOverdue
-                              ? isDarkMode
-                                ? "bg-red-500/15 text-red-400"
-                                : "bg-red-50 text-red-700"
-                              : isUrgent
-                                ? isDarkMode
-                                  ? "bg-yellow-500/15 text-yellow-400"
-                                  : "bg-yellow-50 text-yellow-700"
-                                : isDarkMode
-                                  ? "bg-blue-500/10 text-blue-400"
-                                  : "bg-blue-50 text-blue-700"
-                          }`}
-                        >
-                          <ClockIcon className="w-3.5 h-3.5" />
-                          {isOverdue
-                            ? `Overdue by ${Math.abs(daysLeft)} days`
-                            : `${daysLeft} days remaining`}
-                        </div>
-                      );
+
+                  {/* Right: Progress Compact Card */}
+                  <div className={`col-span-1 rounded-[32px] p-8 flex flex-col relative overflow-hidden transition-colors border shadow-sm ${isDarkMode ? "bg-[#202124] border-[#3c4043]" : "bg-slate-50 border-slate-200"}`}>
+                    {(() => {
+                       const approved = stages.filter(s => s.status === 'approved').length;
+                       const total = stages.length;
+                       const pct = total > 0 ? (approved / total) * 100 : 0;
+                       
+                       return (
+                         <div className="w-full h-full flex flex-col justify-between gap-6 relative z-10">
+                           <div className="flex items-center gap-4">
+                              <div className={`w-[48px] h-[48px] rounded-[14px] flex items-center justify-center shadow-md border ${isDarkMode ? "bg-[#282a2d] text-primary-400 border-[#3c4043]" : "bg-white text-[#074F34] border-slate-100"}`}>
+                                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>
+                              </div>
+                              <h3 className={`text-[19px] font-bold ${isDarkMode ? "text-white" : "text-slate-800"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>Progress</h3>
+                           </div>
+                           
+                           <div className="flex flex-col flex-1 items-center justify-center -mt-4">
+                              <div className="relative flex items-end">
+                                <span className={`text-[86px] sm:text-[96px] font-black tracking-tighter leading-none ${pct === 100 ? (isDarkMode ? "text-emerald-400" : "text-emerald-600") : (isDarkMode ? "text-white" : "text-slate-800")}`} style={{ fontFamily: "Google Sans, sans-serif" }}>
+                                  {Math.round(pct)}
+                                </span>
+                                <span className={`text-[24px] font-bold pb-[18px] ml-1 ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}>%</span>
+                              </div>
+                              <span className={`text-[11px] font-bold tracking-[0.25em] uppercase mt-2 ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}>Completion Rate</span>
+                           </div>
+
+                           <div className="mt-auto">
+                             <div className="flex justify-between items-center text-[13px] font-bold mb-3">
+                               <span className={isDarkMode ? "text-slate-400" : "text-slate-500"}>{approved} Stages Cleared</span>
+                               <span className={isDarkMode ? "text-slate-500" : "text-slate-400"}>of {total}</span>
+                             </div>
+                             <div className={`h-3 w-full rounded-full overflow-hidden shadow-inner ${isDarkMode ? "bg-[#303134]" : "bg-slate-200"}`}>
+                               <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 1.2, delay: 0.2 }} className={`h-full rounded-full ${isDarkMode ? "bg-emerald-500" : "bg-[#074F34]"}`} />
+                             </div>
+                           </div>
+                         </div>
+                       );
                     })()}
+                  </div>
                 </div>
-                <div className="mb-6">
-                  <ProgressBar stages={stages} isDarkMode={isDarkMode} />
+
+                <div className="flex items-center justify-between mt-8 mb-4 px-2">
+                  <h3 className={`text-[23px] font-bold tracking-tight ${isDarkMode ? "text-white" : "text-slate-800"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>All Clearances</h3>
+                  <button onClick={handlePrintClearance} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[12px] font-bold tracking-wider uppercase transition-all shadow-sm print:hidden ${isDarkMode ? "bg-[#3c4043] hover:bg-[#5f6368] text-[#e8eaed]" : "bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 hover:border-slate-300"}`} title="Print clearance progress">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    Print Record
+                  </button>
                 </div>
-                <div className="mt-6 flex flex-col">
+                
+                <div className="flex flex-col gap-4">
                   {stages.map((stage, i) => (
                     <StageNode
                       key={stage.key}
@@ -2305,7 +2262,7 @@ export default function StudentDashboardGraduation({
                         requestId={activeReqId}
                         studentId={studentId}
                         isDarkMode={isDarkMode}
-                        refreshKey={clearanceStatus?.request?.updated_at}
+                        refreshKey={`${clearanceStatus?.request?.updated_at || ""}-${docRefreshTrigger}`}
                       />
                       <InlineCommentThread
                         stage={stage}
@@ -2318,7 +2275,7 @@ export default function StudentDashboardGraduation({
                     </StageNode>
                   ))}
                 </div>
-              </GlassCard>
+              </div>
 
               {/* Activity Timeline Section */}
               {requestHistoryLog && requestHistoryLog.length > 0 && (
@@ -2390,7 +2347,7 @@ export default function StudentDashboardGraduation({
       )}
 
       {activeView === "history" && (
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="w-full max-w-[1600px] mx-auto space-y-6">
           <div className="mb-2">
             <h2
               className={`text-[28px] font-normal tracking-tight ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}
@@ -2412,7 +2369,7 @@ export default function StudentDashboardGraduation({
       )}
 
       {activeView === "certificate" && (
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="w-full max-w-[1600px] mx-auto space-y-6">
           <div>
             <h2 className="text-3xl font-bold mb-1 text-gray-900">
               Graduation Certificate
@@ -2449,7 +2406,7 @@ export default function StudentDashboardGraduation({
       )}
 
       {activeView === "notifications" && (
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="w-full max-w-[1600px] mx-auto space-y-6">
           <div className="mb-2">
             <h2
               className={`text-[28px] font-normal tracking-tight ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}
@@ -2468,7 +2425,7 @@ export default function StudentDashboardGraduation({
       )}
 
       {activeView === "profile" && (
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="w-full max-w-[1600px] mx-auto space-y-6">
           <div className="mb-2">
             <h2
               className={`text-[28px] font-normal tracking-tight ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}
@@ -2654,6 +2611,7 @@ export default function StudentDashboardGraduation({
             onClose={() => setDocumentTarget(null)}
             onUploadSuccess={() => {
               fetchClearanceStatus(true);
+              setDocRefreshTrigger(prev => prev + 1);
             }}
             isDarkMode={isDarkMode}
           />
