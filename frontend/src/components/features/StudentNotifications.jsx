@@ -73,21 +73,32 @@ function timeAgo(dateStr) {
   });
 }
 
+const CACHE_TTL = 5 * 60 * 1000;
+let studentNotifsCache = { data: null, timestamp: 0 };
+
 export default function StudentNotifications({ isDarkMode = false }) {
-  const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [notifications, setNotifications] = useState(() => studentNotifsCache.data || []);
+  const [loading, setLoading] = useState(() => {
+    const isCacheValid = studentNotifsCache.data && Date.now() - studentNotifsCache.timestamp < CACHE_TTL;
+    return !isCacheValid;
+  });
   const [filter, setFilter] = useState("all");
   const [markingAll, setMarkingAll] = useState(false);
 
   const fetchNotifications = useCallback(async () => {
-    setLoading(true);
+    const isCacheValid = studentNotifsCache.data && Date.now() - studentNotifsCache.timestamp < CACHE_TTL;
+    if (!isCacheValid) setLoading(true);
+
     try {
       const { data } = await authAxios.get("/notifications");
-      if (data.success) setNotifications(data.notifications || []);
+      if (data.success) {
+        studentNotifsCache = { data: data.notifications || [], timestamp: Date.now() };
+        setNotifications(data.notifications || []);
+      }
     } catch {
 
     } finally {
-      setLoading(false);
+      if (!isCacheValid) setLoading(false);
     }
   }, []);
 

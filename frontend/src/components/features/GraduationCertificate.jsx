@@ -2,18 +2,27 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useTheme } from "../../contexts/ThemeContext";
 import { authAxios } from "../../services/api";
 
+const CACHE_TTL = 5 * 60 * 1000;
+let globalCertificateCache = { data: null, timestamp: 0 };
+
 export default function GraduationCertificate({
   requestId,
   studentId,
   studentInfo,
 }) {
-  const [certificateData, setCertificateData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [certificateData, setCertificateData] = useState(() => globalCertificateCache.data || null);
+  const [loading, setLoading] = useState(() => {
+    const isCacheValid = globalCertificateCache.data && Date.now() - globalCertificateCache.timestamp < CACHE_TTL;
+    return !isCacheValid;
+  });
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState("");
   const { isDarkMode } = useTheme();
   const certRef = useRef(null);
 
   const fetchCertificateData = useCallback(async () => {
+    const isCacheValid = globalCertificateCache.data && Date.now() - globalCertificateCache.timestamp < CACHE_TTL;
+    if (!isCacheValid) setLoading(true);
+
     try {
       const response = await authAxios.get(`graduation/status/${studentId}`);
       if (response.data.success && response.data.request) {
@@ -23,12 +32,14 @@ export default function GraduationCertificate({
           req.student_number || studentInfo?.student_number || "N/A";
         req.course_year = req.course_year || studentInfo?.course_year || "N/A";
         req.professorApprovals = response.data.professorApprovals || [];
+
+        globalCertificateCache = { data: req, timestamp: Date.now() };
         setCertificateData(req);
       }
     } catch (error) {
       console.error("Error fetching certificate data:", error);
     } finally {
-      setLoading(false);
+      if (!isCacheValid) setLoading(false);
     }
   }, [studentId, studentInfo]);
 

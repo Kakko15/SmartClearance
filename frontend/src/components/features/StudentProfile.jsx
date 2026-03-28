@@ -25,26 +25,37 @@ const FIELD_ICONS = {
   course_year: AcademicCapIcon,
 };
 
+const CACHE_TTL = 5 * 60 * 1000;
+let profileEditsCache = { data: null, timestamp: 0 };
+
 export default function StudentProfile({
   studentInfo,
   user,
   isDarkMode = false,
 }) {
-  const [editRequests, setEditRequests] = useState([]);
-  const [loadingEdits, setLoadingEdits] = useState(true);
+  const [editRequests, setEditRequests] = useState(() => profileEditsCache.data || []);
+  const [loadingEdits, setLoadingEdits] = useState(() => {
+    const isCacheValid = profileEditsCache.data && Date.now() - profileEditsCache.timestamp < CACHE_TTL;
+    return !isCacheValid;
+  });
   const [editingField, setEditingField] = useState(null);
   const [editValue, setEditValue] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const fetchEditRequests = useCallback(async () => {
-    setLoadingEdits(true);
+    const isCacheValid = profileEditsCache.data && Date.now() - profileEditsCache.timestamp < CACHE_TTL;
+    if (!isCacheValid) setLoadingEdits(true);
+
     try {
-      const { data } = await authAxios.get("/profiles/edit-requests");
-      if (data.success) setEditRequests(data.requests || []);
+      const { data } = await authAxios.get("/profile/edit-requests");
+      if (data.success) {
+        profileEditsCache = { data: data.requests || [], timestamp: Date.now() };
+        setEditRequests(data.requests || []);
+      }
     } catch {
 
     } finally {
-      setLoadingEdits(false);
+      if (!isCacheValid) setLoadingEdits(false);
     }
   }, []);
 
@@ -56,7 +67,7 @@ export default function StudentProfile({
     if (!editingField || !editValue.trim()) return;
     setSubmitting(true);
     try {
-      const { data } = await authAxios.post("/profiles/request-edit", {
+      const { data } = await authAxios.post("/profile/request-edit", {
         field_name: editingField,
         new_value: editValue.trim(),
       });

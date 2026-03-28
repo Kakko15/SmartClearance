@@ -17,22 +17,33 @@ const STATUS_FILTERS = [
   { id: "on_hold", label: "On Hold" },
 ];
 
+const CACHE_TTL = 5 * 60 * 1000;
+let reqHistoryCache = { data: null, timestamp: 0 };
+
 export default function StudentRequestHistory({
   studentId,
   isDarkMode = false,
 }) {
-  const [requests, setRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [requests, setRequests] = useState(() => reqHistoryCache.data || []);
+  const [loading, setLoading] = useState(() => {
+    const isCacheValid = reqHistoryCache.data && Date.now() - reqHistoryCache.timestamp < CACHE_TTL;
+    return !isCacheValid;
+  });
   const [filter, setFilter] = useState("all");
 
   const fetchRequests = useCallback(async () => {
-    setLoading(true);
+    const isCacheValid = reqHistoryCache.data && Date.now() - reqHistoryCache.timestamp < CACHE_TTL;
+    if (!isCacheValid) setLoading(true);
+
     try {
       const { data } = await authAxios.get(`requests/student/${studentId}`);
-      if (data.success) setRequests(data.requests || []);
+      if (data.success) {
+        reqHistoryCache = { data: data.requests || [], timestamp: Date.now() };
+        setRequests(data.requests || []);
+      }
     } catch {
     } finally {
-      setLoading(false);
+      if (!isCacheValid) setLoading(false);
     }
   }, [studentId]);
 

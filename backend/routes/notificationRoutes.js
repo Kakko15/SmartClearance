@@ -164,18 +164,33 @@ router.get("/pending-count", requireAuth, async (req, res) => {
 
 router.get("/", requireAuth, async (req, res) => {
   try {
-    const { data, error } = await supabase
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = (page - 1) * limit;
+
+    const { count: unreadCount, error: countError } = await supabase
       .from("notifications")
-      .select("*")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", req.user.id)
+      .is("read_at", null);
+
+    if (countError) throw countError;
+
+    const { data, count, error } = await supabase
+      .from("notifications")
+      .select("*", { count: "exact" })
       .eq("user_id", req.user.id)
       .order("created_at", { ascending: false })
-      .limit(50);
+      .range(offset, offset + limit - 1);
 
     if (error) throw error;
 
-    const unreadCount = (data || []).filter((n) => !n.read_at).length;
-
-    res.json({ success: true, notifications: data || [], unreadCount });
+    res.json({ 
+      success: true, 
+      notifications: data || [], 
+      unreadCount: unreadCount || 0,
+      hasMore: count > offset + limit
+    });
   } catch (error) {
     safeErrorResponse(res, error);
   }

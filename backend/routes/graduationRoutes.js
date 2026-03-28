@@ -585,12 +585,12 @@ router.get(
       try {
         const { data: commentData } = await supabase
           .from("clearance_comments")
-          .select("id, is_resolved")
+          .select("id, is_resolved, commenter_role")
           .eq("clearance_request_id", request.request_id || request.id);
 
         totalCommentCount = (commentData || []).length;
         unresolvedCommentCount = (commentData || []).filter(
-          (c) => !c.is_resolved,
+          (c) => !c.is_resolved && c.commenter_role !== "student",
         ).length;
       } catch (commentErr) {
         console.warn("Could not fetch comment counts:", commentErr.message);

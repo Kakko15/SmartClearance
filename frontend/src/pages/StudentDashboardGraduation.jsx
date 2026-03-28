@@ -1340,6 +1340,14 @@ const DocumentUploadModal = ({ target, requestId, studentId, onClose, onUploadSu
   const [file, setFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   const handleFileChange = (e) => {
     const selected = e.target.files[0];
     if (!selected) return;

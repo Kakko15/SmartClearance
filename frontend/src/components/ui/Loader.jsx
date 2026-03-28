@@ -2,6 +2,16 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useMemo } from "react";
 import logo from "../../assets/logo.png";
 
+const PARTICLES = Array.from({ length: 30 }, (_, i) => ({
+  id: i,
+  x: Math.random() * 100,
+  y: Math.random() * 100,
+  size: Math.random() * 3 + 1,
+  duration: Math.random() * 20 + 10,
+  delay: Math.random() * 5,
+  animX: Math.random() * 50 - 25,
+}));
+
 const Loader = () => {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState(0);
@@ -38,19 +48,7 @@ const Loader = () => {
     return () => clearInterval(stepInterval);
   }, []);
 
-  const particles = useMemo(
-    () =>
-      Array.from({ length: 30 }, (_, i) => ({
-        id: i,
-        x: Math.random() * 100,
-        y: Math.random() * 100,
-        size: Math.random() * 3 + 1,
-        duration: Math.random() * 20 + 10,
-        delay: Math.random() * 5,
-        animX: Math.random() * 50 - 25,
-      })),
-    [],
-  );
+  const particles = PARTICLES;
 
   const rings = [
     { radius: 140, duration: 15, delay: 0, direction: 1 },

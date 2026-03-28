@@ -36,7 +36,10 @@ export default function DashboardLayout({
 
   useEffect(() => {
     if (profileDropdownOpen) {
-      setThemePrefState(localStorage.getItem("theme") || "system");
+      const id = requestAnimationFrame(() => {
+        setThemePrefState(localStorage.getItem("theme") || "system");
+      });
+      return () => cancelAnimationFrame(id);
     }
   }, [profileDropdownOpen, isDarkMode]);
 
