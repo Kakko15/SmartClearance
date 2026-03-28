@@ -1652,7 +1652,6 @@ export default function StudentDashboardGraduation({
   const handleCancel = () => setShowCancelModal(true);
 
   const confirmCancel = async () => {
-    setShowCancelModal(false);
     setCancelling(true);
     try {
       const response = await authAxios.delete(
@@ -1660,12 +1659,17 @@ export default function StudentDashboardGraduation({
       );
       if (response.data.success) {
         toast.success("Request cancelled successfully");
-
+        setShowCancelModal(false);
+        
+        setLoading(true);
         setClearanceStatus({ success: true, hasRequest: false });
         setClearanceComments([]);
+        
+        setTimeout(() => setLoading(false), 150);
       }
     } catch (error) {
       toast.error(error.response?.data?.error || "Failed to cancel clearance");
+      setShowCancelModal(false);
     } finally {
       setCancelling(false);
     }
