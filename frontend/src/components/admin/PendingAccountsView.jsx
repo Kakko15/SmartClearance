@@ -4,9 +4,28 @@ import toast from "react-hot-toast";
 import { authAxios } from "../../services/api";
 import useRealtimeSubscription from "../../hooks/useRealtimeSubscription";
 
+let pendingAccountsCache = null;
+let pendingAccountsTime = 0;
+
 export default function PendingAccountsView({ adminId, isDark = false }) {
-  const [pendingAccounts, setPendingAccounts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [pendingAccounts, setPendingAccounts] = useState(() => {
+    if (pendingAccountsCache && Date.now() - pendingAccountsTime < 300000) return pendingAccountsCache;
+    return [];
+  });
+  const [loading, setLoading] = useState(() => {
+    return !(pendingAccountsCache && Date.now() - pendingAccountsTime < 300000);
+  });
+  const [showSkeleton, setShowSkeleton] = useState(false);
+
+  useEffect(() => {
+    let timer;
+    if (loading && pendingAccounts.length === 0) {
+      timer = setTimeout(() => setShowSkeleton(true), 150);
+    } else {
+      setShowSkeleton(false);
+    }
+    return () => clearTimeout(timer);
+  }, [loading, pendingAccounts.length]);
   const [actionLoading, setActionLoading] = useState(null);
   const [rejectReason, setRejectReason] = useState("");
   const [selectedAccount, setSelectedAccount] = useState(null);
@@ -24,6 +43,8 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
 
       if (response.data.success) {
         setPendingAccounts(response.data.accounts);
+        pendingAccountsCache = response.data.accounts;
+        pendingAccountsTime = Date.now();
       }
     } catch (error) {
       console.error("Error fetching pending accounts:", error);
@@ -34,7 +55,8 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
   }, []);
 
   useEffect(() => {
-    fetchPendingAccounts();
+    const hasCache = pendingAccountsCache && Date.now() - pendingAccountsTime < 300000;
+    fetchPendingAccounts(hasCache);
   }, [fetchPendingAccounts]);
 
   useRealtimeSubscription("profiles", () => fetchPendingAccounts(true));
@@ -169,7 +191,7 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
   };
 
   const renderSkeleton = () => (
-    <div className="space-y-6 animate-pulse">
+    <div className="space-y-6 animate-[pulse_1s_ease-in-out_infinite]">
       <div className="flex items-center justify-between">
         <div
           className={`h-8 w-64 rounded-lg ${isDark ? "bg-[#3c4043]" : "bg-gray-200"}`}
@@ -209,52 +231,24 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
   );
 
   if (loading) {
-    return renderSkeleton();
+    return showSkeleton ? renderSkeleton() : null;
   }
 
-  if (pendingAccounts.length === 0) {
-    return (
-      <div
-        className={`text-center py-12 rounded-2xl ${isDark ? "bg-slate-800/50" : "bg-gray-50"}`}
-      >
-        <div
-          className={`w-20 h-20 rounded-full ${isDark ? "bg-green-500/20" : "bg-green-100"} flex items-center justify-center mx-auto mb-4`}
-        >
-          <svg
-            className={`w-10 h-10 ${isDark ? "text-green-400" : "text-green-600"}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-        </div>
-        <h3
-          className={`text-xl font-bold mb-2 ${isDark ? "text-white" : "text-gray-900"}`}
-        >
-          All Caught Up!
-        </h3>
-        <p className={isDark ? "text-gray-400" : "text-gray-600"}>
-          No pending account verifications at the moment.
-        </p>
-      </div>
-    );
-  }
+
 
   return (
     <div className="space-y-6">
-      {}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2
-          className={`text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}
-        >
-          Pending Account Verifications
-        </h2>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2
+            className={`text-3xl font-bold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}
+          >
+            Pending Account Verifications
+          </h2>
+          <p className={isDark ? "text-slate-400" : "text-slate-500"}>
+            Review and approve new user registrations
+          </p>
+        </div>
         <div className="flex items-center gap-3">
           <span
             className={`px-4 py-2 rounded-full font-semibold ${isDark ? "bg-yellow-500/20 text-yellow-400" : "bg-yellow-100 text-yellow-800"}`}
@@ -364,8 +358,46 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
         )}
       </AnimatePresence>
 
-      {}
-      <div className="grid gap-6">
+      {pendingAccounts.length === 0 ? (
+        <div
+          className={`p-12 text-center rounded-2xl border shadow-sm ${
+            isDark
+              ? "bg-[#282a2d] border-[#3c4043]"
+              : "bg-white border-gray-200"
+          }`}
+        >
+          <div
+            className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${
+              isDark ? "bg-slate-800" : "bg-slate-100"
+            }`}
+          >
+            <svg
+              className={`w-8 h-8 ${isDark ? "text-slate-500" : "text-slate-400"}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+          </div>
+          <h3
+            className={`text-lg font-bold mb-1 ${
+              isDark ? "text-white" : "text-gray-900"
+            }`}
+          >
+            All caught up
+          </h3>
+          <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+            No pending account verifications at the moment
+          </p>
+        </div>
+      ) : (
+        <div className="grid gap-6">
         <AnimatePresence mode="popLayout">
           {pendingAccounts.map((account) => (
             <motion.div
@@ -618,7 +650,8 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
             </motion.div>
           ))}
         </AnimatePresence>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

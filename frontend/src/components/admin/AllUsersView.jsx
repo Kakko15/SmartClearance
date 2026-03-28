@@ -99,9 +99,28 @@ const CustomSelect = ({ value, onChange, options, isDark }) => {
   );
 };
 
+let allUsersCache = null;
+let allUsersTime = 0;
+
 export default function AllUsersView({ adminId, isDark = false }) {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState(() => {
+    if (allUsersCache && Date.now() - allUsersTime < 300000) return allUsersCache;
+    return [];
+  });
+  const [loading, setLoading] = useState(() => {
+    return !(allUsersCache && Date.now() - allUsersTime < 300000);
+  });
+  const [showSkeleton, setShowSkeleton] = useState(false);
+
+  useEffect(() => {
+    let timer;
+    if (loading && users.length === 0) {
+      timer = setTimeout(() => setShowSkeleton(true), 150);
+    } else {
+      setShowSkeleton(false);
+    }
+    return () => clearTimeout(timer);
+  }, [loading, users.length]);
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -119,6 +138,8 @@ export default function AllUsersView({ adminId, isDark = false }) {
       const response = await authAxios.get("/admin/all-users");
       if (response.data.success) {
         setUsers(response.data.users);
+        allUsersCache = response.data.users;
+        allUsersTime = Date.now();
       }
     } catch (error) {
       console.error("Error fetching all users:", error);
@@ -129,7 +150,8 @@ export default function AllUsersView({ adminId, isDark = false }) {
   }, []);
 
   useEffect(() => {
-    fetchUsers();
+    const hasCache = allUsersCache && Date.now() - allUsersTime < 300000;
+    fetchUsers(hasCache);
   }, [fetchUsers]);
 
   useRealtimeSubscription("profiles", () => fetchUsers(true));
@@ -147,8 +169,18 @@ export default function AllUsersView({ adminId, isDark = false }) {
       if (roleFilter === "students" && user.role !== "student") return false;
       if (roleFilter === "staff" && user.role === "student") return false;
 
-      if (statusFilter !== "all" && user.verification_status !== statusFilter)
-        return false;
+      if (statusFilter !== "all") {
+        if (statusFilter === "pending_review") {
+          if (
+            user.verification_status !== "pending_review" &&
+            user.verification_status !== "pending"
+          ) {
+            return false;
+          }
+        } else if (user.verification_status !== statusFilter) {
+          return false;
+        }
+      }
 
       return true;
     });
@@ -211,6 +243,7 @@ export default function AllUsersView({ adminId, isDark = false }) {
       {
         approved: "bg-green-500/10 text-green-500 border-green-500/20",
         pending_review: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
+        pending: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
         auto_approved:
           "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
         rejected: "bg-red-500/10 text-red-500 border-red-500/20",
@@ -228,7 +261,7 @@ export default function AllUsersView({ adminId, isDark = false }) {
   };
 
   const renderSkeleton = () => (
-    <div className="space-y-6 max-w-7xl mx-auto animate-pulse">
+    <div className="space-y-6 max-w-7xl mx-auto animate-[pulse_1s_ease-in-out_infinite]">
       {}
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div className="space-y-2">
@@ -296,7 +329,7 @@ export default function AllUsersView({ adminId, isDark = false }) {
   );
 
   if (loading) {
-    return renderSkeleton();
+    return showSkeleton ? renderSkeleton() : null;
   }
 
   return (
@@ -443,19 +476,19 @@ export default function AllUsersView({ adminId, isDark = false }) {
       </div>
 
       <div
-        className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#282a2d] border-[#3c4043]" : "bg-white border-gray-200 shadow-sm"}`}
+        className={`flex flex-col min-h-[760px] rounded-2xl border overflow-hidden ${isDark ? "bg-[#282a2d] border-[#3c4043]" : "bg-white border-gray-200 shadow-sm"}`}
       >
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+        <div className="overflow-x-auto flex-1">
+          <table className="w-full text-left border-collapse table-fixed min-w-[800px]">
             <thead>
               <tr
                 className={`text-xs uppercase tracking-wider font-semibold border-b ${isDark ? "text-slate-400 border-[#3c4043] bg-white/[0.02]" : "text-gray-500 border-gray-200 bg-gray-50"}`}
               >
-                <th className="px-6 py-4">User</th>
-                <th className="px-6 py-4">Role</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Course / details</th>
-                <th className="px-6 py-4">Joined</th>
+                <th className="px-6 py-4 w-[28%]">User</th>
+                <th className="px-6 py-4 w-[14%]">Role</th>
+                <th className="px-6 py-4 w-[18%]">Status</th>
+                <th className="px-6 py-4 w-[26%]">Course / details</th>
+                <th className="px-6 py-4 w-[14%] whitespace-nowrap">Joined</th>
               </tr>
             </thead>
             <tbody
@@ -557,10 +590,9 @@ export default function AllUsersView({ adminId, isDark = false }) {
           </table>
         </div>
 
-        {}
-        {totalPages > 1 && (
+        {filteredUsers.length > 0 && (
           <div
-            className={`px-6 py-4 border-t flex flex-col sm:flex-row items-center justify-between gap-4 ${isDark ? "border-[#3c4043] bg-white/[0.02]" : "border-gray-200 bg-gray-50"}`}
+            className={`px-6 py-4 border-t flex flex-col sm:flex-row items-center justify-between gap-4 mt-auto ${isDark ? "border-[#3c4043] bg-white/[0.02]" : "border-gray-200 bg-gray-50"}`}
           >
             <p
               className={`text-sm ${isDark ? "text-slate-400" : "text-gray-500"}`}

@@ -87,7 +87,11 @@ export default function SuperAdminDashboard({
   const [statsLoading, setStatsLoading] = useState(true);
   const [adminName, setAdminName] = useState("Super Admin");
   const [pendingEdits, setPendingEdits] = useState([]);
+  const [editsError, setEditsError] = useState(null);
+  const [analyticsError, setAnalyticsError] = useState(null);
   const [editActionLoading, setEditActionLoading] = useState(null);
+  const [rejectingEditId, setRejectingEditId] = useState(null);
+  const [rejectComment, setRejectComment] = useState("");
 
   const adminInfo = {
     name: adminName,
@@ -148,15 +152,29 @@ export default function SuperAdminDashboard({
         const { data: analyticsData } = await authAxios.get(
           "analytics/dashboard",
         );
-        if (analyticsData.success) setAnalytics(analyticsData.analytics);
-      } catch {}
+        if (analyticsData.success) {
+          setAnalytics(analyticsData.analytics);
+          setAnalyticsError(null);
+        } else {
+          setAnalyticsError("Server returned failure format");
+        }
+      } catch {
+        setAnalyticsError("Failed to fetch analytics");
+      }
 
       try {
         const { data: editsData } = await authAxios.get(
           "profile/pending-edits",
         );
-        if (editsData.success) setPendingEdits(editsData.requests || []);
-      } catch {}
+        if (editsData.success) {
+          setPendingEdits(editsData.requests || []);
+          setEditsError(null);
+        } else {
+          setEditsError("Server returned failure format");
+        }
+      } catch {
+        setEditsError("Failed to fetch pending profile edits");
+      }
     } catch (err) {
       console.error("Failed to load dashboard stats:", err);
     } finally {
@@ -483,12 +501,62 @@ export default function SuperAdminDashboard({
               >
                 Analytics
               </h2>
-              <p className={isDarkMode ? "text-slate-400" : "text-slate-500"}>
-                Clearance system performance and insights
-              </p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-1">
+                <p className={isDarkMode ? "text-slate-400" : "text-slate-500"}>
+                  Clearance system performance and insights
+                </p>
+                {analytics && (
+                  <button
+                    onClick={() => {
+                      const csvContent =
+                        "data:text/csv;charset=utf-8," +
+                        "Stage,Pending Count\n" +
+                        analytics.bottlenecks
+                          .map((b) => `${b.stage},${b.count}`)
+                          .join("\n");
+                      const encodedUri = encodeURI(csvContent);
+                      const link = document.createElement("a");
+                      link.setAttribute("href", encodedUri);
+                      link.setAttribute("download", "bottleneck_report.csv");
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    }}
+                    className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all flex border shadow-sm ${
+                      isDarkMode
+                        ? "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white"
+                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    ↓ Export CSV Report
+                  </button>
+                )}
+              </div>
             </div>
 
-            {analytics ? (
+            {analyticsError ? (
+              <GlassCard className="p-12 text-center" isDark={isDarkMode}>
+                <div className="w-16 h-16 rounded-full bg-rose-500/10 flex items-center justify-center mx-auto mb-4">
+                  <XMarkIcon className="w-8 h-8 text-rose-500" />
+                </div>
+                <h3
+                  className={`text-lg font-bold mb-1 ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                >
+                  Failed to load analytics
+                </h3>
+                <p
+                  className={`text-sm ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
+                >
+                  {analyticsError}
+                </p>
+                <button
+                  onClick={loadDashboardStats}
+                  className="mt-4 px-4 py-2 bg-indigo-500 text-white rounded-lg text-sm font-medium hover:bg-indigo-600"
+                >
+                  Retry Connection
+                </button>
+              </GlassCard>
+            ) : analytics ? (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                   <MetricPill
@@ -624,7 +692,29 @@ export default function SuperAdminDashboard({
               </p>
             </div>
 
-            {pendingEdits.length === 0 ? (
+            {editsError ? (
+              <GlassCard className="p-12 text-center" isDark={isDarkMode}>
+                <div className="w-16 h-16 rounded-full bg-rose-500/10 flex items-center justify-center mx-auto mb-4">
+                  <XMarkIcon className="w-8 h-8 text-rose-500" />
+                </div>
+                <h3
+                  className={`text-lg font-bold mb-1 ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                >
+                  Failed to sync edit requests
+                </h3>
+                <p
+                  className={`text-sm ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
+                >
+                  {editsError}
+                </p>
+                <button
+                  onClick={loadDashboardStats}
+                  className="mt-4 px-4 py-2 bg-indigo-500 text-white rounded-lg text-sm font-medium hover:bg-indigo-600"
+                >
+                  Retry Connection
+                </button>
+              </GlassCard>
+            ) : pendingEdits.length === 0 ? (
               <GlassCard className="p-12 text-center" isDark={isDarkMode}>
                 <div
                   className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${isDarkMode ? "bg-slate-800" : "bg-slate-100"}`}
@@ -725,7 +815,7 @@ export default function SuperAdminDashboard({
                         </motion.button>
                         <motion.button
                           whileTap={{ scale: 0.95 }}
-                          onClick={() => handleReviewEdit(edit.id, "rejected")}
+                          onClick={() => setRejectingEditId(edit.id)}
                           disabled={editActionLoading === edit.id}
                           className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl border text-[13px] font-semibold transition-colors disabled:opacity-50 ${
                             isDarkMode
@@ -737,6 +827,55 @@ export default function SuperAdminDashboard({
                         </motion.button>
                       </div>
                     </div>
+                    
+                    <AnimatePresence>
+                      {rejectingEditId === edit.id && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className={`mt-4 pt-4 border-t space-y-3 overflow-hidden ${isDarkMode ? "border-slate-700" : "border-slate-200"}`}
+                        >
+                          <textarea
+                            value={rejectComment}
+                            onChange={(e) => setRejectComment(e.target.value)}
+                            placeholder="Enter rejection reason..."
+                            className={`w-full p-3 rounded-xl border ${
+                              isDarkMode
+                                ? "bg-slate-900 border-slate-700 text-white"
+                                : "bg-white border-gray-200 text-gray-900"
+                            } focus:outline-none focus:border-rose-500`}
+                            rows={2}
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                handleReviewEdit(edit.id, "rejected", rejectComment);
+                                setRejectingEditId(null);
+                                setRejectComment("");
+                              }}
+                              disabled={!rejectComment.trim() || editActionLoading === edit.id}
+                              className="flex-1 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50"
+                            >
+                              Confirm Rejection
+                            </button>
+                            <button
+                              onClick={() => {
+                                setRejectingEditId(null);
+                                setRejectComment("");
+                              }}
+                              className={`flex-1 py-2 rounded-xl text-sm font-semibold ${
+                                isDarkMode
+                                  ? "bg-slate-700 hover:bg-slate-600 text-white"
+                                  : "bg-gray-200 hover:bg-gray-300 text-gray-800"
+                              }`}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </GlassCard>
                 ))}
               </div>

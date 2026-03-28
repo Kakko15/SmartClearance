@@ -1,16 +1,41 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../lib/supabase";
+import CustomSelect from "../ui/CustomSelect";
+
+let requestHistoryCache = {};
 
 export default function RequestHistory({
   studentId,
   isAdmin = false,
   isDark = false,
 }) {
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = `${studentId}-${isAdmin}`;
+
+  const [history, setHistory] = useState(() => {
+    const cached = requestHistoryCache[cacheKey];
+    if (cached && Date.now() - cached.timestamp < 300000) return cached.data;
+    return [];
+  });
+  const [loading, setLoading] = useState(() => {
+    const cached = requestHistoryCache[cacheKey];
+    return !(cached && Date.now() - cached.timestamp < 300000);
+  });
+  const [showSkeleton, setShowSkeleton] = useState(false);
+
+  useEffect(() => {
+    let timer;
+    if (loading && history.length === 0) {
+      timer = setTimeout(() => setShowSkeleton(true), 150);
+    } else {
+      setShowSkeleton(false);
+    }
+    return () => clearTimeout(timer);
+  }, [loading, history.length]);
+
   const [filter, setFilter] = useState("all");
 
-  const fetchHistory = useCallback(async () => {
+  const fetchHistory = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       let query = supabase
         .from("request_history")
@@ -51,26 +76,30 @@ export default function RequestHistory({
         }));
 
         if (!isAdmin && studentId) {
-          setHistory(
-            enrichedHistory.filter((h) => h.request?.student_id === studentId),
-          );
+          const filtered = enrichedHistory.filter((h) => h.request?.student_id === studentId);
+          setHistory(filtered);
+          requestHistoryCache[cacheKey] = { data: filtered, timestamp: Date.now() };
         } else {
           setHistory(enrichedHistory);
+          requestHistoryCache[cacheKey] = { data: enrichedHistory, timestamp: Date.now() };
         }
       } else {
         setHistory([]);
+        requestHistoryCache[cacheKey] = { data: [], timestamp: Date.now() };
       }
     } catch (error) {
       console.error("Error fetching history:", error);
-      setHistory([]);
+      if (!silent) setHistory([]);
     } finally {
       setLoading(false);
     }
-  }, [filter, studentId, isAdmin]);
+  }, [filter, studentId, isAdmin, cacheKey]);
 
   useEffect(() => {
-    fetchHistory();
-  }, [fetchHistory]);
+    const cached = requestHistoryCache[cacheKey];
+    const hasCache = cached && Date.now() - cached.timestamp < 300000;
+    fetchHistory(hasCache);
+  }, [fetchHistory, cacheKey]);
 
   const formatAdminRole = (role) => {
     if (!role) return "Admin";
@@ -208,11 +237,12 @@ export default function RequestHistory({
   };
 
   if (loading) {
+    if (!showSkeleton) return null;
     return (
       <div
         className={`rounded-2xl p-6 ${isDark ? "bg-white/[0.02] border border-white/[0.05]" : "card"}`}
       >
-        <div className="animate-pulse">
+        <div className="animate-[pulse_1s_ease-in-out_infinite]">
           <div
             className={`h-6 rounded w-1/4 mb-4 ${isDark ? "bg-white/10" : "bg-gray-200"}`}
           ></div>
@@ -255,39 +285,57 @@ export default function RequestHistory({
           </h2>
         </div>
 
-        <select
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className={`px-3 py-1.5 rounded-lg text-sm outline-none transition-colors ${
-            isDark
-              ? "bg-slate-800 border border-slate-700 text-white focus:border-indigo-500"
-              : "border border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          }`}
-        >
-          <option value="all">All Status</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-          <option value="completed">Completed</option>
-        </select>
+        <div className="w-44 z-50 relative">
+          <CustomSelect
+            value={filter}
+            onChange={setFilter}
+            isDark={isDark}
+            options={[
+              { value: "all", label: "All Status" },
+              { value: "approved", label: "Approved" },
+              { value: "rejected", label: "Rejected" },
+              { value: "completed", label: "Completed" },
+            ]}
+          />
+        </div>
       </div>
 
       {history.length === 0 ? (
-        <div className="text-center py-12">
-          <svg
-            className={`w-16 h-16 mx-auto mb-4 ${isDark ? "text-slate-600" : "text-gray-300"}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+        <div
+          className={`p-12 text-center rounded-2xl border shadow-sm ${
+            isDark
+              ? "bg-[#282a2d] border-[#3c4043]"
+              : "bg-white border-gray-200"
+          }`}
+        >
+          <div
+            className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${
+              isDark ? "bg-slate-800" : "bg-slate-100"
+            }`}
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-          <p className={isDark ? "text-slate-500" : "text-gray-500"}>
-            No history found
+            <svg
+              className={`w-8 h-8 ${isDark ? "text-slate-500" : "text-slate-400"}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          </div>
+          <h3
+            className={`text-lg font-bold mb-1 ${
+              isDark ? "text-white" : "text-gray-900"
+            }`}
+          >
+            No records
+          </h3>
+          <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+            No clearance history found
           </p>
         </div>
       ) : (

@@ -2810,11 +2810,20 @@ export default function StudentDashboardGraduation({
 
       {activeView === "certificate" && (
         <div className="w-full max-w-[1600px] mx-auto space-y-6">
-          <div>
-            <h2 className="text-3xl font-bold mb-1 text-gray-900">
+          <div className="mb-2">
+            <h2
+              className={`text-[28px] font-normal tracking-tight ${
+                isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"
+              }`}
+              style={{ fontFamily: "Google Sans, sans-serif" }}
+            >
               Graduation Certificate
             </h2>
-            <p className="text-gray-500">
+            <p
+              className={`text-sm mt-1 ${
+                isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"
+              }`}
+            >
               Download or print your graduation clearance certificate
             </p>
           </div>
@@ -2825,18 +2834,32 @@ export default function StudentDashboardGraduation({
               studentInfo={studentInfo}
             />
           ) : (
-            <GlassCard className="p-12 text-center">
+            <GlassCard className="p-12 text-center" isDark={isDarkMode}>
               <motion.div
                 initial={{ scale: 0.8 }}
                 animate={{ scale: 1 }}
-                className="w-20 h-20 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-5"
+                className={`w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-5 ${
+                  isDarkMode ? "bg-slate-800" : "bg-gray-50"
+                }`}
               >
-                <DocumentCheckIcon className="w-10 h-10 text-gray-400" />
+                <DocumentCheckIcon
+                  className={`w-10 h-10 ${
+                    isDarkMode ? "text-slate-500" : "text-gray-400"
+                  }`}
+                />
               </motion.div>
-              <h3 className="text-xl font-bold mb-2 text-gray-900">
+              <h3
+                className={`text-xl font-bold mb-2 ${
+                  isDarkMode ? "text-white" : "text-gray-900"
+                }`}
+              >
                 Certificate Not Yet Available
               </h3>
-              <p className="max-w-md mx-auto text-gray-500">
+              <p
+                className={`max-w-md mx-auto ${
+                  isDarkMode ? "text-slate-400" : "text-gray-500"
+                }`}
+              >
                 Your certificate will be generated once the Registrar approves
                 your clearance.
               </p>

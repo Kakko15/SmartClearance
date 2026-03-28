@@ -22,12 +22,35 @@ const ROLE_COLORS = {
   registrar: "bg-violet-500/20 text-violet-300 border-violet-500/30",
 };
 
+let secretCodesCache = null;
+let secretCodesTime = 0;
+
 export default function SecretCodesManager({ isDark = true }) {
-  const [codes, setCodes] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [codes, setCodes] = useState(() => {
+    if (secretCodesCache && Date.now() - secretCodesTime < 300000) return secretCodesCache;
+    return [];
+  });
+  const [loading, setLoading] = useState(() => {
+    return !(secretCodesCache && Date.now() - secretCodesTime < 300000);
+  });
+  const [showSkeleton, setShowSkeleton] = useState(false);
+
+  useEffect(() => {
+    let timer;
+    if (loading && codes.length === 0) {
+      timer = setTimeout(() => setShowSkeleton(true), 150);
+    } else {
+      setShowSkeleton(false);
+    }
+    return () => clearTimeout(timer);
+  }, [loading, codes.length]);
+
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
 
   const [newCode, setNewCode] = useState({
     role: "signatory",
@@ -36,20 +59,27 @@ export default function SecretCodesManager({ isDark = true }) {
     expiresAt: "",
   });
 
-  const loadCodes = async () => {
+  const loadCodes = async (silent = false) => {
     try {
+      if (!silent) setLoading(true);
       const res = await getSecretCodes();
-      if (res.success) setCodes(res.codes);
-      else toast.error(res.error || "Failed to load codes");
+      if (res.success) {
+        setCodes(res.codes);
+        secretCodesCache = res.codes;
+        secretCodesTime = Date.now();
+      } else {
+        if (!silent) toast.error(res.error || "Failed to load codes");
+      }
     } catch {
-      toast.error("Failed to connect to server");
+      if (!silent) toast.error("Failed to connect to server");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadCodes();
+    const hasCache = secretCodesCache && Date.now() - secretCodesTime < 300000;
+    loadCodes(hasCache);
   }, []);
 
   const handleCreate = async (e) => {
@@ -119,8 +149,12 @@ export default function SecretCodesManager({ isDark = true }) {
   const isExpired = (expiresAt) =>
     expiresAt && new Date(expiresAt) < new Date();
 
+  const totalPages = Math.ceil(codes.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedCodes = codes.slice(startIndex, startIndex + itemsPerPage);
+
   const renderSkeleton = () => (
-    <div className="space-y-6 animate-pulse">
+    <div className="space-y-6 animate-[pulse_1s_ease-in-out_infinite]">
       <div className="flex items-center justify-between">
         <div className="space-y-2">
           <div
@@ -170,7 +204,7 @@ export default function SecretCodesManager({ isDark = true }) {
   );
 
   if (loading) {
-    return renderSkeleton();
+    return showSkeleton ? renderSkeleton() : null;
   }
 
   return (
@@ -356,7 +390,7 @@ export default function SecretCodesManager({ isDark = true }) {
         </div>
       ) : (
         <div className="space-y-3">
-          {codes.map((code) => {
+          {paginatedCodes.map((code) => {
             const expired = isExpired(code.expires_at);
             const maxedOut = code.current_uses >= code.max_uses;
             const inactive = !code.is_active;
@@ -495,6 +529,90 @@ export default function SecretCodesManager({ isDark = true }) {
               </motion.div>
             );
           })}
+          
+          {codes.length > 0 && (
+            <div
+              className={`px-6 py-4 border-t flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 rounded-2xl border ${isDark ? "bg-[#282a2d] border-[#3c4043]" : "bg-white border-gray-200 shadow-sm"}`}
+            >
+              <p
+                className={`text-sm ${isDark ? "text-slate-400" : "text-gray-500"}`}
+              >
+                Showing <span className="font-medium">{startIndex + 1}</span> to{" "}
+                <span className="font-medium">
+                  {Math.min(startIndex + itemsPerPage, codes.length)}
+                </span>{" "}
+                of <span className="font-medium">{codes.length}</span>{" "}
+                results
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    isDark
+                      ? "bg-[#3c4043]/50 text-white hover:bg-[#3c4043] border border-[#3c4043]"
+                      : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200 shadow-sm"
+                  }`}
+                >
+                  Previous
+                </button>
+                <div className="hidden sm:flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                    (page) => {
+                      const isFirst = page === 1;
+                      const isLast = page === totalPages;
+                      const isWithinRange =
+                        page >= currentPage - 1 && page <= currentPage + 1;
+
+                      if (isFirst || isLast || isWithinRange) {
+                        return (
+                          <button
+                            key={page}
+                            onClick={() => setCurrentPage(page)}
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-medium transition-colors ${
+                              currentPage === page
+                                ? isDark
+                                  ? "bg-indigo-500 text-white"
+                                  : "bg-indigo-600 text-white"
+                                : isDark
+                                  ? "text-slate-400 hover:bg-[#3c4043]"
+                                  : "text-gray-600 hover:bg-gray-200"
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        );
+                      }
+                      if (page === currentPage - 2 || page === currentPage + 2) {
+                        return (
+                          <span
+                            key={page}
+                            className={`px-1 text-sm ${isDark ? "text-slate-500" : "text-gray-400"}`}
+                          >
+                            ...
+                          </span>
+                        );
+                      }
+                      return null;
+                    },
+                  )}
+                </div>
+                <button
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                  }
+                  disabled={currentPage === totalPages}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    isDark
+                      ? "bg-[#3c4043]/50 text-white hover:bg-[#3c4043] border border-[#3c4043]"
+                      : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200 shadow-sm"
+                  }`}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
