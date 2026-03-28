@@ -149,19 +149,78 @@ async function generateCertificate(requestId) {
         { align: "center" },
       );
 
+    let intentsList = request.clearance_intent
+      ? Array.isArray(request.clearance_intent)
+        ? [...request.clearance_intent]
+        : typeof request.clearance_intent === "string"
+        ? JSON.parse(request.clearance_intent)
+        : []
+      : [];
+
+    if (intentsList.includes("Others") && request.clearance_intent_others) {
+      intentsList = intentsList.map((i) =>
+        i === "Others" ? request.clearance_intent_others : i
+      );
+    }
+
+    let formattedIntents = "";
+    if (intentsList.length > 0) {
+      if (intentsList.length === 1) {
+        formattedIntents = intentsList[0];
+      } else if (intentsList.length === 2) {
+        formattedIntents = intentsList.join(" and ");
+      } else {
+        const last = intentsList.pop();
+        formattedIntents = `${intentsList.join(", ")}, and ${last}`;
+      }
+    }
+
+    const portionStr = request.portion
+      ? request.portion.charAt(0).toUpperCase() + request.portion.slice(1)
+      : "";
+
+    const primaryTitle = portionStr
+      ? `${safeDocTypeName} (${portionStr} Portion)`
+      : safeDocTypeName;
+
     doc
       .fontSize(18)
       .fillColor("#28a745")
       .font("Helvetica-Bold")
-      .text(safeDocTypeName, 0, 410, { align: "center" });
+      .text(primaryTitle, 0, 410, { align: "center" });
 
-    doc
-      .fontSize(12)
-      .fillColor("#666")
-      .font("Helvetica")
-      .text(`Issued on ${generatedDate}`, 0, 450, { align: "center" });
+    let boxY = 500;
 
-    const boxY = 500;
+    if (formattedIntents) {
+      doc
+        .fontSize(12)
+        .fillColor("#212529")
+        .font("Helvetica")
+        .text("for the purpose(s) of:", 0, 435, { align: "center" });
+
+      doc
+        .fontSize(14)
+        .fillColor("#28a745")
+        .font("Helvetica-Bold")
+        .text(escapeHtml(formattedIntents), 0, 455, { align: "center" });
+
+      doc
+        .fontSize(12)
+        .fillColor("#666")
+        .font("Helvetica")
+        .text(`Issued on ${generatedDate}`, 0, 485, { align: "center" });
+
+      boxY = 520;
+    } else {
+      doc
+        .fontSize(12)
+        .fillColor("#666")
+        .font("Helvetica")
+        .text(`Issued on ${generatedDate}`, 0, 450, { align: "center" });
+
+      boxY = 500;
+    }
+
     doc
       .rect(100, boxY, doc.page.width - 200, 80)
       .fillColor("#f8f9fa")
