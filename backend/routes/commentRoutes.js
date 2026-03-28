@@ -105,14 +105,20 @@ router.get("/request/:request_id", commentReadLimiter, requireAuth, async (req, 
 
     const { data: comments, error } = await supabase
       .from("clearance_comments")
-      .select("*")
+      .select("*, profiles:commenter_id(avatar_url)")
       .eq("clearance_request_id", request_id)
       .order("created_at", { ascending: true });
 
     if (error) throw error;
 
+    const formattedComments = (comments || []).map(c => ({
+      ...c,
+      avatar_url: c.profiles?.avatar_url || null,
+      profiles: undefined
+    }));
+
     const filteredComments = filterByVisibility(
-      comments || [],
+      formattedComments,
       userProfile.role,
     );
 

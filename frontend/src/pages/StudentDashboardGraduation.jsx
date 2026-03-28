@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import { getClearanceComments, authAxios } from "../services/api";
+import { getClearanceComments, createClearanceComment, updateClearanceComment, deleteClearanceComment, authAxios } from "../services/api";
 import { getStudentTheme } from "../constants/dashboardThemes";
 import useRealtimeSubscription from "../hooks/useRealtimeSubscription";
 import GraduationCertificate from "../components/features/GraduationCertificate";
@@ -34,6 +34,94 @@ import StudentRequestHistory from "../components/features/StudentRequestHistory"
 import StudentNotifications from "../components/features/StudentNotifications";
 import StudentProfile from "../components/features/StudentProfile";
 import ApplicationModal from "../components/features/ApplicationModal";
+import data from '@emoji-mart/data/sets/14/google.json';
+import Picker from '@emoji-mart/react';
+
+const applyRichTextFormat = (e, type) => {
+  e.preventDefault();
+  const form = e.target.closest('form, .richtext-container');
+  if (!form) return;
+  const textarea = form.querySelector('textarea');
+  if (!textarea) return;
+  
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const selectedText = textarea.value.substring(start, end);
+  
+  let newText = '';
+  let selLen = selectedText.length;
+  
+  if (type === 'clear' && !selLen) {
+    const freshText = textarea.value.replace(/[*_]/g, '').replace(/^- /gm, '');
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
+    nativeInputValueSetter.call(textarea, freshText);
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    setTimeout(() => { textarea.focus(); textarea.setSelectionRange(freshText.length, freshText.length); }, 0);
+    return;
+  }
+
+  switch (type) {
+    case 'bold': newText = `**${selectedText || 'bold'}**`; break;
+    case 'italic': newText = `*${selectedText || 'italic'}*`; break;
+    case 'underline': newText = `__${selectedText || 'underline'}__`; break;
+    case 'list': newText = `\n- ${selectedText || 'list item'}`; break;
+    case 'clear': newText = selectedText.replace(/[*_]/g, '').replace(/^- /gm, ''); break;
+  }
+  
+  const updatedText = textarea.value.substring(0, start) + newText + textarea.value.substring(end);
+  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
+  nativeInputValueSetter.call(textarea, updatedText);
+  textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  
+  setTimeout(() => {
+    textarea.focus();
+    if (!selLen && type !== 'clear') {
+       let selStart = start;
+       if (type === 'bold') selStart += 2;
+       if (type === 'italic') selStart += 1;
+       if (type === 'underline') selStart += 2;
+       if (type === 'list') selStart += 3;
+       textarea.setSelectionRange(selStart, selStart + (type === 'list' ? 9 : type === 'italic' ? 6 : type === 'bold' ? 4 : 9));
+    } else {
+       const newCursor = start + newText.length;
+       textarea.setSelectionRange(newCursor, newCursor);
+    }
+  }, 0);
+};
+
+const renderMarkdown = (text) => {
+  if (!text) return null;
+  const lines = text.split('\n');
+  return <div className="space-y-[2px]">{lines.map((line, i) => {
+    if (!line.trim()) return <div key={i} className="h-1"></div>;
+    const isList = line.trim().startsWith('- ');
+    let content = isList ? line.substring(line.indexOf('- ') + 2) : line;
+    
+    // Split by markdown tags
+    const parts = content.split(/(\*\*.*?\*\*|__.*?__|\*.*?\*)/g).map((part, j) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={j} className="font-bold">{part.slice(2, -2)}</strong>;
+      }
+      if (part.startsWith('__') && part.endsWith('__')) {
+        return <u key={j} style={{ textUnderlineOffset: '2px' }}>{part.slice(2, -2)}</u>;
+      }
+      if (part.startsWith('*') && part.endsWith('*')) {
+        return <em key={j} className="italic">{part.slice(1, -1)}</em>;
+      }
+      return part;
+    });
+
+    if (isList) {
+      return (
+        <div key={i} className="flex gap-2">
+          <span className="select-none font-bold mx-0.5">•</span>
+          <div>{parts}</div>
+        </div>
+      );
+    }
+    return <div key={i}>{parts}</div>;
+  })}</div>;
+};
 
 const UnresolvedBadge = ({ count = 0 }) => {
   if (count <= 0) return null;
@@ -41,9 +129,9 @@ const UnresolvedBadge = ({ count = 0 }) => {
     <motion.span
       initial={{ scale: 0, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
-      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold tracking-[0.05em] uppercase bg-[#fce8e6] text-[#c5221f] border border-transparent shadow-sm"
+      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold tracking-[0.05em] uppercase bg-slate-100 text-slate-600 border border-slate-200 shadow-sm transition-colors"
     >
-      {count === 1 ? "1 UNRESOLVED" : `${count} UNRESOLVED`}
+      {count === 1 ? "1 COMMENT" : `${count} COMMENTS`}
     </motion.span>
   );
 };
@@ -103,11 +191,11 @@ const StageNode = ({
       badgeBg: isDarkMode ? "bg-primary-500/20 text-primary-400" : "bg-primary-100 text-primary-700 font-bold",
     },
     locked: {
-      bg: isDarkMode ? "bg-[#202124]/50 border-[#3c4043]/50 opacity-80" : "bg-slate-50/70 border-[#e8eaed] opacity-80",
+      bg: isDarkMode ? "bg-transparent border-[#3c4043]/30" : "bg-transparent border-slate-200/60",
       icon: null,
-      iconBg: isDarkMode ? "bg-[#3c4043] text-gray-500" : "bg-slate-100 text-slate-400",
+      iconBg: isDarkMode ? "bg-[#282a2d] text-slate-500" : "bg-slate-100 text-slate-400",
       badge: "LOCKED",
-      badgeBg: isDarkMode ? "bg-transparent text-[#5f6368] border border-[#3c4043]" : "bg-white text-slate-400 border border-slate-200",
+      badgeBg: isDarkMode ? "bg-transparent text-[#5f6368] border border-[#3c4043]/50" : "bg-transparent text-slate-400 border border-slate-200",
     },
   };
 
@@ -120,27 +208,31 @@ const StageNode = ({
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.03, duration: 0.4 }}
-      className={`w-full rounded-[24px] overflow-hidden transition-all duration-300 transform-gpu ${config.bg} border ${!isLocked ? "cursor-pointer hover:shadow-md" : ""}`}
+      className={`w-full rounded-[24px] transition-all duration-300 transform-gpu ${config.bg} border ${!isLocked ? "cursor-pointer hover:shadow-md" : ""}`}
       onClick={!isLocked ? onToggle : undefined}
     >
       <div className="relative p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
-        <div className="flex items-center gap-5">
-          <motion.div
-            layout
-            className={`w-[48px] h-[48px] rounded-[16px] flex items-center justify-center flex-shrink-0 ${config.iconBg}`}
-          >
-            {stage.avatarUrl ? (
-              <img src={stage.avatarUrl} alt={stage.title} className="w-full h-full object-cover rounded-[16px]" />
-            ) : stage.title ? (
-              config.icon ? config.icon : <span className="text-xl font-bold">{stage.title.charAt(0)}</span>
-            ) : null}
-          </motion.div>
+        <div className="flex items-center gap-4 sm:gap-5">
+          <div className="relative flex-shrink-0">
+            <motion.div
+              layout
+              className={`w-[48px] h-[48px] sm:w-[52px] sm:h-[52px] rounded-full flex items-center justify-center overflow-hidden shadow-sm transition-all duration-300 ${!stage.avatarUrl ? (isLocked ? (isDarkMode ? "bg-[#282a2d] text-slate-500" : "bg-slate-100 text-slate-400") : "bg-[#4caf50] text-white") : (isLocked ? "opacity-50 grayscale transition-all" : "")}`}
+            >
+              {stage.avatarUrl ? (
+                <img src={stage.avatarUrl} alt={stage.title} className="w-full h-full object-cover rounded-full" />
+              ) : (
+                <span className={`text-[20px] sm:text-[22px] ${isLocked ? "font-medium" : "font-bold"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>
+                  {stage.title?.charAt(0).toUpperCase()}
+                </span>
+              )}
+            </motion.div>
+          </div>
           
           <div className="flex flex-col">
-            <h4 className={`text-[17px] sm:text-[19px] font-bold tracking-tight mb-0.5 ${isDarkMode ? "text-[#e8eaed]" : "text-slate-800"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>
+            <h4 className={`text-[17px] sm:text-[19px] tracking-tight mb-0.5 transition-all duration-300 ${isLocked ? "font-medium" : "font-bold"} ${isDarkMode ? (isLocked ? "text-slate-400" : "text-[#e8eaed]") : (isLocked ? "text-slate-400" : "text-[#202124]")}`} style={{ fontFamily: "Google Sans, sans-serif" }}>
               {stage.title}
             </h4>
-            <p className={`text-[13px] sm:text-[14px] leading-relaxed ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>
+            <p className={`text-[13px] sm:text-[14px] leading-relaxed transition-all duration-300 ${isDarkMode ? (isLocked ? "text-slate-500" : "text-slate-300") : (isLocked ? "text-slate-300" : "text-slate-500")}`}>
               {stage.description}
             </p>
           </div>
@@ -156,25 +248,37 @@ const StageNode = ({
           {(!isLocked) && (
             <div className="flex items-center gap-2">
               {stage.status === "rejected" && onRequestReevaluation && (
-                <button onClick={(e) => { e.stopPropagation(); onRequestReevaluation(stage); }} className={`px-3 py-1.5 rounded-xl text-[12px] font-bold transition-all shadow-sm ${isDarkMode ? "bg-rose-500/20 hover:bg-rose-500/30 text-rose-400" : "bg-rose-100 hover:bg-rose-200 text-rose-700"}`} title="Request re-evaluation">
+                <button onClick={(e) => { e.stopPropagation(); onRequestReevaluation(stage); }} className={`group/btn relative px-3 py-1.5 rounded-xl text-[12px] font-bold transition-all shadow-sm ${isDarkMode ? "bg-rose-500/20 hover:bg-rose-500/30 text-rose-400" : "bg-rose-100 hover:bg-rose-200 text-rose-700"}`}>
                   Evaluate
+                  <div className={`pointer-events-none absolute -top-9 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[12px] font-medium opacity-0 shadow-sm transition-opacity duration-0 group-hover/btn:duration-200 group-hover/btn:delay-300 group-hover/btn:opacity-100 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed]" : "bg-white border-slate-200 text-slate-800"}`}>
+                    Re-evaluate
+                  </div>
                 </button>
               )}
               
               {stage.status !== "locked" && !stage.hasChildren && onUploadDocument && (
-                <button onClick={(e) => { e.stopPropagation(); onUploadDocument(stage); }} className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all ${isDarkMode ? "bg-transparent hover:bg-blue-500/20 text-blue-400 border border-[#3c4043]" : "bg-white hover:bg-blue-50 text-blue-600 border border-slate-200"}`} title="Upload document">
+                <button onClick={(e) => { e.stopPropagation(); onUploadDocument(stage); }} className={`group/btn relative w-9 h-9 flex items-center justify-center rounded-xl transition-all ${isDarkMode ? "bg-transparent hover:bg-blue-500/20 text-blue-400 border border-[#3c4043]" : "bg-white hover:bg-blue-50 text-blue-600 border border-slate-200"}`}>
                   <ArrowUpTrayIcon className="w-4 h-4" />
+                  <div className={`pointer-events-none absolute -top-9 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[12px] font-medium opacity-0 shadow-sm transition-opacity duration-0 group-hover/btn:duration-200 group-hover/btn:delay-300 group-hover/btn:opacity-100 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed]" : "bg-white border-slate-200 text-slate-800"}`}>
+                    Upload File
+                  </div>
                 </button>
               )}
               
               {hasComments && !stage.hasChildren && (
-                <button onClick={(e) => { e.stopPropagation(); onViewComments(); }} className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all ${isDarkMode ? "bg-transparent hover:bg-orange-500/20 text-orange-400 border border-[#3c4043]" : "bg-white hover:bg-orange-50 text-orange-600 border border-slate-200"}`} title="View comments">
+                <button onClick={(e) => { e.stopPropagation(); onViewComments(); }} className={`group/btn relative w-9 h-9 flex items-center justify-center rounded-xl transition-all ${isDarkMode ? "bg-transparent hover:bg-orange-500/20 text-orange-400 border border-[#3c4043]" : "bg-white hover:bg-orange-50 text-orange-600 border border-slate-200"}`}>
                   <ChatBubbleIcon className="w-4 h-4" />
+                  <div className={`pointer-events-none absolute -top-9 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[12px] font-medium opacity-0 shadow-sm transition-opacity duration-0 group-hover/btn:duration-200 group-hover/btn:delay-300 group-hover/btn:opacity-100 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed]" : "bg-white border-slate-200 text-slate-800"}`}>
+                    Comments
+                  </div>
                 </button>
               )}
               
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-transform duration-300 ${isExpanded ? "rotate-180" : ""} ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>
-                <ChevronDownIcon className="w-5 h-5" />
+              <div className={`group/btn relative w-8 h-8 rounded-full flex items-center justify-center transition-transform duration-300 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>
+                <ChevronDownIcon className={`w-5 h-5 transition-transform duration-300 ${isExpanded ? "rotate-180" : ""}`} />
+                <div className={`pointer-events-none absolute -top-9 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[12px] font-medium opacity-0 shadow-sm transition-opacity duration-0 group-hover/btn:duration-200 group-hover/btn:delay-300 group-hover/btn:opacity-100 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed]" : "bg-white border-slate-200 text-slate-800"}`}>
+                  {isExpanded ? "Collapse" : "Expand"}
+                </div>
               </div>
             </div>
           )}
@@ -321,18 +425,45 @@ const ProfessorCard = ({
   );
 };
 
+const REACTION_TYPES = [
+  { id: "like", icon: "👍", name: "Like" },
+  { id: "love", icon: "❤️", name: "Love" },
+  { id: "care", icon: "🤗", name: "Care" },
+  { id: "haha", icon: "😂", name: "Haha" },
+  { id: "wow", icon: "😮", name: "Wow" },
+  { id: "sad", icon: "😢", name: "Sad" },
+  { id: "angry", icon: "😡", name: "Angry" },
+];
+
 const InlineCommentThread = ({
   stage,
   requestId,
   studentId,
   clearanceComments = [],
   onCommentAdded,
-  isDarkMode
+  isDarkMode,
+  user,
+  studentInfo
 }) => {
   const [replyText, setReplyText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editCommentText, setEditCommentText] = useState("");
+  const [showMainEmojiPicker, setShowMainEmojiPicker] = useState(false);
+  const [showEditEmojiPicker, setShowEditEmojiPicker] = useState(null);
+  const threadRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      // If clicking outside the entire comment thread, close the emoji pickers
+      if (threadRef.current && !threadRef.current.contains(e.target)) {
+        setShowMainEmojiPicker(false);
+        setShowEditEmojiPicker(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleReplySubmit = async (e) => {
     e.preventDefault();
@@ -399,6 +530,162 @@ const InlineCommentThread = ({
     }
   };
 
+  const [optimisticReactions, setOptimisticReactions] = useState({});
+  const reactionTimers = useRef({});
+  const pendingReactionActions = useRef({});
+  const virtualIds = useRef({});
+  const deletedVirtualIds = useRef(new Set());
+
+  useEffect(() => {
+    setOptimisticReactions(prev => {
+       const newStates = { ...prev };
+       for (const key in newStates) {
+          if (!pendingReactionActions.current[key]) {
+             delete newStates[key];
+          }
+       }
+       return newStates;
+    });
+  }, [clearanceComments]);
+
+  const REACTION_REGEX = /^\[\[REAC:([a-z]+):([a-zA-Z0-9-]+)\]\]$/i;
+  const validComments = [];
+  const reactionComments = [];
+  
+  clearanceComments.forEach(c => {
+    const match = c.comment_text.match(REACTION_REGEX);
+    if (match) {
+      reactionComments.push({ ...c, reacType: match[1].toLowerCase(), targetId: match[2] });
+    } else {
+      validComments.push(c);
+    }
+  });
+
+  const getReactionsForComment = (commentId) => {
+    const strCommentId = String(commentId);
+    const reacs = reactionComments.filter(r => r.targetId === strCommentId);
+    const latestPerUser = {};
+    reacs.forEach(r => {
+      if (!latestPerUser[r.commenter_id] || new Date(r.created_at) > new Date(latestPerUser[r.commenter_id].created_at)) {
+        latestPerUser[r.commenter_id] = r;
+      }
+    });
+
+    let activeReactions = Object.values(latestPerUser);
+    
+    // Apply Optimistic Override if exists
+    const optObj = optimisticReactions[strCommentId];
+    if (optObj) {
+      if (optObj.action === 'DELETE') {
+         activeReactions = activeReactions.filter(r => r.commenter_id !== studentId);
+      } else if (optObj.action === 'SET') {
+         const existing = activeReactions.find(r => r.commenter_id === studentId);
+         if (existing) {
+            existing.reacType = optObj.type;
+         } else {
+            activeReactions.push({ commenter_id: studentId, reacType: optObj.type });
+         }
+      }
+    }
+    
+    const counts = {};
+    activeReactions.forEach(r => {
+      counts[r.reacType] = (counts[r.reacType] || 0) + 1;
+    });
+    
+    return { counts, userReaction: activeReactions.find(r => r.commenter_id === studentId) || null, activeReactions };
+  };
+  
+  const getDbReaction = (commentId) => {
+    const strCommentId = String(commentId);
+    const reacs = reactionComments.filter(r => r.targetId === strCommentId && r.commenter_id === studentId);
+    if (reacs.length === 0) return null;
+    const latest = reacs.reduce((latest, r) => new Date(r.created_at) > new Date(latest.created_at) ? r : latest);
+    if (deletedVirtualIds.current.has(latest.id)) return null;
+    return latest;
+  };
+
+  const handleToggleReaction = (commentId, type) => {
+    const strCommentId = String(commentId);
+    
+    setOptimisticReactions(prev => {
+      const dbReaction = getDbReaction(commentId);
+      const existingOpt = prev[strCommentId];
+      
+      let currentState = null;
+      if (existingOpt) {
+        if (existingOpt.action === 'SET') currentState = existingOpt.type;
+      } else if (dbReaction) {
+        currentState = dbReaction.reacType;
+      }
+
+      let newAction;
+      let newType;
+       
+      if (currentState === type) {
+          newAction = 'DELETE';
+          newType = null;
+      } else {
+          newAction = 'SET';
+          newType = type;
+      }
+       
+      const nextState = {
+         ...prev,
+         [strCommentId]: { action: newAction, type: newType }
+      };
+      pendingReactionActions.current[strCommentId] = nextState[strCommentId];
+      return nextState;
+    });
+
+    if (reactionTimers.current[strCommentId]) {
+      clearTimeout(reactionTimers.current[strCommentId]);
+    }
+
+    reactionTimers.current[strCommentId] = setTimeout(async () => {
+      const finalOpt = pendingReactionActions.current[strCommentId];
+      if (!finalOpt) return;
+      delete pendingReactionActions.current[strCommentId];
+
+      const dbReaction = getDbReaction(commentId);
+
+      try {
+        if (finalOpt.action === 'DELETE') {
+          const idToDelete = dbReaction?.id || virtualIds.current[strCommentId];
+          if (idToDelete) {
+            deletedVirtualIds.current.add(idToDelete);
+            await authAxios.delete(`/comments/${idToDelete}`);
+            delete virtualIds.current[strCommentId];
+            if (onCommentAdded) onCommentAdded();
+          }
+        } else if (finalOpt.action === 'SET') {
+          const existingId = dbReaction?.id || virtualIds.current[strCommentId];
+          if (existingId) {
+            if (dbReaction?.reacType !== finalOpt.type) {
+              await authAxios.put(`/comments/${existingId}`, { user_id: studentId, comment_text: `[[REAC:${finalOpt.type}:${commentId}]]` });
+              if (onCommentAdded) onCommentAdded();
+            }
+          } else {
+            const res = await authAxios.post(`/comments/${requestId}/comments`, { user_id: studentId, comment_text: `[[REAC:${finalOpt.type}:${commentId}]]`, visibility: "all" });
+            if (res?.data?.comment?.id) {
+               virtualIds.current[strCommentId] = res.data.comment.id;
+            }
+            if (onCommentAdded) onCommentAdded();
+          }
+        }
+      } catch (e) {
+        if (e.response?.status !== 404) {
+          toast.error("Failed to update reaction");
+        }
+        setOptimisticReactions(prev => {
+           const newObj = { ...prev };
+           delete newObj[strCommentId];
+           return newObj;
+        });
+      }
+    }, 400);
+  };
+
   let specificComments = [];
 
   const isTargetComment = (c) => {
@@ -409,14 +696,14 @@ const InlineCommentThread = ({
       // Show untagged legacy comments if this stage has comments or is pending/rejected
       const roleMap = { library: "librarian", cashier: "cashier", registrar: "registrar" };
       const role = stage.type === "stage" ? roleMap[stage.key] : "signatory";
-      const hasStaffComments = clearanceComments.some(sc => sc.commenter_role === role || sc.commenter_id === stage.approval?.professor_id);
+      const hasStaffComments = validComments.some(sc => sc.commenter_role === role || sc.commenter_id === stage.approval?.professor_id);
       return hasStaffComments || stage.status !== "approved";
     }
     return false;
   };
 
   if (stage.type === "signatory" && stage.approval) {
-    specificComments = clearanceComments.filter(
+    specificComments = validComments.filter(
       (c) => c.commenter_id === stage.approval.professor_id || isTargetComment(c),
     );
 
@@ -441,7 +728,7 @@ const InlineCommentThread = ({
       registrar: "registrar",
     };
     const role = roleMap[stage.key];
-    specificComments = clearanceComments.filter(
+    specificComments = validComments.filter(
       (c) => c.commenter_role === role || isTargetComment(c)
     );
 
@@ -474,22 +761,23 @@ const InlineCommentThread = ({
   }
 
   return (
-    <div className={`flex flex-col mt-4 pt-4 border-t transition-all duration-300 ${isDarkMode ? "border-[#3c4043]" : "border-[#e8eaed]"}`}>
-      <div className={`px-2 py-2 mb-2 flex items-center justify-between`}>
-        <div className="flex items-center gap-2">
+    <>
+      <div ref={threadRef} className={`flex flex-col mt-4 pt-4 border-t transition-all duration-300 ${isDarkMode ? "border-[#3c4043]" : "border-[#e8eaed]"}`}>
+        <div className={`px-2 py-2 mb-2 flex items-center justify-between`}>
+          <div className="flex items-center gap-2">
           <ChatBubbleIcon className={`w-[18px] h-[18px] ${isDarkMode ? "text-primary-400" : "text-primary-600"}`} />
           <h4 className={`text-[14px] font-medium tracking-tight ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>
             Feedback & Comments
           </h4>
         </div>
         {unresolvedCount > 0 && (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold tracking-[0.05em] uppercase bg-[#fce8e6] text-[#c5221f] border border-transparent shadow-sm">
-            {unresolvedCount === 1 ? "1 UNRESOLVED" : `${unresolvedCount} UNRESOLVED`}
+          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold tracking-[0.05em] uppercase border shadow-sm transition-colors ${isDarkMode ? "bg-[#3c4043] text-[#9aa0a6] border-[#5f6368]" : "bg-slate-100 text-slate-600 border-slate-200"}`}>
+            {unresolvedCount === 1 ? "1 COMMENT" : `${unresolvedCount} COMMENTS`}
           </span>
         )}
       </div>
 
-      <div className={`px-2 py-4 max-h-[360px] overflow-y-auto space-y-5 bg-transparent scrollbar-thin ${isDarkMode ? "scrollbar-thumb-[#3c4043]" : "scrollbar-thumb-gray-200"}`}>
+      <div className={`px-2 py-4 space-y-5 bg-transparent ${isDarkMode ? "" : ""}`}>
         {specificComments.map((comment) => {
           const isOwnComment = comment.commenter_id === studentId && !comment.isApprovalComment && !comment.isStageComment;
           const matchTag = comment.comment_text.match(/^(\[TO:[^\]]+\]\s*)/);
@@ -498,8 +786,14 @@ const InlineCommentThread = ({
           
           return (
           <div key={comment.id} className="group flex gap-4">
-            <div className={`w-[36px] h-[36px] mt-1 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-[13px] text-white shadow-sm ${comment.is_resolved ? "bg-[#34a853]" : "bg-primary-500"}`}>
-              {comment.commenter_name?.charAt(0).toUpperCase() || "?"}
+            <div className={`w-[36px] h-[36px] mt-1 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-[13px] text-white shadow-sm overflow-hidden ${comment.is_resolved ? "bg-[#34a853]" : "bg-primary-500"}`}>
+              {(comment.commenter_id === studentId && (user?.user_metadata?.avatar_url || studentInfo?.avatar_url)) ? (
+                <img src={user?.user_metadata?.avatar_url || studentInfo?.avatar_url} alt="You" className="w-full h-full object-cover" />
+              ) : comment.avatar_url ? (
+                <img src={comment.avatar_url} alt={comment.commenter_name} className="w-full h-full object-cover" />
+              ) : (
+                comment.commenter_name?.charAt(0).toUpperCase() || "?"
+              )}
             </div>
             <div className="flex-1 min-w-0 flex flex-col items-start relative">
               <div className="flex items-baseline justify-between gap-2 mb-1 w-full relative">
@@ -519,37 +813,126 @@ const InlineCommentThread = ({
               </div>
               
               {editingCommentId === comment.id ? (
-                <div className="w-full mt-1.5 mb-2 relative">
-                  <textarea
-                    autoFocus
-                    value={editCommentText}
-                    onChange={(e) => {
-                      setEditCommentText(e.target.value);
-                      e.target.style.height = 'auto';
-                      e.target.style.height = e.target.scrollHeight + 'px';
-                    }}
-                    className={`w-full min-h-[60px] p-3 text-[14px] leading-relaxed rounded-xl border focus:outline-none focus:ring-1 resize-none ${isDarkMode ? "bg-[#282a2d] border-[#5f6368] text-[#e8eaed] focus:border-blue-400 focus:ring-blue-400" : "bg-white border-blue-300 shadow-sm text-slate-800 focus:border-blue-500 focus:ring-blue-500"}`}
-                  />
+                <div className="w-full mt-1.5 mb-2 relative group/edit-input richtext-container flex flex-col">
+                  {/* Google Classroom Edit Container style */}
+                  <div className={`relative transition-all duration-300 border rounded-[12px] bg-white focus-within:ring-1 focus-within:ring-primary-600 focus-within:border-primary-600 ${isDarkMode ? "!bg-transparent !border-[#5f6368] focus-within:!border-primary-400 focus-within:!ring-primary-400" : "border-[#dadce0]"}`}>
+                    <textarea
+                      autoFocus
+                      value={editCommentText}
+                      onChange={(e) => {
+                        setEditCommentText(e.target.value);
+                        e.target.style.height = 'auto';
+                        e.target.style.height = e.target.scrollHeight + 'px';
+                      }}
+                      className={`w-full px-4 py-[11px] text-[14px] leading-relaxed resize-none bg-transparent outline-none ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`}
+                      style={{ minHeight: '60px', overflow: 'hidden' }}
+                      rows={1}
+                    />
+                    {/* Embedded Formatter for Editing */}
+                    <div className={`flex items-center gap-[5px] px-3 pb-2 transition-opacity duration-200 text-[#5f6368] ${isDarkMode ? "text-[#9aa0a6]" : ""}`}>
+                      <button type="button" onMouseDown={(e) => applyRichTextFormat(e, 'bold')} className={`group/btn relative p-1.5 rounded hover:bg-black/5 hover:text-gray-900 ${isDarkMode ? "hover:text-gray-200 hover:bg-white/10" : ""}`}>
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M15.6 10.79c.97-.67 1.65-1.77 1.65-2.79 0-2.26-1.75-4-4-4H7v14h7.04c2.09 0 3.71-1.7 3.71-3.79 0-1.52-.86-2.82-2.15-3.42zM10 6.5h3c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-3v-3zm3.5 9H10v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5z"/></svg>
+                        <div className={`pointer-events-none absolute top-full mt-1.5 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[11px] font-medium opacity-0 shadow-sm transition-opacity duration-0 group-hover/btn:duration-200 group-hover/btn:delay-300 group-hover/btn:opacity-100 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed]" : "bg-white border-slate-200 text-slate-800"}`}>Bold</div>
+                      </button>
+                      <button type="button" onMouseDown={(e) => applyRichTextFormat(e, 'italic')} className={`group/btn relative p-1.5 rounded hover:bg-black/5 hover:text-gray-900 ${isDarkMode ? "hover:text-gray-200 hover:bg-white/10" : ""}`}>
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M10 4v3h2.21l-3.42 8H6v3h8v-3h-2.21l3.42-8H18V4z"/></svg>
+                        <div className={`pointer-events-none absolute top-full mt-1.5 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[11px] font-medium opacity-0 shadow-sm transition-opacity duration-0 group-hover/btn:duration-200 group-hover/btn:delay-300 group-hover/btn:opacity-100 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed]" : "bg-white border-slate-200 text-slate-800"}`}>Italic</div>
+                      </button>
+                      <button type="button" onMouseDown={(e) => applyRichTextFormat(e, 'underline')} className={`group/btn relative p-1.5 rounded hover:bg-black/5 hover:text-gray-900 ${isDarkMode ? "hover:text-gray-200 hover:bg-white/10" : ""}`}>
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17c3.31 0 6-2.69 6-6V3h-2.5v8c0 1.93-1.57 3.5-3.5 3.5S8.5 12.93 8.5 11V3H6v8c0 3.31 2.69 6 6 6zm-7 2v2h14v-2H5z"/></svg>
+                        <div className={`pointer-events-none absolute top-full mt-1.5 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[11px] font-medium opacity-0 shadow-sm transition-opacity duration-0 group-hover/btn:duration-200 group-hover/btn:delay-300 group-hover/btn:opacity-100 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed]" : "bg-white border-slate-200 text-slate-800"}`}>Underline</div>
+                      </button>
+                      <button type="button" onMouseDown={(e) => applyRichTextFormat(e, 'list')} className={`group/btn relative p-1.5 rounded hover:bg-black/5 hover:text-gray-900 ${isDarkMode ? "hover:text-gray-200 hover:bg-white/10" : ""}`}>
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5S3.17 7.5 4 7.5 5.5 6.83 5.5 6 4.83 4.5 4 4.5zm0 12c-.83 0-1.5.68-1.5 1.5s.68 1.5 1.5 1.5 1.5-.68 1.5-1.5-.67-1.5-1.5-1.5zM7 19h14v-2H7v2zm0-6h14v-2H7v2zm0-8v2h14V5H7z"/></svg>
+                        <div className={`pointer-events-none absolute top-full mt-1.5 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[11px] font-medium opacity-0 shadow-sm transition-opacity duration-0 group-hover/btn:duration-200 group-hover/btn:delay-300 group-hover/btn:opacity-100 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed]" : "bg-white border-slate-200 text-slate-800"}`}>Bulleted list</div>
+                      </button>
+                      <button type="button" onMouseDown={(e) => applyRichTextFormat(e, 'clear')} className={`group/btn relative p-1.5 rounded hover:bg-black/5 hover:text-gray-900 ${isDarkMode ? "hover:text-gray-200 hover:bg-white/10" : ""}`}>
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M10 19h4v-3h-4v3zM5 4v3h5v3h4V7h5V4H5zM3 14h18v-2H3v2z"/></svg>
+                        <div className={`pointer-events-none absolute top-full mt-1.5 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[11px] font-medium opacity-0 shadow-sm transition-opacity duration-0 group-hover/btn:duration-200 group-hover/btn:delay-300 group-hover/btn:opacity-100 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed]" : "bg-white border-slate-200 text-slate-800"}`}>Clear formatting</div>
+                      </button>
+                      <button type="button" onMouseDown={(e) => { e.preventDefault(); setShowEditEmojiPicker(showEditEmojiPicker === comment.id ? null : comment.id); }} className={`group/btn relative p-1.5 rounded hover:bg-black/5 hover:text-gray-900 ${isDarkMode ? "hover:text-gray-200 hover:bg-white/10" : ""}`}>
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/></svg>
+                        <div className={`pointer-events-none absolute top-full mt-1.5 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[11px] font-medium opacity-0 shadow-sm transition-opacity duration-0 group-hover/btn:duration-200 group-hover/btn:delay-300 group-hover/btn:opacity-100 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed]" : "bg-white border-slate-200 text-slate-800"}`}>Insert emoji</div>
+                      </button>
+                    </div>
+                    {/* Floating Picker for Editing */}
+                    {showEditEmojiPicker === comment.id && (
+                      <div className="absolute bottom-full mb-2 left-0 z-[150] rounded-[16px] overflow-hidden shadow-[0_1px_3px_0_rgba(60,64,67,0.3),0_4px_8px_3px_rgba(60,64,67,0.15)]" onMouseDown={(e) => e.stopPropagation()}>
+                        <Picker 
+                          data={data}
+                          theme={isDarkMode ? 'dark' : 'light'} 
+                          set="google"
+                          previewPosition="none"
+                          skinTonePosition="none"
+                          navPosition="top"
+                          perLine={8}
+                          maxFrequentRows={0}
+                          onEmojiSelect={(emoji) => setEditCommentText(p => p + emoji.native)} 
+                        />
+                      </div>
+                    )}
+                  </div>
+                  
                   <div className="flex justify-end gap-2 mt-2">
-                    <button onClick={() => setEditingCommentId(null)} className={`px-3 py-1.5 rounded-lg text-[12px] font-bold uppercase tracking-wide transition-colors ${isDarkMode ? "text-slate-400 hover:text-slate-200 hover:bg-[#3c4043]" : "text-slate-500 hover:text-slate-700 hover:bg-slate-100"}`}>Cancel</button>
-                    <button onClick={() => submitEdit(comment.id, originalTag)} className={`px-3 py-1.5 rounded-lg text-[12px] font-bold uppercase tracking-wide transition-colors ${isDarkMode ? "bg-blue-600/90 text-white hover:bg-blue-500" : "bg-blue-500 text-white hover:bg-blue-600 shadow-sm"}`}>Save Changes</button>
+                    <button onClick={() => setEditingCommentId(null)} className={`px-4 py-[7px] text-[14px] font-bold transition-colors ${isDarkMode ? "text-primary-400 hover:bg-primary-900/20" : "text-[#5f6368] hover:bg-black/5"} rounded-[4px]`} style={{ fontFamily: "Google Sans, sans-serif" }}>CANCEL</button>
+                    <button onClick={() => submitEdit(comment.id, originalTag)} className={`px-4 py-[7px] text-[14px] font-bold transition-colors ${isDarkMode ? "bg-primary-900/60 text-primary-200 hover:bg-primary-800/80" : "bg-primary-500 text-white hover:bg-primary-600 hover:shadow shadow-sm border border-transparent hover:border-black/10"} rounded-[4px]`} style={{ fontFamily: "Google Sans, sans-serif" }}>SAVE CHANGES</button>
                   </div>
                 </div>
               ) : (
                 <div className="relative group/bubble max-w-full">
-                  <div className={`mt-1 py-2.5 px-4 rounded-[16px] rounded-tl-[4px] text-[14px] leading-relaxed inline-block max-w-full break-words ${comment.is_resolved ? (isDarkMode ? "bg-[#3c4043]/50 text-[#9aa0a6]" : "bg-white border border-[#e8eaed] text-[#5f6368] opacity-75") : (isDarkMode ? "bg-[#3c4043] text-[#e8eaed]" : "bg-white shadow-sm border border-[#e8eaed] text-[#202124]")}`}>
-                    {displayStr}
-                  </div>
-                  {isOwnComment && (
-                    <div className="absolute top-1 -right-16 opacity-0 group-hover/bubble:opacity-100 transition-opacity duration-200 flex gap-1">
-                      <button onClick={(e) => { e.stopPropagation(); setEditCommentText(displayStr); setEditingCommentId(comment.id); }} className={`p-1.5 rounded-full hover:scale-110 active:scale-95 transition-all ${isDarkMode ? "text-slate-400 hover:text-blue-400 bg-[#303134]" : "text-slate-400 hover:text-blue-600 bg-white shadow-sm border border-slate-100"}`} title="Edit Comment">
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                      </button>
-                      <button onClick={(e) => { e.stopPropagation(); deleteComment(comment.id); }} className={`p-1.5 rounded-full hover:scale-110 active:scale-95 transition-all ${isDarkMode ? "text-slate-400 hover:text-rose-400 bg-[#303134]" : "text-slate-400 hover:text-rose-500 bg-white shadow-sm border border-slate-100"}`} title="Delete Comment">
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                      </button>
-                    </div>
-                  )}
+                  {(() => {
+                    const reacs = getReactionsForComment(comment.id);
+                    const hasReactions = reacs.activeReactions.length > 0;
+                    return (
+                      <>
+                        <div className={`mt-1 py-2.5 px-4 rounded-[16px] rounded-tl-[4px] text-[14px] leading-relaxed inline-block max-w-full break-words relative ${comment.is_resolved ? (isDarkMode ? "bg-[#3c4043]/50 text-[#9aa0a6]" : "bg-white border border-[#e8eaed] text-[#5f6368] opacity-75") : (isDarkMode ? "bg-[#3c4043] text-[#e8eaed]" : "bg-white shadow-sm border border-[#e8eaed] text-[#202124]")}`}>
+                          {renderMarkdown(displayStr)}
+                          {hasReactions && (
+                            <div className={`absolute -bottom-2 -right-2 flex items-center gap-[2px] px-1.5 py-0.5 rounded-full shadow-sm text-[11px] font-bold z-10 ${isDarkMode ? "bg-[#28292a] border border-[#3c4043] text-[#e8eaed]" : "bg-white border border-slate-200 text-slate-600"}`}>
+                              <div className="flex -space-x-1">
+                                {Object.keys(reacs.counts).slice(0, 3).map((rType) => (
+                                  <span key={rType} className="z-10 bg-inherit rounded-full">{REACTION_TYPES.find(r => r.id === rType)?.icon}</span>
+                                ))}
+                              </div>
+                              {reacs.activeReactions.length > 1 && <span className="ml-[1px] font-medium text-[10.5px]">{reacs.activeReactions.length}</span>}
+                            </div>
+                          )}
+                        </div>
+                        <div className="absolute top-1/2 -translate-y-1/2 left-full pl-2 opacity-0 group-hover/bubble:opacity-100 transition-opacity duration-200 flex items-center gap-1 z-20 before:absolute before:inset-0 before:-top-4 before:-bottom-4 before:z-[-1]">
+                           {!comment.isApprovalComment && !comment.isStageComment && (
+                             <div className="relative group/reaction flex items-center">
+                               <button className={`p-[5.5px] rounded-full hover:scale-110 active:scale-95 transition-all ${isDarkMode ? "text-slate-400 hover:text-yellow-400 bg-[#303134]" : "text-slate-400 hover:text-yellow-500 bg-white shadow-sm border border-slate-100"}`}>
+                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                               </button>
+                               <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-1.5 py-1.5 rounded-[32px] shadow-xl flex gap-[2px] opacity-0 pointer-events-none group-hover/reaction:opacity-100 group-hover/reaction:pointer-events-auto transition-all duration-200 origin-bottom scale-95 group-hover/reaction:scale-100 after:content-[''] after:absolute after:-bottom-4 after:left-0 after:w-full after:h-4 ${isDarkMode ? "bg-[#28292a] border border-[#3c4043]" : "bg-white border border-slate-100"}`}>
+                                 {REACTION_TYPES.map(rt => (
+                                   <button key={rt.id} onClick={(e) => { e.stopPropagation(); handleToggleReaction(comment.id, rt.id); }} className={`hover:scale-125 hover:-translate-y-2 transition-all duration-200 text-[20px] px-[2px] relative transform-gpu hover:z-30 rounded-full w-[30px] h-[30px] flex items-center justify-center ${reacs.userReaction?.reacType === rt.id ? (isDarkMode ? 'bg-primary-900/30 ring-1 ring-primary-500/50' : 'bg-primary-50 ring-1 ring-primary-300') : ''}`} title={rt.name}>
+                                     <span className="leading-none drop-shadow-sm">{rt.icon}</span>
+                                   </button>
+                                 ))}
+                               </div>
+                             </div>
+                           )}
+                           {isOwnComment && (
+                             <>
+                                <button onClick={(e) => { e.stopPropagation(); setEditCommentText(displayStr); setEditingCommentId(comment.id); }} className={`group/btn relative p-1.5 rounded-full hover:scale-110 active:scale-95 transition-all ${isDarkMode ? "text-slate-400 hover:text-primary-400 bg-[#303134]" : "text-slate-400 hover:text-primary-600 bg-white shadow-sm border border-slate-100"}`}>
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                  <div className={`pointer-events-none absolute top-full mt-1.5 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[11px] font-medium opacity-0 shadow-sm transition-opacity duration-0 group-hover/btn:duration-200 group-hover/btn:delay-300 group-hover/btn:opacity-100 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed]" : "bg-white border-slate-200 text-slate-800"}`}>
+                                    Edit
+                                  </div>
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); deleteComment(comment.id); }} className={`group/btn relative p-1.5 rounded-full hover:scale-110 active:scale-95 transition-all ${isDarkMode ? "text-slate-400 hover:text-rose-400 bg-[#303134]" : "text-slate-400 hover:text-rose-500 bg-white shadow-sm border border-slate-100"}`}>
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                  <div className={`pointer-events-none absolute top-full mt-1.5 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[11px] font-medium opacity-0 shadow-sm transition-opacity duration-0 group-hover/btn:duration-200 group-hover/btn:delay-300 group-hover/btn:opacity-100 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed]" : "bg-white border-slate-200 text-slate-800"}`}>
+                                    Delete
+                                  </div>
+                                </button>
+                             </>
+                           )}
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
             </div>
@@ -557,50 +940,109 @@ const InlineCommentThread = ({
         )})}
       </div>
 
-      <div className="pt-2 pb-4 px-2 bg-transparent">
-        <form onSubmit={handleReplySubmit} className="relative flex items-end gap-3">
-          <textarea
-            disabled={isSubmitting}
-            placeholder="Reply to this thread..."
-            className={`w-full flex-1 resize-none rounded-2xl border pl-4 pr-12 py-3.5 text-[14px] focus:outline-none focus:ring-1 transition-all max-h-[140px] ${isDarkMode ? "bg-[#202124] border-[#5f6368] text-[#e8eaed] placeholder-[#9aa0a6] focus:border-primary-400 focus:ring-primary-400" : "bg-[#f1f3f4] border-transparent text-[#202124] placeholder-[#5f6368] hover:bg-[#e8eaed] focus:bg-white focus:border-primary-500 focus:ring-primary-500 shadow-inner"}`}
-            style={{ minHeight: '52px', overflow: 'hidden' }}
-            value={replyText}
-            onChange={(e) => {
-              setReplyText(e.target.value);
-              e.target.style.height = 'auto';
-              e.target.style.height = (e.target.scrollHeight) + 'px';
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleReplySubmit(e);
-              }
-            }}
-            rows={1}
-          />
+      <div className="pt-3 pb-4 pr-[18px] bg-transparent">
+        <form onSubmit={handleReplySubmit} className="flex items-end gap-[13px] group/form">
+          {/* Avatar (Left) */}
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[13px] overflow-hidden text-white shadow-sm flex-shrink-0 mb-[7px] ${isDarkMode ? "bg-blue-600/80 p-0" : "bg-primary-500"}`}>
+            {(user?.user_metadata?.avatar_url || studentInfo?.avatar_url) ? (
+              <img src={user?.user_metadata?.avatar_url || studentInfo?.avatar_url} alt="You" className="w-full h-full object-cover" />
+            ) : (
+              (studentInfo?.full_name?.charAt(0) || user?.user_metadata?.full_name?.charAt(0) || "U").toUpperCase()
+            )}
+          </div>
+
+          {/* Input Flex Wrapper */}
+          <div className={`flex-1 flex flex-col transition-all duration-300 relative group/input bg-white border ${replyText.trim().length > 0 ? "rounded-[16px] border-primary-600 ring-1 ring-primary-600" : "rounded-[24px] focus-within:rounded-[16px] border-[#dadce0] focus-within:border-primary-600 focus-within:ring-1 focus-within:ring-primary-600"} ${isDarkMode ? "!bg-transparent !border-[#5f6368] focus-within:!border-primary-400 focus-within:!ring-primary-400" : ""}`}>
+            <textarea
+              disabled={isSubmitting}
+              placeholder="Add class comment..."
+              className={`w-full resize-none bg-transparent outline-none px-4 py-[11px] text-[14px] leading-relaxed ${isDarkMode ? "text-[#e8eaed] placeholder-[#9aa0a6]" : "text-[#202124] placeholder-[#5f6368]"}`}
+              style={{ minHeight: '44px', overflow: 'hidden' }}
+              value={replyText}
+              onChange={(e) => {
+                setReplyText(e.target.value);
+                e.target.style.height = 'auto';
+                e.target.style.height = (e.target.scrollHeight) + 'px';
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleReplySubmit(e);
+                }
+              }}
+              rows={1}
+            />
+            {/* Formatting Toolbar */}
+            <div className={`flex items-center gap-[5px] px-3 transition-all duration-200 text-[#5f6368] ${isDarkMode ? "text-[#9aa0a6]" : ""} ${replyText.trim() || showMainEmojiPicker ? "opacity-100 h-[36px] pb-2 visible" : "opacity-0 h-0 invisible group-focus-within/input:opacity-100 group-focus-within/input:h-[36px] group-focus-within/input:pb-2 group-focus-within/input:visible"}`}>
+              <button type="button" onMouseDown={(e) => applyRichTextFormat(e, 'bold')} className={`group/btn relative p-1.5 rounded hover:bg-black/5 hover:text-gray-900 ${isDarkMode ? "hover:text-gray-200 hover:bg-white/10" : ""}`}>
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M15.6 10.79c.97-.67 1.65-1.77 1.65-2.79 0-2.26-1.75-4-4-4H7v14h7.04c2.09 0 3.71-1.7 3.71-3.79 0-1.52-.86-2.82-2.15-3.42zM10 6.5h3c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-3v-3zm3.5 9H10v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5z"/></svg>
+                <div className={`pointer-events-none absolute top-full mt-1.5 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[11px] font-medium opacity-0 shadow-sm transition-opacity duration-0 group-hover/btn:duration-200 group-hover/btn:delay-300 group-hover/btn:opacity-100 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed]" : "bg-white border-slate-200 text-slate-800"}`}>Bold</div>
+              </button>
+              <button type="button" onMouseDown={(e) => applyRichTextFormat(e, 'italic')} className={`group/btn relative p-1.5 rounded hover:bg-black/5 hover:text-gray-900 ${isDarkMode ? "hover:text-gray-200 hover:bg-white/10" : ""}`}>
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M10 4v3h2.21l-3.42 8H6v3h8v-3h-2.21l3.42-8H18V4z"/></svg>
+                <div className={`pointer-events-none absolute top-full mt-1.5 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[11px] font-medium opacity-0 shadow-sm transition-opacity duration-0 group-hover/btn:duration-200 group-hover/btn:delay-300 group-hover/btn:opacity-100 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed]" : "bg-white border-slate-200 text-slate-800"}`}>Italic</div>
+              </button>
+              <button type="button" onMouseDown={(e) => applyRichTextFormat(e, 'underline')} className={`group/btn relative p-1.5 rounded hover:bg-black/5 hover:text-gray-900 ${isDarkMode ? "hover:text-gray-200 hover:bg-white/10" : ""}`}>
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17c3.31 0 6-2.69 6-6V3h-2.5v8c0 1.93-1.57 3.5-3.5 3.5S8.5 12.93 8.5 11V3H6v8c0 3.31 2.69 6 6 6zm-7 2v2h14v-2H5z"/></svg>
+                <div className={`pointer-events-none absolute top-full mt-1.5 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[11px] font-medium opacity-0 shadow-sm transition-opacity duration-0 group-hover/btn:duration-200 group-hover/btn:delay-300 group-hover/btn:opacity-100 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed]" : "bg-white border-slate-200 text-slate-800"}`}>Underline</div>
+              </button>
+              <button type="button" onMouseDown={(e) => applyRichTextFormat(e, 'list')} className={`group/btn relative p-1.5 rounded hover:bg-black/5 hover:text-gray-900 ${isDarkMode ? "hover:text-gray-200 hover:bg-white/10" : ""}`}>
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5S3.17 7.5 4 7.5 5.5 6.83 5.5 6 4.83 4.5 4 4.5zm0 12c-.83 0-1.5.68-1.5 1.5s.68 1.5 1.5 1.5 1.5-.68 1.5-1.5-.67-1.5-1.5-1.5zM7 19h14v-2H7v2zm0-6h14v-2H7v2zm0-8v2h14V5H7z"/></svg>
+                <div className={`pointer-events-none absolute top-full mt-1.5 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[11px] font-medium opacity-0 shadow-sm transition-opacity duration-0 group-hover/btn:duration-200 group-hover/btn:delay-300 group-hover/btn:opacity-100 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed]" : "bg-white border-slate-200 text-slate-800"}`}>Bulleted list</div>
+              </button>
+              <button type="button" onMouseDown={(e) => applyRichTextFormat(e, 'clear')} className={`group/btn relative p-1.5 rounded hover:bg-black/5 hover:text-gray-900 ${isDarkMode ? "hover:text-gray-200 hover:bg-white/10" : ""}`}>
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M10 19h4v-3h-4v3zM5 4v3h5v3h4V7h5V4H5zM3 14h18v-2H3v2z"/></svg>
+                <div className={`pointer-events-none absolute top-full mt-1.5 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[11px] font-medium opacity-0 shadow-sm transition-opacity duration-0 group-hover/btn:duration-200 group-hover/btn:delay-300 group-hover/btn:opacity-100 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed]" : "bg-white border-slate-200 text-slate-800"}`}>Clear formatting</div>
+              </button>
+              <button type="button" onMouseDown={(e) => { e.preventDefault(); setShowMainEmojiPicker(p => !p); }} className={`group/btn relative p-1.5 rounded hover:bg-black/5 hover:text-gray-900 ${isDarkMode ? "hover:text-gray-200 hover:bg-white/10" : ""}`}>
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/></svg>
+                <div className={`pointer-events-none absolute top-full mt-1.5 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[11px] font-medium opacity-0 shadow-sm transition-opacity duration-0 group-hover/btn:duration-200 group-hover/btn:delay-300 group-hover/btn:opacity-100 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed]" : "bg-white border-slate-200 text-slate-800"}`}>Insert emoji</div>
+              </button>
+            </div>
+            
+            {/* Floating Picker for Main Reply */}
+            {showMainEmojiPicker && (
+              <div className="absolute bottom-full mb-2 left-0 z-[150] rounded-[16px] overflow-hidden shadow-[0_1px_3px_0_rgba(60,64,67,0.3),0_4px_8px_3px_rgba(60,64,67,0.15)]" onMouseDown={(e) => e.stopPropagation()}>
+                <Picker 
+                  data={data}
+                  theme={isDarkMode ? 'dark' : 'light'} 
+                  set="google"
+                  previewPosition="none"
+                  skinTonePosition="none"
+                  navPosition="top"
+                  perLine={8}
+                  maxFrequentRows={0}
+                  onEmojiSelect={(emoji) => setReplyText(p => p + emoji.native)} 
+                />
+              </div>
+            )}
+          </div>
+          
+          {/* Send Arrow (Right/Outside) */}
           <button
             type="submit"
             disabled={isSubmitting || !replyText.trim()}
-            className={`absolute right-3 bottom-2.5 p-2 rounded-xl flex items-center justify-center transition-all ${isSubmitting || !replyText.trim() ? "opacity-30 cursor-not-allowed" : isDarkMode ? "hover:bg-[#3c4043] bg-primary-900/30 text-primary-400" : "hover:bg-primary-50 active:scale-95 bg-primary-500 text-white shadow-md hover:shadow-lg hover:bg-primary-600"}`}
+            className={`flex-shrink-0 p-[5px] rounded-full mb-1 transition-colors ${isSubmitting || !replyText.trim() ? "text-slate-400 cursor-not-allowed" : "text-primary-600 hover:bg-primary-50 active:scale-95"} ${isDarkMode && (isSubmitting || !replyText.trim()) ? "!text-[#5f6368]" : isDarkMode && replyText.trim() ? "!text-primary-400 !hover:bg-[#3c4043]" : ""}`}
+            title="Post comment"
           >
             {isSubmitting ? (
-              <svg className="animate-spin h-[18px] w-[18px]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <svg className="animate-spin h-[22px] w-[22px]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
             ) : (
-              <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-[22px] h-[22px] -ml-[1px]">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0 1 21.485 12 59.77 59.77 0 0 1 3.27 20.876L5.999 12zm0 0h7.5" />
               </svg>
             )}
-          </button>
+           </button>
         </form>
-        <div className={`mt-2 flex justify-between items-center text-[11px] ${isDarkMode ? "text-[#5f6368]" : "text-[#9aa0a6]"}`}>
-           <span></span>
-           <span className="mr-1">Press <strong className="font-medium text-[12px]">Enter</strong> inside to send</span>
+        <div className={`mt-[6px] pl-[56px] text-[#9aa0a6] text-[11px] font-medium tracking-tight ${isDarkMode ? "text-[#5f6368]" : ""}`}>
+           <span>Press <strong className={`font-bold text-[11.5px] text-[#5f6368] ${isDarkMode ? '!text-[#9aa0a6]' : ''}`}>Enter</strong> inside to send</span>
         </div>
       </div>
     </div>
+    </>
   );
 };
 
@@ -611,7 +1053,7 @@ let documentsGlobalRefreshKey = null;
 const UploadedDocumentsList = ({ requestId, studentId, isDarkMode, refreshKey }) => {
   const [documents, setDocuments] = useState(() => {
     if (documentsGlobalReqId === requestId && documentsGlobalRefreshKey === refreshKey && documentsGlobalCache) return documentsGlobalCache;
-    return null;
+    return [];
   });
   const [loading, setLoading] = useState(() => {
     return !(documentsGlobalReqId === requestId && documentsGlobalRefreshKey === refreshKey && documentsGlobalCache);
@@ -663,6 +1105,10 @@ const UploadedDocumentsList = ({ requestId, studentId, isDarkMode, refreshKey })
   });
 
   const handleDelete = async (docId) => {
+    // Optimistic Deletion
+    const originalDocs = documents;
+    setDocuments((prev) => prev.filter((d) => d.id !== docId));
+    
     try {
       const response = await authAxios.delete(`/documents/${docId}`);
       if (response.data.success) {
@@ -670,8 +1116,12 @@ const UploadedDocumentsList = ({ requestId, studentId, isDarkMode, refreshKey })
         
         // Let postgres_changes handle cross-client sync
         fetchDocuments(true);
+      } else {
+        setDocuments(originalDocs);
+        toast.error("Failed to delete document");
       }
     } catch {
+      setDocuments(originalDocs);
       toast.error("Failed to delete document");
     }
   };
@@ -684,37 +1134,7 @@ const UploadedDocumentsList = ({ requestId, studentId, isDarkMode, refreshKey })
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
   };
 
-  if (loading && documents === null) {
-    return (
-      <div className={`mt-0 pt-2 transition-all duration-300`}>
-        <div className={`px-2 py-2 mb-3 flex items-center justify-between`}>
-          <div className="flex items-center gap-2">
-            <div className={`w-[18px] h-[18px] rounded-full animate-pulse ${isDarkMode ? "bg-[#5f6368]" : "bg-blue-200"}`} />
-            <h4 className={`h-4 w-32 rounded animate-pulse ${isDarkMode ? "bg-[#5f6368]" : "bg-gray-200"}`} />
-          </div>
-        </div>
-        <div className={`p-4 space-y-2 ${isDarkMode ? "bg-[#202124]" : "bg-[#f8fafd]"}`}>
-          {[1].map((i) => (
-            <div key={i} className={`flex items-center justify-between p-3 rounded-xl border transition-all ${isDarkMode ? "bg-[#282a2d] border-[#3c4043]" : "bg-white border-[#e8eaed]"}`}>
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                <div className={`w-10 h-10 rounded-xl flex-shrink-0 animate-pulse ${isDarkMode ? "bg-[#5f6368]" : "bg-blue-100"}`} />
-                <div className="flex flex-col gap-1.5 flex-1">
-                  <div className={`h-3 w-2/3 max-w-[200px] rounded animate-pulse ${isDarkMode ? "bg-[#5f6368]" : "bg-gray-200"}`} />
-                  <div className={`h-2.5 w-1/3 max-w-[100px] rounded animate-pulse ${isDarkMode ? "bg-[#3c4043]" : "bg-gray-100"}`} />
-                </div>
-              </div>
-              <div className={`w-8 h-8 rounded-lg flex-shrink-0 animate-pulse ${isDarkMode ? "bg-[#5f6368]" : "bg-gray-200"}`} />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
 
-  // Prevent flash of "No documents" while initially loading
-  if (documents === null) {
-    return null;
-  }
 
   if (documents.length === 0) {
     return (
@@ -759,7 +1179,8 @@ const UploadedDocumentsList = ({ requestId, studentId, isDarkMode, refreshKey })
           {documents.length} File{documents.length !== 1 ? 's' : ''}
         </span>
       </div>
-      <div className="px-2 pb-4 space-y-3 bg-transparent">
+      <div className="px-2 pb-4 bg-transparent">
+        <AnimatePresence>
         {documents.map((doc) => {
           const isDocType = (doc.file_type?.includes("word") || doc.file_name?.endsWith(".docx") || doc.file_name?.endsWith(".doc"));
           const isPdfType = doc.file_type?.includes("pdf");
@@ -773,9 +1194,14 @@ const UploadedDocumentsList = ({ requestId, studentId, isDarkMode, refreshKey })
           else if (isImage) fileTypeVerbose = "Image";
           
           return (
-          <div
+          <motion.div
+            layout
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9, height: 0, marginBottom: 0, overflow: 'hidden' }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
             key={doc.id}
-            className={`group flex items-stretch p-0 rounded-[16px] border transition-all duration-300 ease-out relative overflow-hidden z-10 ${
+            className={`group mb-3 flex items-stretch p-0 rounded-[16px] border transition-all duration-300 ease-out relative z-10 ${
               isDarkMode 
                 ? "bg-[#202124] border-[#3c4043] hover:border-blue-500/50 hover:shadow-[0_4px_12px_rgba(0,0,0,0.3)]" 
                 : "bg-white border-slate-200 shadow-sm hover:border-blue-400 hover:shadow-[0_8px_20px_-6px_rgba(59,130,246,0.2)]"
@@ -813,7 +1239,7 @@ const UploadedDocumentsList = ({ requestId, studentId, isDarkMode, refreshKey })
             
             {/* Right side: Preview Thumbnail */}
             <div 
-              className={`w-[110px] sm:w-[130px] flex-shrink-0 relative overflow-hidden border-l transition-colors duration-300 ${
+              className={`w-[110px] sm:w-[130px] flex-shrink-0 relative overflow-hidden rounded-r-[15px] border-l transition-colors duration-300 ${
                 isDarkMode 
                   ? "border-[#3c4043] bg-[#282a2d]" 
                   : "border-slate-200 bg-slate-50"
@@ -826,7 +1252,7 @@ const UploadedDocumentsList = ({ requestId, studentId, isDarkMode, refreshKey })
                 }}
               >
                 {isImage && doc.file_url ? (
-                  <img src={doc.file_url} alt={doc.file_name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-[400ms] group-hover:scale-110" />
+                  <img src={doc.file_url} alt={doc.file_name} className="absolute inset-0 w-full h-full object-cover" />
                 ) : (
                   <div className={`absolute inset-0 w-full h-full flex flex-col p-2.5 sm:p-3 opacity-70 transition-opacity duration-300 group-hover:opacity-100 ${isDarkMode ? "bg-[#3c4043]/50" : "bg-white"}`}>
                     <div className={`w-full h-2 mb-2 rounded-sm ${isDarkMode ? "bg-[#5f6368]" : "bg-slate-200"}`}></div>
@@ -868,13 +1294,15 @@ const UploadedDocumentsList = ({ requestId, studentId, isDarkMode, refreshKey })
                     window.open(doc.file_url, "_blank", "noopener,noreferrer");
                   }
                 }}
-                className={`p-2.5 rounded-full shadow-lg transition-transform hover:scale-110 active:scale-95 ${
+                className={`group/btn relative flex items-center justify-center p-2.5 rounded-full shadow-lg transition-transform hover:scale-110 active:scale-95 ${
                   isDarkMode 
                     ? "bg-[#303134] text-[#8ab4f8] border border-[#5f6368] hover:bg-[#3c4043]" 
                     : "bg-white text-blue-600 border border-slate-200 hover:bg-blue-50"
                 }`}
-                title="Download file"
               >
+                <div className={`pointer-events-none absolute -top-9 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[12px] font-medium opacity-0 shadow-sm transition-opacity duration-0 group-hover/btn:duration-200 group-hover/btn:delay-300 group-hover/btn:opacity-100 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed]" : "bg-white border-slate-200 text-slate-800"}`}>
+                  Download
+                </div>
                 <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
@@ -885,21 +1313,24 @@ const UploadedDocumentsList = ({ requestId, studentId, isDarkMode, refreshKey })
                     e.stopPropagation();
                     handleDelete(doc.id);
                   }}
-                  className={`p-2.5 rounded-full shadow-lg transition-transform hover:scale-110 active:scale-95 ${
+                  className={`group/btn relative flex items-center justify-center p-2.5 rounded-full shadow-lg transition-transform hover:scale-110 active:scale-95 ${
                     isDarkMode 
                       ? "bg-[#303134] text-[#f28b82] border border-[#5f6368] hover:bg-[#5c1010]/30" 
                       : "bg-white text-rose-500 border border-slate-200 hover:bg-rose-50"
                   }`}
-                  title="Delete Document"
                 >
+                  <div className={`pointer-events-none absolute -top-9 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[12px] font-medium opacity-0 shadow-sm transition-opacity duration-0 group-hover/btn:duration-200 group-hover/btn:delay-300 group-hover/btn:opacity-100 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed]" : "bg-white border-slate-200 text-slate-800"}`}>
+                    Delete
+                  </div>
                   <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
                 </button>
               )}
             </div>
-          </div>
+          </motion.div>
         )})}
+        </AnimatePresence>
       </div>
     </div>
   );
@@ -1134,9 +1565,8 @@ export default function StudentDashboardGraduation({
   );
 
   useRealtimeSubscription("requests", () => fetchClearanceStatus(true));
-  useRealtimeSubscription("professor_approvals", () =>
-    fetchClearanceStatus(true),
-  );
+  useRealtimeSubscription("professor_approvals", () => fetchClearanceStatus(true));
+  useRealtimeSubscription("profiles", () => fetchClearanceStatus(true));
 
   useEffect(() => {
     const interval = setInterval(() => fetchClearanceStatus(true), 30000);
@@ -2271,6 +2701,8 @@ export default function StudentDashboardGraduation({
                         clearanceComments={clearanceComments}
                         onCommentAdded={() => fetchClearanceComments(activeReqId)}
                         isDarkMode={isDarkMode}
+                        user={user}
+                        studentInfo={studentInfo}
                       />
                     </StageNode>
                   ))}

@@ -92,10 +92,12 @@ function DashboardContent(props) {
     isDarkMode,
     toggleTheme,
     setShowSettings,
+    setSettingsTab,
   } = props;
   const dp = { onSignOut: handleSignOut, isDarkMode, toggleTheme };
   const sp = {
-    onOpenSettings: () => {
+    onOpenSettings: (tab = "account") => {
+      setSettingsTab(tab);
       setShowSettings(true);
     },
     onManageAccount: () => {
@@ -172,6 +174,7 @@ function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsTab, setSettingsTab] = useState("account");
   const isAuthenticated = !!user && !!profile;
 
   if (twoFactorPending && pendingUser) {
@@ -341,6 +344,7 @@ function App() {
                       isDarkMode={isDarkMode}
                       toggleTheme={toggleTheme}
                       setShowSettings={setShowSettings}
+                      setSettingsTab={setSettingsTab}
                     />
                   </div>
                 )
@@ -368,6 +372,7 @@ function App() {
             profile={profile}
             onClose={() => setShowSettings(false)}
             theme={themePreference}
+            initialTab={settingsTab}
             onAvatarUpdate={async (url) => {
               try {
                 const { data } = await supabase.auth.updateUser({

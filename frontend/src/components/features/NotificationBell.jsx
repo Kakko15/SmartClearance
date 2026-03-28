@@ -1,14 +1,23 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "react-hot-toast";
 import { authAxios } from "../../services/api";
 import { BellIcon } from "../ui/Icons";
 
-export default function NotificationBell({ isDarkMode = false }) {
+const EllipsisIcon = ({ className }) => (
+  <svg className={className} fill="currentColor" viewBox="0 0 24 24"><path d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" /></svg>
+);
+
+export default function NotificationBell({ isDarkMode = false, onOpenSettings, onOpenNotificationsPage, onPendingClick }) {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
+  const [ackPendingCount, setAckPendingCount] = useState(() => parseInt(localStorage.getItem('ackPendingCount') || '0', 10));
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("all");
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const [itemMenuConfig, setItemMenuConfig] = useState(null);
   const ref = useRef(null);
 
   const fetchNotifications = useCallback(async () => {
@@ -44,23 +53,71 @@ export default function NotificationBell({ isDarkMode = false }) {
 
   useEffect(() => {
     const handleClick = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target)) {
+        setOpen(false);
+        setItemMenuConfig(null);
+        setHeaderMenuOpen(false);
+      }
     };
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
   const markAsRead = async (id) => {
+    // Optimistically update the UI instantly
+    setNotifications((prev) =>
+      prev.map((n) =>
+        n.id === id ? { ...n, read_at: new Date().toISOString() } : n,
+      ),
+    );
+    setUnreadCount((c) => Math.max(0, c - 1));
+
     try {
       await authAxios.post(`notifications/read/${id}`);
+    } catch (err) {
+      console.warn("Failed to mark notification as read:", err);
+      // Revert optimism strictly if it failed
+      setNotifications((prev) =>
+        prev.map((n) =>
+          n.id === id ? { ...n, read_at: null } : n,
+        ),
+      );
+      setUnreadCount((c) => c + 1);
+    }
+  };
+
+  const markAsUnread = async (id) => {
+    // Optimistically update the UI instantly
+    setNotifications((prev) =>
+      prev.map((n) =>
+        n.id === id ? { ...n, read_at: null } : n,
+      ),
+    );
+    setUnreadCount((c) => c + 1);
+
+    try {
+      await authAxios.post(`notifications/unread/${id}`);
+    } catch (err) {
+      console.warn("Failed to mark unread:", err);
+      // Revert optimism if failed
       setNotifications((prev) =>
         prev.map((n) =>
           n.id === id ? { ...n, read_at: new Date().toISOString() } : n,
         ),
       );
       setUnreadCount((c) => Math.max(0, c - 1));
+    }
+  };
+
+  const deleteNotification = async (id) => {
+    try {
+      // Simulate local deletion for responsive UX
+      const n = notifications.find(x => x.id === id);
+      setNotifications(prev => prev.filter(x => x.id !== id));
+      if (n && !n.read_at) setUnreadCount(c => Math.max(0, c - 1));
+      setItemMenuConfig(null);
     } catch (err) {
-      console.warn("Failed to mark notification as read:", err);
+      console.warn("Failed to delete notification:", err);
     }
   };
 
@@ -75,6 +132,8 @@ export default function NotificationBell({ isDarkMode = false }) {
         })),
       );
       setUnreadCount(0);
+      setAckPendingCount(pendingCount);
+      localStorage.setItem('ackPendingCount', pendingCount.toString());
     } catch (err) {
       console.warn("Failed to mark all notifications as read:", err);
     } finally {
@@ -94,17 +153,29 @@ export default function NotificationBell({ isDarkMode = false }) {
     const now = new Date();
     const diff = (now - d) / 1000;
     if (diff < 60) return "Just now";
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+    const days = Math.floor(diff / 86400);
+    if (days < 7) return `${days}d`;
+    return `${days}d`; // Facebook uses '1w', '2w' etc, falling back to 'd' for simplicity
   };
+
+  const displayNotifications = activeTab === "unread" 
+    ? notifications.filter(n => !n.read_at) 
+    : notifications;
 
   return (
     <div className="relative" ref={ref}>
       <button
         onClick={() => {
-          setOpen(!open);
-          if (!open) fetchNotifications();
+          if (open) {
+            setOpen(false);
+            setItemMenuConfig(null);
+            setHeaderMenuOpen(false);
+          } else {
+            setOpen(true);
+            fetchNotifications();
+          }
         }}
         className={`relative p-2 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 ${
           isDarkMode
@@ -129,7 +200,7 @@ export default function NotificationBell({ isDarkMode = false }) {
       </button>
 
       {}
-      {pendingCount > 0 && (
+      {pendingCount > ackPendingCount && (
         <motion.span
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
@@ -162,103 +233,219 @@ export default function NotificationBell({ isDarkMode = false }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.95 }}
             transition={{ duration: 0.15 }}
-            className={`absolute right-0 top-full mt-2 w-80 max-h-[420px] rounded-2xl shadow-xl border overflow-hidden z-50 ${
+            className={`absolute right-0 top-full mt-2 w-[360px] rounded-2xl shadow-[0_4px_16px_rgba(0,0,0,0.2)] border z-50 ${
               isDarkMode
-                ? "bg-[#282a2d] border-[#3c4043]"
+                ? "bg-[#242526] border-[#3E4042]"
                 : "bg-white border-[#dadce0]"
             }`}
             role="dialog"
             aria-label="Notifications panel"
           >
-            <div
-              className={`flex items-center justify-between px-4 py-3 border-b ${
-                isDarkMode ? "border-[#3c4043]" : "border-[#e8eaed]"
-              }`}
-            >
-              <h3
-                className={`text-sm font-semibold ${isDarkMode ? "text-white" : "text-[#202124]"}`}
-              >
-                Notifications
-              </h3>
-              {unreadCount > 0 && (
-                <button
-                  onClick={markAllRead}
-                  disabled={loading}
-                  className={`text-xs font-medium ${isDarkMode ? "text-blue-400 hover:text-blue-300" : "text-blue-600 hover:text-blue-700"}`}
-                >
-                  Mark all read
-                </button>
-              )}
+            <div className="flex flex-col px-4 pt-4 pb-2 relative">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className={`text-[24px] font-bold tracking-tight ${isDarkMode ? "text-[#E4E6EB]" : "text-[#050505]"}`} style={{ fontFamily: "Segoe UI, system-ui, sans-serif" }}>
+                  Notifications
+                </h3>
+                <div className="relative">
+                  <button onClick={(e) => { e.stopPropagation(); setHeaderMenuOpen(!headerMenuOpen); setItemMenuConfig(null); }} className={`p-1.5 rounded-full transition-colors ${isDarkMode ? "hover:bg-[#3A3B3C] text-[#B0B3B8]" : "hover:bg-[#F2F2F2] text-[#65676B]"}`}>
+                    <EllipsisIcon className="w-6 h-6" />
+                  </button>
+                  {headerMenuOpen && (
+                    <div className={`absolute right-0 top-full mt-1 w-[300px] rounded-lg shadow-[0_4px_12px_rgba(0,0,0,0.15)] p-2 z-[100] ${isDarkMode ? "bg-[#242526] border border-[#3E4042]" : "bg-white border border-[#E4E6EB]"}`}>
+                      <button onClick={(e) => { e.stopPropagation(); markAllRead(); setHeaderMenuOpen(false); }} className={`w-full text-left px-3 py-2.5 rounded-md flex items-center gap-3 text-[15px] font-medium transition-colors ${isDarkMode ? "hover:bg-[#3A3B3C] text-[#E4E6EB]" : "hover:bg-[#F2F2F2] text-[#050505]"}`}>
+                        <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                        Mark all as read
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); setHeaderMenuOpen(false); onOpenSettings && onOpenSettings("notifications"); }} className={`w-full text-left px-3 py-2.5 rounded-md flex items-center gap-3 text-[15px] font-medium transition-colors mt-0.5 ${isDarkMode ? "hover:bg-[#3A3B3C] text-[#E4E6EB]" : "hover:bg-[#F2F2F2] text-[#050505]"}`}>
+                        <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                        Notification settings
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); setHeaderMenuOpen(false); if (onOpenNotificationsPage) onOpenNotificationsPage(); else toast("Redirecting to full notifications timeline...", { icon: '🔔' }); }} className={`w-full text-left px-3 py-2.5 rounded-md flex items-center gap-3 text-[15px] font-medium transition-colors mt-0.5 ${isDarkMode ? "hover:bg-[#3A3B3C] text-[#E4E6EB]" : "hover:bg-[#F2F2F2] text-[#050505]"}`}>
+                        <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                        Open Notifications
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setActiveTab('all')} className={`px-3 py-1.5 rounded-full text-[15px] font-semibold transition-colors ${activeTab === 'all' ? (isDarkMode ? "bg-[#2D88FF]/20 text-[#4599FF]" : "bg-[#E7F3FF] text-[#1877F2]") : (isDarkMode ? "hover:bg-[#3A3B3C] text-[#B0B3B8]" : "hover:bg-[#F2F2F2] text-[#050505]")}`}>All</button>
+                <button onClick={() => setActiveTab('unread')} className={`px-3 py-1.5 rounded-full text-[15px] font-semibold transition-colors ${activeTab === 'unread' ? (isDarkMode ? "bg-[#2D88FF]/20 text-[#4599FF]" : "bg-[#E7F3FF] text-[#1877F2]") : (isDarkMode ? "hover:bg-[#3A3B3C] text-[#B0B3B8]" : "hover:bg-[#F2F2F2] text-[#050505]")}`}>Unread</button>
+              </div>
             </div>
 
-            <div className="overflow-y-auto max-h-[360px]">
-              {pendingCount > 0 && (
+            <div className="overflow-y-auto max-h-[460px] pb-2 px-2" onScroll={(e) => setItemMenuConfig(null)} onClick={() => { setHeaderMenuOpen(false); setItemMenuConfig(null); }}>
+              {pendingCount > 0 && activeTab === 'all' && (
                 <div
-                  className={`px-4 py-2.5 border-b flex items-center gap-2 ${
-                    isDarkMode
-                      ? "border-[#3c4043] bg-amber-500/10"
-                      : "border-[#e8eaed] bg-amber-50"
+                  onClick={() => {
+                     setAckPendingCount(pendingCount);
+                     localStorage.setItem('ackPendingCount', pendingCount.toString());
+                     setOpen(false);
+                     setHeaderMenuOpen(false);
+                     setItemMenuConfig(null);
+                     if (onPendingClick) onPendingClick();
+                  }}
+                  className={`group relative mx-2 mb-2 p-3 rounded-lg flex items-center gap-3 cursor-pointer transition-colors ${
+                    pendingCount > ackPendingCount
+                      ? isDarkMode
+                        ? "bg-[#3A3B3C] hover:bg-[#4E4F50]"
+                        : "bg-[#E7F3FF]/50 hover:bg-[#E7F3FF]"
+                      : isDarkMode
+                        ? "bg-transparent hover:bg-[#3A3B3C]"
+                        : "bg-transparent hover:bg-[#F2F2F2]"
                   }`}
                 >
-                  <span
-                    className={`w-2 h-2 rounded-full flex-shrink-0 ${isDarkMode ? "bg-amber-400" : "bg-amber-500"}`}
-                  />
-                  <span
-                    className={`text-xs font-medium ${isDarkMode ? "text-amber-400" : "text-amber-700"}`}
-                  >
-                    {pendingCount} pending request
-                    {pendingCount !== 1 ? "s" : ""} awaiting your action
-                  </span>
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${isDarkMode ? "bg-amber-500/20" : "bg-amber-100"}`}>
+                    <svg className={`w-6 h-6 ${isDarkMode ? "text-amber-400" : "text-amber-600"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </div>
+                  <div className="flex-1">
+                    <p className={`text-[15px] ${pendingCount > ackPendingCount ? "font-semibold" : "font-medium"} ${isDarkMode ? (pendingCount > ackPendingCount ? "text-[#E4E6EB]" : "text-[#B0B3B8]") : (pendingCount > ackPendingCount ? "text-[#050505]" : "text-[#65676B]")}`}>
+                      Pending Request{pendingCount !== 1 ? "s" : ""}
+                    </p>
+                    <p className={`text-[13px] ${isDarkMode ? "text-[#B0B3B8]" : "text-[#65676B]"}`}>
+                      You have {pendingCount} request{pendingCount !== 1 ? "s" : ""} awaiting your action
+                    </p>
+                  </div>
+                  <div className="flex items-center self-center pr-2 drop-shadow-sm">
+                      <span className={`w-3 h-3 rounded-full bg-primary-500 transition-opacity duration-300 ${pendingCount > ackPendingCount ? "opacity-100" : "opacity-0"}`} />
+                  </div>
+                  <div className="flex items-center self-center pl-1 h-full opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button 
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          setHeaderMenuOpen(false);
+                          if (itemMenuConfig?.n?.id === "pending_alert") {
+                            setItemMenuConfig(null);
+                          } else {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            setItemMenuConfig({
+                              n: { 
+                                id: "pending_alert", 
+                                read_at: pendingCount <= ackPendingCount ? new Date().toISOString() : null, 
+                                pendingCount,
+                                isPending: true 
+                              },
+                              top: rect.bottom + 8,
+                              right: window.innerWidth - rect.right
+                            });
+                          }
+                        }} 
+                        className={`p-2 rounded-full transition-colors border ${isDarkMode ? "bg-[#242526] border-[#3E4042] text-[#B0B3B8] hover:bg-[#3A3B3C]" : "bg-white border-[#E4E6EB] text-[#65676B] hover:bg-[#F2F2F2]"}`}
+                      >
+                        <EllipsisIcon className="w-5 h-5" />
+                      </button>
+                  </div>
                 </div>
               )}
-              {notifications.length === 0 ? (
+              {displayNotifications.length === 0 ? (
                 <div
-                  className={`py-10 text-center text-sm ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}
+                  className={`py-6 pb-8 text-center text-[15px] font-medium ${isDarkMode ? "text-[#B0B3B8]" : "text-[#65676B]"}`}
                 >
-                  No notifications yet
+                  No notifications
                 </div>
               ) : (
-                notifications.map((n) => (
-                  <button
+                displayNotifications.map((n) => (
+                  <div
                     key={n.id}
+                    className={`relative w-full text-left p-2 rounded-lg flex items-start gap-3 transition-colors cursor-pointer group ${
+                      isDarkMode
+                        ? `hover:bg-[#3A3B3C]`
+                        : `hover:bg-[#F2F2F2]`
+                    }`}
                     onClick={() => {
                       if (!n.read_at) markAsRead(n.id);
                     }}
-                    className={`w-full text-left px-4 py-3 border-b last:border-b-0 transition-colors ${
-                      isDarkMode
-                        ? `border-[#3c4043] ${n.read_at ? "opacity-60" : "bg-white/[0.03]"} hover:bg-white/[0.06]`
-                        : `border-[#f1f3f4] ${n.read_at ? "opacity-60" : "bg-blue-50/40"} hover:bg-slate-50`
-                    }`}
                   >
-                    <div className="flex items-start gap-2">
-                      {!n.read_at && (
-                        <span className="mt-1.5 w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
-                      )}
-                      <div className={`flex-1 ${n.read_at ? "ml-4" : ""}`}>
-                        <p
-                          className={`text-[13px] font-medium leading-tight ${typeColors[n.type] || (isDarkMode ? "text-white" : "text-[#202124]")}`}
-                        >
-                          {n.title}
-                        </p>
-                        <p
-                          className={`text-[12px] mt-0.5 leading-snug ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}
-                        >
-                          {n.message}
-                        </p>
-                        <p
-                          className={`text-[11px] mt-1 ${isDarkMode ? "text-[#5f6368]" : "text-[#9aa0a6]"}`}
-                        >
-                          {formatTime(n.created_at)}
-                        </p>
+                    <div className="relative">
+                      <div className={`w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 ${isDarkMode ? "bg-[#3A3B3C]" : "bg-[#E4E6EB]"}`}>
+                         <BellIcon className={`w-6 h-6 ${isDarkMode ? "text-[#E4E6EB]" : "text-[#050505]"}`} />
+                      </div>
+                      <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-primary-500 rounded-full border-2 border-white dark:border-[#242526] flex items-center justify-center text-white">
+                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" /></svg>
                       </div>
                     </div>
-                  </button>
+                    
+                    <div className="flex-1 min-w-0 flex flex-col pt-1">
+                      <p className={`text-[15px] leading-[1.3] truncate ${!n.read_at ? "font-semibold" : ""} ${isDarkMode ? (!n.read_at ? "text-[#E4E6EB]" : "text-[#B0B3B8]") : (!n.read_at ? "text-[#050505]" : "text-[#65676B]")}`}>
+                        {n.title}
+                      </p>
+                      <p className={`text-[14px] mt-0.5 leading-[1.3] line-clamp-2 ${!n.read_at ? "font-medium" : ""} ${isDarkMode ? (!n.read_at ? "text-[#E4E6EB]" : "text-[#B0B3B8]") : (!n.read_at ? "text-[#050505]" : "text-[#65676B]")}`}>
+                        {n.message}
+                      </p>
+                      <p className={`text-[13px] mt-1 font-medium ${isDarkMode ? (!n.read_at ? "text-[#2D88FF]" : "text-[#B0B3B8]") : (!n.read_at ? "text-[#1877F2]" : "text-[#65676B]")}`}>
+                        {formatTime(n.created_at)}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center self-center pl-1 pr-2 drop-shadow-sm">
+                        <span className={`w-3 h-3 rounded-full bg-primary-500 transition-opacity duration-300 ${!n.read_at ? "opacity-100" : "opacity-0"}`} />
+                    </div>
+                    <div className="flex items-center self-center h-full opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button 
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            setHeaderMenuOpen(false);
+                            if (itemMenuConfig?.n?.id === n.id) {
+                              setItemMenuConfig(null);
+                            } else {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setItemMenuConfig({
+                                n,
+                                top: rect.bottom + 8, // Appears beneath the button instead of covering it
+                                right: window.innerWidth - rect.right // Properly aligns right edge to right edge of button
+                              });
+                            }
+                          }} 
+                          className={`p-2 rounded-full transition-colors border ${isDarkMode ? "bg-[#242526] border-[#3E4042] text-[#B0B3B8] hover:bg-[#3A3B3C]" : "bg-white border-[#E4E6EB] text-[#65676B] hover:bg-[#F2F2F2]"}`}
+                        >
+                          <EllipsisIcon className="w-5 h-5" />
+                        </button>
+                    </div>
+                  </div>
                 ))
               )}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {itemMenuConfig && (
+        <div 
+          style={{ top: itemMenuConfig.top, right: itemMenuConfig.right }}
+          className={`fixed w-[280px] rounded-lg shadow-[0_4px_20px_rgba(0,0,0,0.2)] p-2 z-[99999] ${isDarkMode ? "bg-[#242526] border border-[#3E4042]" : "bg-white border border-[#E4E6EB]"}`}
+        >
+          <button onClick={(e) => { 
+            e.stopPropagation(); 
+            if (itemMenuConfig.n.isPending) {
+               if (itemMenuConfig.n.read_at) {
+                 setAckPendingCount(0); localStorage.setItem('ackPendingCount', '0');
+               } else {
+                 setAckPendingCount(itemMenuConfig.n.pendingCount); localStorage.setItem('ackPendingCount', itemMenuConfig.n.pendingCount.toString());
+               }
+            } else {
+               itemMenuConfig.n.read_at ? markAsUnread(itemMenuConfig.n.id) : markAsRead(itemMenuConfig.n.id); 
+            }
+            setItemMenuConfig(null); 
+          }} className={`w-full text-left px-3 py-2.5 rounded-md flex items-center gap-3 text-[15px] font-medium transition-colors ${isDarkMode ? "hover:bg-[#3A3B3C] text-[#E4E6EB]" : "hover:bg-[#F2F2F2] text-[#050505]"}`}>
+            <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+            Mark as {itemMenuConfig.n.read_at ? "unread" : "read"}
+          </button>
+          {!itemMenuConfig.n.isPending && (
+            <button onClick={(e) => { e.stopPropagation(); deleteNotification(itemMenuConfig.n.id); }} className={`w-full text-left px-3 py-2.5 rounded-md flex items-center gap-3 text-[15px] font-medium transition-colors mt-0.5 ${isDarkMode ? "hover:bg-[#3A3B3C] text-[#E4E6EB]" : "hover:bg-[#F2F2F2] text-[#050505]"}`}>
+              <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              Remove this notification
+            </button>
+          )}
+          <button onClick={(e) => { e.stopPropagation(); toast("You will no longer receive notifications of this type.", { icon: "🧹" }); if (!itemMenuConfig.n.isPending) deleteNotification(itemMenuConfig.n.id); setItemMenuConfig(null); }} className={`w-full text-left px-3 py-2.5 rounded-md flex items-center gap-3 text-[15px] font-medium transition-colors mt-0.5 ${isDarkMode ? "hover:bg-[#3A3B3C] text-[#E4E6EB]" : "hover:bg-[#F2F2F2] text-[#050505]"}`}>
+            <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+            Turn off notifications like this
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); toast.success("Issue reported. Thank you for your feedback."); setItemMenuConfig(null); }} className={`w-full text-left px-3 py-2.5 rounded-md flex items-center gap-3 text-[15px] font-medium transition-colors mt-0.5 ${isDarkMode ? "hover:bg-[#3A3B3C] text-[#E4E6EB]" : "hover:bg-[#F2F2F2] text-[#050505]"}`}>
+            <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+            Report issue to Notifications Team
+          </button>
+        </div>
+      )}
     </div>
   );
 }

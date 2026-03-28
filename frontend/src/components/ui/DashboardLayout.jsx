@@ -248,7 +248,7 @@ export default function DashboardLayout({
             </h1>
           </div>
           <div className="flex items-center gap-2 mr-2">
-            <NotificationBell isDarkMode={isDarkMode} />
+            <NotificationBell isDarkMode={isDarkMode} onOpenSettings={onOpenSettings} onOpenNotificationsPage={() => setActiveView("notifications")} onPendingClick={() => setActiveView("pending")} />
             <div className="relative" ref={profileDropdownRef}>
               <button
                 onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}

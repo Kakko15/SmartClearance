@@ -196,6 +196,21 @@ router.post("/read/:id", requireAuth, async (req, res) => {
   }
 });
 
+router.post("/unread/:id", requireAuth, async (req, res) => {
+  try {
+    const { error } = await supabase
+      .from("notifications")
+      .update({ read_at: null })
+      .eq("id", req.params.id)
+      .eq("user_id", req.user.id);
+
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) {
+    safeErrorResponse(res, error);
+  }
+});
+
 router.post("/read-all", requireAuth, async (req, res) => {
   try {
     const { error } = await supabase

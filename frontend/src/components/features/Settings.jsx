@@ -130,9 +130,10 @@ export default function Settings({
   onClose,
   theme,
   onAvatarUpdate,
+  initialTab = "account",
 }) {
   const { skipNextValidationRef } = useAuth();
-  const [activeTab, setActiveTab] = useState("account");
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [loading, setLoading] = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState("");

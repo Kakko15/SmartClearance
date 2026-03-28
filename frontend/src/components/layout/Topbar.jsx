@@ -58,7 +58,7 @@ export default function Topbar({
         </div>
 
         <div className="flex items-center gap-4">
-          <NotificationBell isDarkMode={isDark} />
+          <NotificationBell isDarkMode={isDark} onOpenSettings={onOpenSettings} />
 
           <div className="relative" ref={profileRef}>
             <button

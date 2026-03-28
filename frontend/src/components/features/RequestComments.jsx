@@ -1,18 +1,186 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import toast from "react-hot-toast";
-import { getClearanceComments, createClearanceComment } from "../../services/api";
+import { getClearanceComments, createClearanceComment, updateClearanceComment, deleteClearanceComment, authAxios } from "../../services/api";
 import { ChatBubbleIcon } from "../ui/Icons";
 import useRealtimeSubscription from "../../hooks/useRealtimeSubscription";
+import { useAuth } from "../../contexts/AuthContext";
 
 export default function RequestComments({
   requestId,
   userId,
   isDarkMode = false,
 }) {
+  const { user, profile } = useAuth();
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [replyText, setReplyText] = useState("");
+
+  const [optimisticReactions, setOptimisticReactions] = useState({});
+  const reactionTimers = useRef({});
+  const pendingReactionActions = useRef({});
+  const virtualIds = useRef({});
+  const deletedVirtualIds = useRef(new Set());
+
+  useEffect(() => {
+    setOptimisticReactions(prev => {
+       const newStates = { ...prev };
+       for (const key in newStates) {
+          if (!pendingReactionActions.current[key]) {
+             delete newStates[key];
+          }
+       }
+       return newStates;
+    });
+  }, [comments]);
+
+  const REACTION_REGEX = /^\[\[REAC:([a-z]+):([a-zA-Z0-9-]+)\]\]$/i;
+  const validComments = [];
+  const reactionComments = [];
+  
+  comments.forEach(c => {
+    const match = c.comment_text.match(REACTION_REGEX);
+    if (match) {
+      reactionComments.push({ ...c, reacType: match[1].toLowerCase(), targetId: match[2] });
+    } else {
+      validComments.push(c);
+    }
+  });
+
+  const getReactionsForComment = (commentId) => {
+    const strCommentId = String(commentId);
+    const reacs = reactionComments.filter(r => r.targetId === strCommentId);
+    const latestPerUser = {};
+    reacs.forEach(r => {
+      if (!latestPerUser[r.commenter_id] || new Date(r.created_at) > new Date(latestPerUser[r.commenter_id].created_at)) {
+        latestPerUser[r.commenter_id] = r;
+      }
+    });
+    
+    let activeReactions = Object.values(latestPerUser);
+    
+    // Apply Optimistic Override if exists
+    const optObj = optimisticReactions[strCommentId];
+    if (optObj) {
+      if (optObj.action === 'DELETE') {
+         activeReactions = activeReactions.filter(r => r.commenter_id !== userId);
+      } else if (optObj.action === 'SET') {
+         const existing = activeReactions.find(r => r.commenter_id === userId);
+         if (existing) {
+            existing.reacType = optObj.type;
+         } else {
+            activeReactions.push({ commenter_id: userId, reacType: optObj.type });
+         }
+      }
+    }
+    
+    const counts = {};
+    activeReactions.forEach(r => {
+      counts[r.reacType] = (counts[r.reacType] || 0) + 1;
+    });
+    
+    return { counts, userReaction: activeReactions.find(r => r.commenter_id === userId) || null, activeReactions };
+  };
+
+  const getDbReaction = (commentId) => {
+    const strCommentId = String(commentId);
+    const reacs = reactionComments.filter(r => r.targetId === strCommentId && r.commenter_id === userId);
+    if (reacs.length === 0) return null;
+    const latest = reacs.reduce((latest, r) => new Date(r.created_at) > new Date(latest.created_at) ? r : latest);
+    if (deletedVirtualIds.current.has(latest.id)) return null;
+    return latest;
+  };
+
+  const handleToggleReaction = (commentId, type) => {
+    const strCommentId = String(commentId);
+    
+    setOptimisticReactions(prev => {
+      const dbReaction = getDbReaction(commentId);
+      const existingOpt = prev[strCommentId];
+      
+      let currentState = null;
+      if (existingOpt) {
+        if (existingOpt.action === 'SET') currentState = existingOpt.type;
+      } else if (dbReaction) {
+        currentState = dbReaction.reacType;
+      }
+
+      let newAction;
+      let newType;
+       
+      if (currentState === type) {
+          newAction = 'DELETE';
+          newType = null;
+      } else {
+          newAction = 'SET';
+          newType = type;
+      }
+       
+      const nextState = {
+         ...prev,
+         [strCommentId]: { action: newAction, type: newType }
+      };
+      pendingReactionActions.current[strCommentId] = nextState[strCommentId];
+      return nextState;
+    });
+
+    if (reactionTimers.current[strCommentId]) {
+      clearTimeout(reactionTimers.current[strCommentId]);
+    }
+
+    reactionTimers.current[strCommentId] = setTimeout(async () => {
+      const finalOpt = pendingReactionActions.current[strCommentId];
+      if (!finalOpt) return;
+      delete pendingReactionActions.current[strCommentId];
+
+      const dbReaction = getDbReaction(commentId);
+
+      try {
+        if (finalOpt.action === 'DELETE') {
+          const idToDelete = dbReaction?.id || virtualIds.current[strCommentId];
+          if (idToDelete) {
+            deletedVirtualIds.current.add(idToDelete);
+            await authAxios.delete(`/comments/${idToDelete}`);
+            delete virtualIds.current[strCommentId];
+            fetchComments();
+          }
+        } else if (finalOpt.action === 'SET') {
+          const existingId = dbReaction?.id || virtualIds.current[strCommentId];
+          if (existingId) {
+            if (dbReaction?.reacType !== finalOpt.type) {
+              await authAxios.put(`/comments/${existingId}`, { user_id: userId, comment_text: `[[REAC:${finalOpt.type}:${commentId}]]` });
+              fetchComments();
+            }
+          } else {
+            const res = await authAxios.post(`/comments/${requestId}/comments`, { user_id: userId, comment_text: `[[REAC:${finalOpt.type}:${commentId}]]`, visibility: "all" });
+            if (res?.data?.comment?.id) {
+               virtualIds.current[strCommentId] = res.data.comment.id;
+            }
+            fetchComments();
+          }
+        }
+      } catch (e) {
+        if (e.response?.status !== 404) {
+          toast.error("Failed to update reaction");
+        }
+        setOptimisticReactions(prev => {
+           const newObj = { ...prev };
+           delete newObj[strCommentId];
+           return newObj;
+        });
+      }
+    }, 400);
+  };
+
+  const REACTION_TYPES = [
+    { id: "like", icon: "👍", name: "Like" },
+    { id: "love", icon: "❤️", name: "Love" },
+    { id: "care", icon: "🤗", name: "Care" },
+    { id: "haha", icon: "😂", name: "Haha" },
+    { id: "wow", icon: "😮", name: "Wow" },
+    { id: "sad", icon: "😢", name: "Sad" },
+    { id: "angry", icon: "😡", name: "Angry" },
+  ];
 
   const loadingTimerRef = useRef(null);
 
@@ -68,7 +236,7 @@ export default function RequestComments({
     }
   };
 
-  const unresolvedCount = comments.filter((c) => !c.is_resolved && c.commenter_id !== userId).length;
+  const unresolvedCount = validComments.filter((c) => !c.is_resolved && c.commenter_id !== userId).length;
 
   if (loading) {
     return (
@@ -93,7 +261,7 @@ export default function RequestComments({
     );
   }
 
-  if (comments.length === 0) {
+  if (validComments.length === 0) {
     return (
       <div className={`mt-2 rounded-2xl border transition-all duration-300 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043]" : "bg-white border-[#dadce0] shadow-[0_1px_2px_0_rgba(60,64,67,0.1)]"}`}>
          <div className={`px-5 py-4 border-b flex items-center justify-between ${isDarkMode ? "border-[#3c4043] bg-[#2d2f31]" : "border-[#e8eaed] bg-slate-50/50"}`}>
@@ -177,13 +345,19 @@ export default function RequestComments({
       </div>
 
       <div className={`p-5 max-h-[360px] overflow-y-auto space-y-5 ${isDarkMode ? "bg-[#202124] scrollbar-thin scrollbar-thumb-[#3c4043]" : "bg-[#f8fafd] scrollbar-thin scrollbar-thumb-gray-200"}`}>
-        {comments.map((comment) => (
-          <div key={comment.id} className="flex gap-4">
-            <div className={`w-[36px] h-[36px] rounded-full flex-shrink-0 flex items-center justify-center font-bold text-[13px] text-white shadow-sm ${comment.is_resolved ? "bg-[#34a853]" : "bg-primary-500"}`}>
-              {comment.commenter_name?.charAt(0).toUpperCase() || "?"}
+        {validComments.map((comment) => (
+          <div key={comment.id} className="group flex gap-4 text-left">
+            <div className={`w-[36px] h-[36px] mt-1 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-[13px] overflow-hidden text-white shadow-sm ${comment.is_resolved ? (isDarkMode ? "bg-emerald-600/80" : "bg-[#34a853]") : (isDarkMode ? "bg-blue-600/80" : "bg-primary-500")}`}>
+              {(comment.commenter_id === userId && (user?.user_metadata?.avatar_url || profile?.avatar_url)) ? (
+                <img src={user?.user_metadata?.avatar_url || profile?.avatar_url} alt="You" className="w-full h-full object-cover" />
+              ) : comment.avatar_url ? (
+                <img src={comment.avatar_url} alt={comment.commenter_name} className="w-full h-full object-cover" />
+              ) : (
+                comment.commenter_name?.charAt(0).toUpperCase() || "?"
+              )}
             </div>
-            <div className="flex-1 min-w-0 flex flex-col items-start">
-              <div className="flex items-baseline justify-between gap-2 mb-1 w-full">
+            <div className="flex-1 min-w-0 flex flex-col items-start relative">
+              <div className="flex items-baseline justify-between gap-2 mb-1 w-full relative">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={`font-medium text-[14px] ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>
                     {comment.commenter_name}
@@ -198,8 +372,46 @@ export default function RequestComments({
                   </span>
                 )}
               </div>
-              <div className={`mt-1 py-2.5 px-4 rounded-[16px] rounded-tl-[4px] text-[14px] leading-relaxed relative max-w-[90%] inline-block ${comment.is_resolved ? (isDarkMode ? "bg-[#3c4043]/50 text-[#9aa0a6]" : "bg-white border border-[#e8eaed] text-[#5f6368] opacity-75") : (isDarkMode ? "bg-[#3c4043] text-[#e8eaed]" : "bg-white shadow-sm border border-[#e8eaed] text-[#202124]")}`}>
-                {comment.comment_text.replace(/^\[TO:[^\]]+\]\s*/, "")}
+              <div className="relative group/bubble max-w-[90%] sm:max-w-full">
+                {(() => {
+                    const reacs = getReactionsForComment(comment.id);
+                    const hasReactions = reacs.activeReactions.length > 0;
+                    return (
+                      <>
+                        <div className={`mt-1 py-2.5 px-4 rounded-[16px] rounded-tl-[4px] text-[14px] leading-relaxed relative max-w-full inline-block ${comment.is_resolved ? (isDarkMode ? "bg-[#3c4043]/50 text-[#9aa0a6]" : "bg-white border border-[#e8eaed] text-[#5f6368] opacity-75") : (isDarkMode ? "bg-[#3c4043] text-[#e8eaed]" : "bg-white shadow-sm border border-[#e8eaed] text-[#202124]")}`}>
+                          {comment.comment_text.replace(/^\[TO:[^\]]+\]\s*/, "")}
+                          
+                          {hasReactions && (
+                            <div className={`absolute -bottom-2.5 -right-2 flex items-center gap-[2px] px-1.5 py-0.5 rounded-full shadow-sm text-[11px] font-bold z-10 ${isDarkMode ? "bg-[#28292a] border border-[#3c4043] text-[#e8eaed]" : "bg-white border border-slate-200 text-slate-600"}`}>
+                              <div className="flex -space-x-1">
+                                {Object.keys(reacs.counts).slice(0, 3).map((rType) => (
+                                  <span key={rType} className="z-10 bg-inherit rounded-full">{REACTION_TYPES.find(r => r.id === rType)?.icon}</span>
+                                ))}
+                              </div>
+                              {reacs.activeReactions.length > 1 && <span className="ml-[1px] font-medium text-[10.5px]">{reacs.activeReactions.length}</span>}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Reaction Trigger Button (Hover) */}
+                        <div className="absolute top-1/2 -translate-y-1/2 left-full pl-2 opacity-0 group-hover/bubble:opacity-100 transition-opacity duration-200 flex items-center gap-1 z-20 before:absolute before:inset-0 before:-top-4 before:-bottom-4 before:z-[-1]">
+                           <div className="relative group/reaction flex items-center">
+                             <button className={`p-[5.5px] rounded-full hover:scale-110 active:scale-95 transition-all ${isDarkMode ? "text-slate-400 hover:text-yellow-400 bg-[#303134]" : "text-slate-400 hover:text-yellow-500 bg-white shadow-sm border border-slate-100"}`}>
+                               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                             </button>
+                             
+                             <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-1.5 py-1.5 rounded-[32px] shadow-xl flex gap-[2px] opacity-0 pointer-events-none group-hover/reaction:opacity-100 group-hover/reaction:pointer-events-auto transition-all duration-200 origin-bottom scale-95 group-hover/reaction:scale-100 after:content-[''] after:absolute after:-bottom-4 after:left-0 after:w-full after:h-4 ${isDarkMode ? "bg-[#28292a] border border-[#3c4043]" : "bg-white border border-slate-100"}`}>
+                               {REACTION_TYPES.map(rt => (
+                                 <button key={rt.id} onClick={(e) => { e.stopPropagation(); handleToggleReaction(comment.id, rt.id); }} className={`hover:scale-125 hover:-translate-y-2 transition-all duration-200 text-[20px] px-[2px] relative transform-gpu hover:z-30 rounded-full w-[30px] h-[30px] flex items-center justify-center ${reacs.userReaction?.reacType === rt.id ? (isDarkMode ? 'bg-primary-900/30 ring-1 ring-primary-500/50' : 'bg-primary-50 ring-1 ring-primary-300') : ''}`} title={rt.name}>
+                                   <span className="leading-none drop-shadow-sm">{rt.icon}</span>
+                                 </button>
+                               ))}
+                             </div>
+                           </div>
+                        </div>
+                      </>
+                    );
+                })()}
               </div>
             </div>
           </div>
