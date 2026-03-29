@@ -192,10 +192,20 @@ export function AuthProvider({ children }) {
     } catch (error) {
       if (error.name !== "AbortError") {
         console.error("Profile fetch error:", error);
-        toast.error("Failed to load profile. Please try again.");
-        if (isMounted) {
-          roleMismatchRef.current = true;
-          await supabase.auth.signOut();
+
+        // Don't disrupt the signup flow with toast errors or forced sign-out
+        const isInSignupFlow =
+          sessionStorage.getItem("signupStep") ||
+          sessionStorage.getItem("pending_signup_email_verification") ||
+          sessionStorage.getItem("pending_signup_two_factor_setup") ||
+          window.location.pathname === "/auth";
+        
+        if (!isInSignupFlow) {
+          toast.error("Failed to load profile. Please try again.");
+          if (isMounted) {
+            roleMismatchRef.current = true;
+            await supabase.auth.signOut();
+          }
         }
       }
     }
@@ -255,7 +265,14 @@ export function AuthProvider({ children }) {
         }
 
         if (isMounted && session?.user) {
-          await runSessionValidation(session.user, isMounted);
+          // Don't validate session during the signup flow
+          const isInSignupFlow =
+            sessionStorage.getItem("signupStep") ||
+            sessionStorage.getItem("pending_signup_email_verification") ||
+            sessionStorage.getItem("pending_signup_two_factor_setup");
+          if (!isInSignupFlow) {
+            await runSessionValidation(session.user, isMounted);
+          }
         }
       } catch (error) {
         if (error.name !== "AbortError") console.error(error);
@@ -290,6 +307,16 @@ export function AuthProvider({ children }) {
           if (event === "SIGNED_IN" && !session.user.email_confirmed_at) {
             return;
           }
+
+          // Skip validation during the signup flow to avoid disruptive errors
+          const isInSignupFlow =
+            sessionStorage.getItem("signupStep") ||
+            sessionStorage.getItem("pending_signup_email_verification") ||
+            sessionStorage.getItem("pending_signup_two_factor_setup");
+          if (isInSignupFlow) {
+            return;
+          }
+
           scheduleSessionValidation(session.user);
         } else if (event === "SIGNED_OUT") {
           setUser(null);
