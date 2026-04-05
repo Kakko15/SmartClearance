@@ -97,6 +97,51 @@ async function sendEmail(userId, requestId, recipient, subject, message) {
   }
 }
 
+async function notifyAccountStatus(userId, isApproved, rejectionReason = "") {
+  try {
+    const { data: user } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", userId)
+      .single();
+
+    if (!user) return;
+
+    const studentEmail = await resolveUserEmail(userId);
+    if (!studentEmail) {
+      console.warn(`[notifyAccountStatus] Could not resolve email for user ${userId}, skipping notification`);
+      return;
+    }
+
+    const emailSubject = isApproved ? "Account Approved - SmartClearance" : "Account Rejected - SmartClearance";
+    const emailMessage = isApproved
+      ? `
+        <h2>Registration Approved</h2>
+        <p>Dear ${escapeHtml(user.full_name)},</p>
+        <p>Great news! Your SmartClearance account registration has been reviewed and <strong>approved</strong> by the Registrar.</p>
+        <p>You can now log in using your email and password to access the platform.</p>
+        <br>
+        <p>Best regards,<br>SmartClearance Team</p>
+      `
+      : `
+        <h2>Registration Update</h2>
+        <p>Dear ${escapeHtml(user.full_name)},</p>
+        <p>We have reviewed your recent account registration for SmartClearance.</p>
+        <p>Unfortunately, we could not approve your account at this time for the following reason:</p>
+        <blockquote style="border-left: 3px solid #dc3545; padding-left: 15px; color: #555;">
+          ${escapeHtml(rejectionReason)}
+        </blockquote>
+        <p>For assistance, please contact the Registrar's office or try registering again with valid credentials.</p>
+        <br>
+        <p>Best regards,<br>SmartClearance Team</p>
+      `;
+
+    await sendEmail(userId, null, studentEmail, emailSubject, emailMessage);
+  } catch (error) {
+    console.error("Error in notifyAccountStatus:", error);
+  }
+}
+
 async function notifyRequestSubmitted(requestId, studentId) {
   try {
     const { data: request } = await supabase
@@ -638,4 +683,5 @@ module.exports = {
   notifyRequestResubmitted,
   notifyBulkAction,
   checkDeadlineReminders,
+  notifyAccountStatus,
 };

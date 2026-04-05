@@ -115,9 +115,17 @@ export function AuthProvider({ children }) {
       }
 
       if (data.account_enabled === false) {
-        toast.error(
-          "Your account is pending approval. Please contact your administrator.",
-        );
+        if (data.role === "student") {
+          toast.success(
+            "Registration complete! Your account is currently pending manual review by the registrar. Please try logging in later.",
+            { duration: 8000 },
+          );
+        } else {
+          toast.error(
+            "Your account is pending approval. Please contact your administrator.",
+            { duration: 6000 },
+          );
+        }
         roleMismatchRef.current = true;
         setInitializing(false);
         await supabase.auth.signOut();
@@ -393,6 +401,10 @@ export function AuthProvider({ children }) {
     sessionStorage.removeItem("authMode");
     sessionStorage.removeItem("signupStep");
     sessionStorage.removeItem("signupFormData");
+    // FLOW-003 FIX: Clear pending signup state to prevent cross-flow bleed
+    // when switching between student and staff signup flows.
+    sessionStorage.removeItem("pending_signup_email_verification");
+    sessionStorage.removeItem("pending_signup_two_factor_setup");
     navigateRef.current?.("/select-role");
   };
 

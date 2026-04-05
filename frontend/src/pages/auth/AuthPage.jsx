@@ -114,7 +114,7 @@ export default function AuthPage({
 
   return (
     <div
-      className={`relative flex min-h-screen items-center justify-center p-4 overflow-x-hidden transition-colors duration-300 ${isDark ? "bg-slate-950" : "bg-[#f8fafc]"}`}
+      className={`relative flex min-h-screen flex-col p-4 overflow-x-hidden transition-colors duration-300 ${isDark ? "bg-slate-950" : "bg-[#f8fafc]"}`}
     >
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute inset-0 grid-bg opacity-[0.15]"></div>
@@ -154,7 +154,7 @@ export default function AuthPage({
           opacity: { duration: 0.3 },
           scale: { duration: 0.3, ease: "easeOut" },
         }}
-        className={`w-full max-w-[500px] rounded-3xl overflow-visible relative z-20 transition-all duration-300 ${isDark ? "spatial-glass-dark" : "spatial-glass"}`}
+        className={`w-full max-w-[500px] m-auto rounded-3xl overflow-visible relative z-20 transition-all duration-300 ${isDark ? "spatial-glass-dark" : "spatial-glass"}`}
       >
         <div
           className={`sticky top-0 z-30 pt-8 px-8 mb-8 backdrop-blur-xl transition-colors duration-500 border-b rounded-t-3xl ${isDark ? "bg-slate-900/40 border-slate-800" : "bg-white/40 border-gray-100"}`}

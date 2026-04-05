@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import ReCAPTCHA from "react-google-recaptcha";
@@ -148,10 +148,14 @@ export default function SignupFormWithFaceVerification({
     getPendingTwoFactorSetup("student"),
   );
   const [currentStep, setCurrentStep] = useState(() => {
+    // BUG-001/002 FIX: Passwords and face descriptors are no longer persisted
+    // to sessionStorage, so steps 2+ cannot be safely resumed after a refresh.
+    // Always restart from step 1 to force re-entry of sensitive data.
     const saved = sessionStorage.getItem("signupStep");
     if (saved) {
       const step = parseInt(saved, 10);
-      return step >= 1 && step <= 3 ? step : 1;
+      // Only allow restoring step 1; steps 2-3 require in-memory-only data
+      return step === 1 ? 1 : 1;
     }
     return 1;
   });
@@ -162,7 +166,9 @@ export default function SignupFormWithFaceVerification({
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        return parsed;
+        // BUG-001 FIX: Never restore passwords from sessionStorage.
+        // Force re-entry of sensitive credentials after any page reload.
+        return { ...parsed, password: "", confirmPassword: "" };
       } catch (_e) {
         sessionStorage.removeItem("signupFormData");
       }
@@ -179,20 +185,13 @@ export default function SignupFormWithFaceVerification({
     };
   });
 
-  const [idDescriptor, setIdDescriptor] = useState(() => {
-
-    const saved = sessionStorage.getItem("signupIdDescriptor");
-    if (saved) {
-      try {
-        return new Float32Array(JSON.parse(saved));
-      } catch (_e) {
-        sessionStorage.removeItem("signupIdDescriptor");
-      }
-    }
-    return null;
-  });
+  // BUG-002 FIX: Face descriptor is biometric data — never persist to sessionStorage.
+  // Kept only in volatile React state. If the user refreshes, they must re-verify their ID.
+  const [idDescriptor, setIdDescriptor] = useState(null);
 
   const [loading, setLoading] = useState(false);
+  // EDGE-001 FIX: Track face model loading errors for persistent user feedback
+  const [modelLoadError, setModelLoadError] = useState(null);
   const [recaptchaToken, setRecaptchaToken] = useState(null);
   const [recaptchaExpired, setRecaptchaExpired] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
@@ -243,22 +242,38 @@ export default function SignupFormWithFaceVerification({
     }
     setRecaptchaToken(null);
     setRecaptchaExpired(false);
+    // FLOW-004 FIX: Reset password visibility state on form clear
+    setShowPassword(false);
+    setIsPasswordFocused(false);
   };
 
   const handleBlur = (field) => {
     setTouched((prev) => ({ ...prev, [field]: true }));
   };
 
-  const getFieldError = (field) => {
+  // PERF-003 FIX: Memoize getFieldError to avoid redundant calls per render.
+  // Each field calls this 2-3 times (SpotlightBorder, error class, error text).
+  const getFieldError = useCallback((field) => {
     if (!touched[field]) return null;
     const val = formData[field];
 
     switch (field) {
       case "firstName":
         if (!val || val.trim().length < 2) return "First name is required.";
+        // EDGE-005 FIX: Require at least 2 actual letters (not just spaces/hyphens)
+        if (!/[a-zA-ZÀ-ÿ].*[a-zA-ZÀ-ÿ]/.test(val)) return "Name must contain at least 2 letters.";
         break;
       case "lastName":
         if (!val || val.trim().length < 2) return "Last name is required.";
+        // EDGE-005 FIX: Require at least 2 actual letters (not just spaces/hyphens)
+        if (!/[a-zA-ZÀ-ÿ].*[a-zA-ZÀ-ÿ]/.test(val)) return "Name must contain at least 2 letters.";
+        break;
+      // UX-002 FIX: Added missing email case — previously fell through to default
+      // and returned null, leaving the email field without a visual error indicator.
+      case "email":
+        if (!val || !val.trim()) return "Email is required.";
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim()))
+          return "Please enter a valid email address.";
         break;
       case "password":
         if (!val || val.length < 8)
@@ -290,14 +305,29 @@ export default function SignupFormWithFaceVerification({
         break;
     }
     return null;
-  };
+  }, [touched, formData]);
+
+  // PERF-003 FIX: Pre-compute errors once per render instead of 2-3x per field.
+  const fieldErrors = useMemo(() => ({
+    firstName: getFieldError("firstName"),
+    lastName: getFieldError("lastName"),
+    email: getFieldError("email"),
+    password: getFieldError("password"),
+    confirmPassword: getFieldError("confirmPassword"),
+    studentNumber: getFieldError("studentNumber"),
+    course: getFieldError("course"),
+    yearLevel: getFieldError("yearLevel"),
+  }), [getFieldError]);
 
   useEffect(() => {
     sessionStorage.setItem("signupStep", String(currentStep));
   }, [currentStep]);
 
   useEffect(() => {
-    sessionStorage.setItem("signupFormData", JSON.stringify(formData));
+    // BUG-001 FIX: Strip sensitive credentials before persisting to sessionStorage.
+    // Passwords must never be written to any browser storage mechanism.
+    const { password, confirmPassword, ...safeFormData } = formData;
+    sessionStorage.setItem("signupFormData", JSON.stringify(safeFormData));
 
     if (formData.password) passwordRef.current = formData.password;
   }, [formData]);
@@ -306,23 +336,33 @@ export default function SignupFormWithFaceVerification({
     loadFaceModels()
       .then(() => {
         setModelsLoading(false);
+        setModelLoadError(null);
       })
       .catch((error) => {
         console.error("Failed to load models:", error);
+        // EDGE-001 FIX: Set persistent error state instead of leaving user stuck
+        // on an infinite loading spinner with no feedback.
+        setModelsLoading(false);
+        setModelLoadError(
+          "Face detection models failed to load. Please refresh the page or check your connection.",
+        );
       });
   }, []);
 
+  // UX-001 FIX: Now returns a boolean (true = error exists) consistent with
+  // SignupForm.jsx. Previously returned void, causing a race condition where
+  // handleStep1Submit could proceed before the async email check completed.
   const validateAndCheckEmail = async (email) => {
     const trimmed = email.trim().toLowerCase();
 
     if (!trimmed) {
       setEmailError("Email is required.");
-      return;
+      return true;
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
       setEmailError("Please enter a valid email address.");
-      return;
+      return true;
     }
 
     setEmailError("");
@@ -339,12 +379,15 @@ export default function SignupFormWithFaceVerification({
       const data = await res.json();
       if (data.success && data.message) {
         setEmailError(data.message);
+        return true;
       } else {
         setEmailError("");
+        return false;
       }
     } catch (err) {
       console.error("Email check failed:", err);
       setEmailError("");
+      return false;
     } finally {
       setCheckingEmail(false);
     }
@@ -404,10 +447,20 @@ export default function SignupFormWithFaceVerification({
       return;
     }
 
-    if (emailError) return;
+    // UX-001 FIX: Await the async email uniqueness check before proceeding.
+    // Previously only checked the stale `emailError` state, which could still
+    // be "" if the async check hadn't completed yet.
+    const hasEmailError = await validateAndCheckEmail(formData.email);
+    if (hasEmailError) return;
 
     if (!recaptchaToken && !IS_LOCALHOST) {
       toast.error("Please verify reCAPTCHA");
+      return;
+    }
+
+    // EDGE-001 FIX: Block submission if face models failed to load.
+    if (modelLoadError) {
+      toast.error(modelLoadError);
       return;
     }
 
@@ -416,10 +469,11 @@ export default function SignupFormWithFaceVerification({
       try {
         await loadFaceModels();
         setModelsLoading(false);
+        setModelLoadError(null);
       } catch {
-        toast.error(
-          "Face detection models failed to load. Please refresh the page.",
-        );
+        const errMsg = "Face detection models failed to load. Please refresh the page.";
+        setModelLoadError(errMsg);
+        toast.error(errMsg);
         setLoading(false);
         return;
       }
@@ -430,12 +484,9 @@ export default function SignupFormWithFaceVerification({
   };
 
   const handleIDVerified = (descriptor) => {
+    // BUG-002 FIX: Store descriptor in React state only — never in sessionStorage.
+    // This prevents biometric data extraction via XSS or devtools.
     setIdDescriptor(descriptor);
-
-    sessionStorage.setItem(
-      "signupIdDescriptor",
-      JSON.stringify(Array.from(descriptor)),
-    );
     toast.success("ID verified! Now take a selfie.");
     setCurrentStep(3);
   };
@@ -451,6 +502,15 @@ export default function SignupFormWithFaceVerification({
       return;
     }
     await submitSignup(isMatch, similarity);
+  };
+
+  // BUG-004 FIX: Dedicated handler for the "Submit to Registrar" manual-review path.
+  // This bypasses handleFaceMatch's early-return on isMatch=false, which previously
+  // made the "Submit to Registrar" button silently do nothing (sent user back to
+  // step 2 with an error toast instead of actually creating the account).
+  const handleSubmitForReview = async (similarity) => {
+    toast("Submitting your application for registrar review...", { icon: "📋" });
+    await submitSignup(false, similarity);
   };
 
   const submitSignup = async (faceVerified, similarity) => {
@@ -490,19 +550,14 @@ export default function SignupFormWithFaceVerification({
         throw new Error(result.error || "Signup failed");
       }
 
-      if (result.autoApproved) {
-        toast.success(
-          `✅ Account approved! Now verify your email. (${similarity.toFixed(1)}% match)`,
-        );
-      } else {
-        toast.success(
-          `⚠️ Account pending review. Verify your email while you wait. (${similarity.toFixed(1)}% match)`,
-        );
-      }
+      // BUG-003 FIX: All student accounts are now pending review.
+      // The backend no longer auto-approves based on client-submitted face data.
+      toast.success(
+        `Account created! Verify your email while the registrar reviews your application. (${similarity.toFixed(1)}% face match recorded)`,
+      );
 
       sessionStorage.removeItem("signupStep");
       sessionStorage.removeItem("signupFormData");
-      sessionStorage.removeItem("signupIdDescriptor");
       const normalizedEmail = formData.email.trim().toLowerCase();
       setSignupUserId(result.user.id);
       setSignupToken(result.signupToken);
@@ -676,6 +731,16 @@ export default function SignupFormWithFaceVerification({
           onSubmit={handleStep1Submit}
           className="space-y-4"
         >
+          {/* EDGE-001 FIX: Persistent error banner when face models fail to load */}
+          {modelLoadError && (
+            <div className="rounded-xl border border-red-300 bg-red-50 dark:bg-red-900/20 dark:border-red-800 p-4 text-sm text-red-700 dark:text-red-300 flex items-start gap-3">
+              <span className="text-lg mt-0.5">⚠️</span>
+              <div>
+                <p className="font-semibold">Face Verification Unavailable</p>
+                <p className="mt-1 opacity-80">{modelLoadError}</p>
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label
@@ -685,7 +750,7 @@ export default function SignupFormWithFaceVerification({
               </label>
               <SpotlightBorder
                 isDark={isDark}
-                error={!!getFieldError("firstName")}
+                error={!!fieldErrors.firstName}
               >
                 <input
                   type="text"
@@ -700,11 +765,11 @@ export default function SignupFormWithFaceVerification({
                     isDark
                       ? "bg-slate-900 border-slate-700 text-white caret-green-500 focus:border-green-500"
                       : "bg-white border-gray-200 text-gray-900 caret-green-500 focus:border-green-500"
-                  } ${getFieldError("firstName") ? "!border-red-500 focus:!border-red-500" : ""}`}
+                  } ${fieldErrors.firstName ? "!border-red-500 focus:!border-red-500" : ""}`}
                 />
               </SpotlightBorder>
               <AnimatePresence>
-                {getFieldError("firstName") && (
+                {fieldErrors.firstName && (
                   <motion.p
                     initial={{ opacity: 0, y: -5, height: 0 }}
                     animate={{ opacity: 1, y: 0, height: "auto" }}
@@ -712,7 +777,7 @@ export default function SignupFormWithFaceVerification({
                     transition={{ duration: 0.2 }}
                     className="text-red-500 text-xs mt-1 ml-1 font-bold"
                   >
-                    {getFieldError("firstName")}
+                    {fieldErrors.firstName}
                   </motion.p>
                 )}
               </AnimatePresence>
@@ -726,7 +791,7 @@ export default function SignupFormWithFaceVerification({
               </label>
               <SpotlightBorder
                 isDark={isDark}
-                error={!!getFieldError("lastName")}
+                error={!!fieldErrors.lastName}
               >
                 <input
                   type="text"
@@ -741,11 +806,11 @@ export default function SignupFormWithFaceVerification({
                     isDark
                       ? "bg-slate-900 border-slate-700 text-white caret-green-500 focus:border-green-500"
                       : "bg-white border-gray-200 text-gray-900 caret-green-500 focus:border-green-500"
-                  } ${getFieldError("lastName") ? "!border-red-500 focus:!border-red-500" : ""}`}
+                  } ${fieldErrors.lastName ? "!border-red-500 focus:!border-red-500" : ""}`}
                 />
               </SpotlightBorder>
               <AnimatePresence>
-                {getFieldError("lastName") && (
+                {fieldErrors.lastName && (
                   <motion.p
                     initial={{ opacity: 0, y: -5, height: 0 }}
                     animate={{ opacity: 1, y: 0, height: "auto" }}
@@ -753,7 +818,7 @@ export default function SignupFormWithFaceVerification({
                     transition={{ duration: 0.2 }}
                     className="text-red-500 text-xs mt-1 ml-1 font-bold"
                   >
-                    {getFieldError("lastName")}
+                    {fieldErrors.lastName}
                   </motion.p>
                 )}
               </AnimatePresence>
@@ -834,7 +899,7 @@ export default function SignupFormWithFaceVerification({
             </label>
             <SpotlightBorder
               isDark={isDark}
-              error={!!getFieldError("password")}
+              error={!!fieldErrors.password}
             >
               <div className="relative">
                 <input
@@ -853,7 +918,7 @@ export default function SignupFormWithFaceVerification({
                     isDark
                       ? "bg-slate-900 border-slate-700 text-white caret-green-500 focus:border-green-500"
                       : "bg-white border-gray-200 text-gray-900 caret-green-500 focus:border-green-500"
-                  } ${getFieldError("password") ? "!border-red-500 focus:!border-red-500" : ""}`}
+                  } ${fieldErrors.password ? "!border-red-500 focus:!border-red-500" : ""}`}
                 />
                 <button
                   type="button"
@@ -980,7 +1045,7 @@ export default function SignupFormWithFaceVerification({
               isDark={isDark}
             />
             <AnimatePresence>
-              {getFieldError("password") && (
+              {fieldErrors.password && (
                 <motion.p
                   initial={{ opacity: 0, y: -5, height: 0 }}
                   animate={{ opacity: 1, y: 0, height: "auto" }}
@@ -988,7 +1053,7 @@ export default function SignupFormWithFaceVerification({
                   transition={{ duration: 0.2 }}
                   className="text-red-500 text-xs mt-1 ml-1 font-bold"
                 >
-                  {getFieldError("password")}
+                  {fieldErrors.password}
                 </motion.p>
               )}
             </AnimatePresence>
@@ -1002,7 +1067,7 @@ export default function SignupFormWithFaceVerification({
             </label>
             <SpotlightBorder
               isDark={isDark}
-              error={!!getFieldError("confirmPassword")}
+              error={!!fieldErrors.confirmPassword}
             >
               <div className="relative">
                 <input
@@ -1020,7 +1085,7 @@ export default function SignupFormWithFaceVerification({
                     isDark
                       ? "bg-slate-900 border-slate-700 text-white caret-green-500 focus:border-green-500"
                       : "bg-white border-gray-200 text-gray-900 caret-green-500 focus:border-green-500"
-                  } ${getFieldError("confirmPassword") ? "!border-red-500 focus:!border-red-500" : ""}`}
+                  } ${fieldErrors.confirmPassword ? "!border-red-500 focus:!border-red-500" : ""}`}
                 />
                 <button
                   type="button"
@@ -1142,7 +1207,7 @@ export default function SignupFormWithFaceVerification({
               </div>
             </SpotlightBorder>
             <AnimatePresence>
-              {getFieldError("confirmPassword") && (
+              {fieldErrors.confirmPassword && (
                 <motion.p
                   initial={{ opacity: 0, y: -5, height: 0 }}
                   animate={{ opacity: 1, y: 0, height: "auto" }}
@@ -1150,7 +1215,7 @@ export default function SignupFormWithFaceVerification({
                   transition={{ duration: 0.2 }}
                   className="text-red-500 text-xs mt-1 ml-1 font-bold"
                 >
-                  {getFieldError("confirmPassword")}
+                  {fieldErrors.confirmPassword}
                 </motion.p>
               )}
             </AnimatePresence>
@@ -1164,7 +1229,7 @@ export default function SignupFormWithFaceVerification({
             </label>
             <SpotlightBorder
               isDark={isDark}
-              error={!!getFieldError("studentNumber")}
+              error={!!fieldErrors.studentNumber}
             >
               <input
                 type="text"
@@ -1172,9 +1237,13 @@ export default function SignupFormWithFaceVerification({
                 onChange={(e) =>
                   setFormData({
                     ...formData,
+                    // UX-006 FIX: Real-time character filtering — only allow
+                    // digits, uppercase letters, and hyphens (consistent with
+                    // how firstName/lastName filter non-alpha characters)
                     studentNumber: e.target.value
                       .toUpperCase()
-                      .replace(/[–—]/g, "-"),
+                      .replace(/[–—]/g, "-")
+                      .replace(/[^0-9A-Z-]/g, ""),
                   })
                 }
                 onBlur={() => handleBlur("studentNumber")}
@@ -1184,11 +1253,11 @@ export default function SignupFormWithFaceVerification({
                   isDark
                     ? "bg-slate-900 border-slate-700 text-white caret-green-500 focus:border-green-500"
                     : "bg-white border-gray-200 text-gray-900 caret-green-500 focus:border-green-500"
-                } ${getFieldError("studentNumber") ? "!border-red-500 focus:!border-red-500" : ""}`}
+                } ${fieldErrors.studentNumber ? "!border-red-500 focus:!border-red-500" : ""}`}
               />
             </SpotlightBorder>
             <AnimatePresence>
-              {getFieldError("studentNumber") && (
+              {fieldErrors.studentNumber && (
                 <motion.p
                   initial={{ opacity: 0, y: -5, height: 0 }}
                   animate={{ opacity: 1, y: 0, height: "auto" }}
@@ -1196,7 +1265,7 @@ export default function SignupFormWithFaceVerification({
                   transition={{ duration: 0.2 }}
                   className="text-red-500 text-xs mt-1 ml-1 font-bold"
                 >
-                  {getFieldError("studentNumber")}
+                  {fieldErrors.studentNumber}
                 </motion.p>
               )}
             </AnimatePresence>
@@ -1218,10 +1287,10 @@ export default function SignupFormWithFaceVerification({
               placeholder="Select your course"
               isDark={isDark}
               searchable
-              error={!!getFieldError("course")}
+              error={!!fieldErrors.course}
             />
             <AnimatePresence>
-              {getFieldError("course") && (
+              {fieldErrors.course && (
                 <motion.p
                   initial={{ opacity: 0, y: -5, height: 0 }}
                   animate={{ opacity: 1, y: 0, height: "auto" }}
@@ -1229,7 +1298,7 @@ export default function SignupFormWithFaceVerification({
                   transition={{ duration: 0.2 }}
                   className="text-red-500 text-xs mt-1 ml-1 font-bold"
                 >
-                  {getFieldError("course")}
+                  {fieldErrors.course}
                 </motion.p>
               )}
             </AnimatePresence>
@@ -1250,10 +1319,10 @@ export default function SignupFormWithFaceVerification({
               }}
               placeholder="Select your year level"
               isDark={isDark}
-              error={!!getFieldError("yearLevel")}
+              error={!!fieldErrors.yearLevel}
             />
             <AnimatePresence>
-              {getFieldError("yearLevel") && (
+              {fieldErrors.yearLevel && (
                 <motion.p
                   initial={{ opacity: 0, y: -5, height: 0 }}
                   animate={{ opacity: 1, y: 0, height: "auto" }}
@@ -1261,7 +1330,7 @@ export default function SignupFormWithFaceVerification({
                   transition={{ duration: 0.2 }}
                   className="text-red-500 text-xs mt-1 ml-1 font-bold"
                 >
-                  {getFieldError("yearLevel")}
+                  {fieldErrors.yearLevel}
                 </motion.p>
               )}
             </AnimatePresence>
@@ -1368,6 +1437,21 @@ export default function SignupFormWithFaceVerification({
           >
             ← Back to Form
           </button>
+          {/* UX-005 FIX: Escape hatch for users who realize they already have an account */}
+          {onSwitchMode && (
+            <p className={`text-center text-sm mt-3 ${isDark ? "text-slate-400" : "text-gray-500"}`}>
+              Already have an account?{" "}
+              <button
+                type="button"
+                onClick={onSwitchMode}
+                className={`font-semibold underline underline-offset-2 ${
+                  isDark ? "text-blue-400 hover:text-blue-300" : "text-blue-600 hover:text-blue-700"
+                }`}
+              >
+                Sign In
+              </button>
+            </p>
+          )}
         </motion.div>
       )}
 
@@ -1380,10 +1464,16 @@ export default function SignupFormWithFaceVerification({
           <SelfieCapture
             idDescriptor={idDescriptor}
             onMatch={handleFaceMatch}
+            onSubmitForReview={handleSubmitForReview}
             isDark={isDark}
           />
           <button
-            onClick={() => setCurrentStep(2)}
+            onClick={() => {
+              // FLOW-001 FIX: Clear stale descriptor when navigating back.
+              // Prevents using an old ID's biometric data if the user re-uploads.
+              setIdDescriptor(null);
+              setCurrentStep(2);
+            }}
             disabled={loading}
             className={`mt-4 w-full py-3 rounded-full font-semibold ${
               loading
@@ -1395,6 +1485,21 @@ export default function SignupFormWithFaceVerification({
           >
             ← Back to ID Upload
           </button>
+          {/* UX-005 FIX: Escape hatch for users who realize they already have an account */}
+          {onSwitchMode && (
+            <p className={`text-center text-sm mt-3 ${isDark ? "text-slate-400" : "text-gray-500"}`}>
+              Already have an account?{" "}
+              <button
+                type="button"
+                onClick={onSwitchMode}
+                className={`font-semibold underline underline-offset-2 ${
+                  isDark ? "text-blue-400 hover:text-blue-300" : "text-blue-600 hover:text-blue-700"
+                }`}
+              >
+                Sign In
+              </button>
+            </p>
+          )}
         </motion.div>
       )}
     </div>

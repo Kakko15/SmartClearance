@@ -26,7 +26,23 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
     }
     return () => clearTimeout(timer);
   }, [loading, pendingAccounts.length]);
+
   const [actionLoading, setActionLoading] = useState(null);
+  
+  // Custom CSS for the shiny premium shine effect inside our UI
+  useEffect(() => {
+    if (!document.getElementById("premium-ui-styles")) {
+      const style = document.createElement("style");
+      style.id = "premium-ui-styles";
+      style.innerHTML = `
+        @keyframes shine {
+          0% { transform: translateX(-150%) skewX(-15deg); }
+          50%, 100% { transform: translateX(200%) skewX(-15deg); }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  }, []);
   const [rejectReason, setRejectReason] = useState("");
   const [selectedAccount, setSelectedAccount] = useState(null);
 
@@ -407,56 +423,71 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, x: -40 }}
               transition={{ type: "spring", stiffness: 350, damping: 30 }}
-              className={`p-6 rounded-2xl border ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"} shadow-lg ${
+              className={`relative overflow-hidden p-6 sm:p-8 rounded-[32px] border transition-all duration-500 shadow-sm hover:shadow-xl ${
+                isDark 
+                  ? "bg-[#111111]/80 border-white/5 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.5)]" 
+                  : "bg-white/90 border-transparent shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_40px_rgb(0,0,0,0.08)] backdrop-blur-3xl"
+              } ${
                 bulkMode && selectedIds.has(account.id)
                   ? isDark
-                    ? "ring-2 ring-blue-500"
+                    ? "ring-2 ring-blue-500/50"
                     : "ring-2 ring-blue-400"
                   : ""
               }`}
             >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-4">
+              {}
+              <div className={`absolute top-0 right-0 w-64 h-64 bg-gradient-to-br opacity-5 rounded-full blur-[80px] pointer-events-none ${
+                (account.face_similarity ?? 0) >= 90 ? "from-emerald-400 to-green-600" : (account.face_similarity ?? 0) >= 80 ? "from-amber-400 to-yellow-600" : "from-rose-400 to-red-600"
+              }`} />
+
+              <div className="relative flex flex-col lg:flex-row items-start lg:items-center justify-between mb-8 gap-5 z-10">
+                <div className="flex items-center gap-5">
                   {bulkMode && (
                     <input
                       type="checkbox"
                       checked={selectedIds.has(account.id)}
                       onChange={() => toggleSelect(account.id)}
-                      className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-3"
+                      className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
                   )}
                   <div
-                    className={`w-16 h-16 rounded-full ${isDark ? "bg-blue-500/20" : "bg-blue-100"} flex items-center justify-center`}
+                    className={`relative w-20 h-20 rounded-[24px] flex items-center justify-center flex-shrink-0 shadow-sm ${
+                      isDark 
+                        ? "bg-gradient-to-br from-indigo-500/20 to-blue-500/10 border border-white/10 text-indigo-400" 
+                        : "bg-gradient-to-br from-indigo-50 to-blue-50 border border-slate-100 text-indigo-600"
+                    }`}
                   >
-                    <span
-                      className={`text-2xl font-bold ${isDark ? "text-blue-400" : "text-blue-600"}`}
-                    >
+                    <span className="text-3xl font-display font-bold">
                       {account.full_name?.charAt(0) || "?"}
                     </span>
                   </div>
                   <div>
                     <h3
-                      className={`text-xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}
+                      className={`text-2xl font-display font-semibold tracking-tight ${isDark ? "text-white" : "text-gray-900"}`}
                     >
                       {account.full_name}
                     </h3>
                     <p
-                      className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                      className={`text-[15px] font-medium tracking-wide mt-0.5 ${isDark ? "text-slate-400" : "text-slate-500"}`}
                     >
                       {account.email}
                     </p>
-                    <p
-                      className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"} mt-1`}
-                    >
-                      Student #: {account.student_number}
-                    </p>
+                    <div className="flex items-center mt-2.5">
+                      <span className={`px-2.5 py-1 text-xs font-bold uppercase tracking-wider rounded-md ${isDark ? "bg-white/5 text-slate-300" : "bg-black/5 text-slate-600"}`}>
+                        ID: {account.student_number}
+                      </span>
+                    </div>
                   </div>
                 </div>
+                
                 <div
-                  className={`px-4 py-2 rounded-full border ${getSimilarityBgColor(account.face_similarity ?? 0)}`}
+                  className={`px-5 py-2.5 rounded-full backdrop-blur-md border shadow-sm flex items-center gap-2 ${getSimilarityBgColor(account.face_similarity ?? 0)}`}
                 >
+                  <span className="material-symbols-rounded text-[20px]" style={{ fontVariationSettings: "'FILL' 1", color: 'inherit' }}>
+                    {(account.face_similarity ?? 0) >= 90 ? "verified" : (account.face_similarity ?? 0) >= 80 ? "warning" : "error"}
+                  </span>
                   <span
-                    className={`font-bold ${getSimilarityColor(account.face_similarity ?? 0)}`}
+                    className={`font-bold tracking-wide text-sm ${getSimilarityColor(account.face_similarity ?? 0)}`}
                   >
                     {account.face_similarity != null
                       ? `${account.face_similarity.toFixed(1)}%`
@@ -466,139 +497,139 @@ export default function PendingAccountsView({ adminId, isDark = false }) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
                 <div
-                  className={`p-3 rounded-xl ${isDark ? "bg-slate-900/50" : "bg-gray-50"}`}
+                  className={`relative p-5 rounded-3xl border transition-colors ${isDark ? "bg-white/5 border-white/5" : "bg-slate-50/50 border-slate-100 hover:bg-slate-50"}`}
                 >
-                  <p
-                    className={`text-xs font-semibold ${isDark ? "text-gray-400" : "text-gray-600"} mb-1`}
-                  >
-                    Course & Year
-                  </p>
-                  <p
-                    className={`text-sm font-medium ${isDark ? "text-white" : "text-gray-900"}`}
-                  >
-                    {account.course_year || "N/A"}
-                  </p>
+                  <div className="flex flex-col">
+                    <p className={`text-xs font-bold uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"} mb-1`}>
+                      Program / Major
+                    </p>
+                    <p className={`text-base font-semibold tracking-tight ${isDark ? "text-white" : "text-gray-900"}`}>
+                      {account.course_year || "Not Specified"}
+                    </p>
+                  </div>
                 </div>
                 <div
-                  className={`p-3 rounded-xl ${isDark ? "bg-slate-900/50" : "bg-gray-50"}`}
+                  className={`relative p-5 rounded-3xl border transition-colors ${isDark ? "bg-white/5 border-white/5" : "bg-slate-50/50 border-slate-100 hover:bg-slate-50"}`}
                 >
-                  <p
-                    className={`text-xs font-semibold ${isDark ? "text-gray-400" : "text-gray-600"} mb-1`}
-                  >
-                    Registered
-                  </p>
-                  <p
-                    className={`text-sm font-medium ${isDark ? "text-white" : "text-gray-900"}`}
-                  >
-                    {new Date(account.created_at).toLocaleDateString()}
-                  </p>
+                  <div className="flex flex-col">
+                    <p className={`text-xs font-bold uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"} mb-1`}>
+                      Filed Date
+                    </p>
+                    <p className={`text-base font-semibold tracking-tight ${isDark ? "text-white" : "text-gray-900"}`}>
+                      {new Date(account.created_at).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
+                    </p>
+                  </div>
                 </div>
               </div>
 
               <div
-                className={`p-4 rounded-xl mb-4 ${isDark ? "bg-slate-900/50" : "bg-gray-50"}`}
+                className={`p-6 rounded-3xl mb-8 border ${isDark ? "bg-white/5 border-white/5" : "bg-slate-50/50 border-slate-100"}`}
               >
-                <p
-                  className={`text-sm font-semibold mb-2 ${isDark ? "text-gray-300" : "text-gray-700"}`}
-                >
-                  Face Verification Analysis
-                </p>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span
-                      className={isDark ? "text-gray-400" : "text-gray-600"}
-                    >
-                      ID Verified:
+                <div className="flex items-center gap-3 mb-6">
+                  <div className={`p-2 rounded-lg ${isDark ? "bg-white/10" : "bg-black/5"}`}>
+                     <span className="material-symbols-rounded text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                        face_retouching_natural
+                     </span>
+                  </div>
+                  <h4 className={`text-[15px] font-bold tracking-tight ${isDark ? "text-white" : "text-gray-900"}`}>
+                    AI Verification Analysis
+                  </h4>
+                </div>
+                
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-8">
+                  <div className="flex flex-col">
+                    <span className={`text-[11px] font-bold uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"} mb-1`}>
+                      ID Classification
                     </span>
-                    <span
-                      className={
-                        account.face_verified
-                          ? "text-green-500"
-                          : "text-red-500"
-                      }
-                    >
-                      {account.face_verified ? "✓ Yes" : "✗ No"}
+                    <span className={`text-sm font-semibold flex items-center gap-2 ${
+                        account.face_verified ? "text-emerald-500" : "text-rose-500"
+                      }`}>
+                      <span className="material-symbols-rounded text-[18px]">
+                        {account.face_verified ? "check_circle" : "cancel"}
+                      </span>
+                      {account.face_verified ? "Valid Document" : "Invalid Document"}
                     </span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span
-                      className={isDark ? "text-gray-400" : "text-gray-600"}
-                    >
-                      Similarity Score:
+                  <div className="flex flex-col">
+                    <span className={`text-[11px] font-bold uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"} mb-1`}>
+                      Confidence
                     </span>
-                    <span
-                      className={`font-bold ${getSimilarityColor(account.face_similarity ?? 0)}`}
-                    >
-                      {account.face_similarity != null
-                        ? `${account.face_similarity.toFixed(2)}%`
-                        : "N/A"}
+                    <span className={`text-sm font-bold ${getSimilarityColor(account.face_similarity ?? 0)}`}>
+                      {account.face_similarity != null ? `${account.face_similarity.toFixed(2)}%` : "N/A"}
                     </span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span
-                      className={isDark ? "text-gray-400" : "text-gray-600"}
-                    >
-                      Threshold:
+                  <div className="flex flex-col">
+                    <span className={`text-[11px] font-bold uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"} mb-1`}>
+                      Threshold Needed
                     </span>
-                    <span
-                      className={isDark ? "text-gray-300" : "text-gray-700"}
-                    >
-                      90% (Auto-approve)
+                    <span className={`text-sm font-semibold tracking-wide ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                      90% Auto-pass
                     </span>
                   </div>
                 </div>
-                <div className="mt-3">
+
+                <div className="relative">
                   <div
-                    className={`w-full rounded-full h-2 overflow-hidden ${isDark ? "bg-slate-700" : "bg-gray-200"}`}
+                    className={`w-full rounded-full h-2.5 overflow-hidden shadow-inner ${isDark ? "bg-[#1A1A1A]" : "bg-slate-200"}`}
                   >
-                    <div
-                      className={`h-full rounded-full transition-all ${
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min(account.face_similarity ?? 0, 100)}%` }}
+                      transition={{ duration: 1, ease: "easeOut" }}
+                      className={`h-full rounded-full ${
                         (account.face_similarity ?? 0) >= 90
-                          ? "bg-green-500"
+                          ? "bg-gradient-to-r from-emerald-400 to-green-500"
                           : (account.face_similarity ?? 0) >= 80
-                            ? "bg-yellow-500"
-                            : "bg-red-500"
+                            ? "bg-gradient-to-r from-amber-400 to-yellow-500"
+                            : "bg-gradient-to-r from-rose-400 to-red-500"
                       }`}
-                      style={{
-                        width: `${Math.min(account.face_similarity ?? 0, 100)}%`,
-                      }}
                     />
                   </div>
+                  <div 
+                    className="absolute top-0 right-0 h-full w-[10%] bg-white/20 skew-x-[45deg] blur-[2px] animate-[shine_2s_ease-in-out_infinite]"
+                    style={{ left: `${Math.min((account.face_similarity ?? 0) - 10, 90)}%` }}
+                  />
                 </div>
               </div>
 
               {!bulkMode && (
                 <>
-                  <div className="flex gap-3">
+                  <div className="flex flex-col sm:flex-row gap-4">
                     <button
                       onClick={() => handleApprove(account.id)}
                       disabled={actionLoading === account.id}
-                      className={`flex-1 py-3 rounded-xl font-semibold transition-all ${
+                      className={`group relative flex-1 flex items-center justify-center gap-3 py-3.5 px-6 rounded-[20px] font-bold text-[15px] overflow-hidden transition-all duration-300 ${
                         actionLoading === account.id
-                          ? "bg-gray-400 cursor-not-allowed"
+                          ? "bg-slate-300 cursor-not-allowed opacity-50 text-slate-500"
                           : isDark
-                            ? "bg-green-500 hover:bg-green-600 text-white"
-                            : "bg-green-600 hover:bg-green-700 text-white"
+                            ? "bg-emerald-500 text-white hover:bg-emerald-400 hover:shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:-translate-y-0.5 border border-emerald-400/50"
+                            : "bg-emerald-600 text-white hover:bg-emerald-500 hover:shadow-lg hover:shadow-emerald-500/20 hover:-translate-y-0.5 border border-emerald-500"
                       }`}
                     >
-                      {actionLoading === account.id
-                        ? "Processing..."
-                        : "✓ Approve"}
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-[150%] skew-x-[-15deg] group-hover:animate-[shine_1.5s_ease-in-out_infinite]" />
+                      <span className="material-symbols-rounded text-[22px]">
+                        {actionLoading === account.id ? "hourglass_empty" : "how_to_reg"}
+                      </span>
+                      {actionLoading === account.id ? "Processing..." : "Approve Account"}
                     </button>
+                    
                     <button
                       onClick={() => setSelectedAccount(account.id)}
                       disabled={actionLoading === account.id}
-                      className={`flex-1 py-3 rounded-xl font-semibold transition-all ${
+                      className={`group flex-1 flex items-center justify-center gap-3 py-3.5 px-6 rounded-[20px] font-bold text-[15px] transition-all duration-300 ${
                         actionLoading === account.id
-                          ? "bg-gray-400 cursor-not-allowed"
+                          ? "bg-slate-200 cursor-not-allowed"
                           : isDark
-                            ? "bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/30"
-                            : "bg-red-50 hover:bg-red-600 text-red-600 hover:text-white border border-red-200"
+                            ? "bg-white/5 hover:bg-rose-500/10 text-slate-300 hover:text-rose-400 border border-white/10 hover:border-rose-500/30"
+                            : "bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 hover:border-rose-200 shadow-sm"
                       }`}
                     >
-                      ✗ Reject
+                      <span className="material-symbols-rounded text-[22px]">
+                        cancel
+                      </span>
+                      Reject
                     </button>
                   </div>
 

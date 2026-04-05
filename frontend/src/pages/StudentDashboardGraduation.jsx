@@ -440,6 +440,7 @@ const InlineCommentThread = ({
   requestId,
   studentId,
   clearanceComments = [],
+  setClearanceComments,
   onCommentAdded,
   isDarkMode,
   user,
@@ -488,7 +489,6 @@ const InlineCommentThread = ({
         setReplyText("");
         
         // Let postgres_changes handle cross-client sync
-        if (onCommentAdded) onCommentAdded();
       } else {
         throw new Error(data.error || "Failed to post reply");
       }
@@ -501,32 +501,47 @@ const InlineCommentThread = ({
 
   const submitEdit = async (commentId, originalTag) => {
     if (!editCommentText.trim()) return;
+    
+    const finalComment = originalTag ? `${originalTag} ${editCommentText.trim()}` : editCommentText.trim();
+    
+    if (setClearanceComments) {
+      setClearanceComments(prev => prev.map(c => c.id === commentId ? { ...c, comment_text: finalComment } : c));
+    }
+    setEditingCommentId(null);
+    
     try {
-      const finalComment = originalTag ? `${originalTag} ${editCommentText.trim()}` : editCommentText.trim();
       const response = await authAxios.put(`/comments/${commentId}`, {
         user_id: studentId,
         comment_text: finalComment
       });
       if (response.data.success) {
         toast.success("Comment updated successfully");
-        setEditingCommentId(null);
-        if (onCommentAdded) onCommentAdded();
+      } else {
+        throw new Error(response.data.error || "Failed to update comment");
       }
     } catch (error) {
       toast.error(error.response?.data?.error || "Failed to update comment");
+      if (onCommentAdded) onCommentAdded(); // Restore state if failed
     }
   };
 
   const deleteComment = async (commentId) => {
     if (!window.confirm("Are you sure you want to delete this comment?")) return;
+    
+    if (setClearanceComments) {
+      setClearanceComments(prev => prev.filter(c => c.id !== commentId));
+    }
+    
     try {
       const response = await authAxios.delete(`/comments/${commentId}`);
       if (response.data.success) {
         toast.success("Comment deleted successfully");
-        if (onCommentAdded) onCommentAdded();
+      } else {
+        throw new Error(response.data.error || "Failed to delete comment");
       }
     } catch (error) {
       toast.error(error.response?.data?.error || "Failed to delete comment");
+      if (onCommentAdded) onCommentAdded(); // Restore state if failed
     }
   };
 
@@ -955,7 +970,7 @@ const InlineCommentThread = ({
           <div className={`flex-1 flex flex-col transition-all duration-300 relative group/input bg-white border ${replyText.trim().length > 0 ? "rounded-[16px] border-primary-600 ring-1 ring-primary-600" : "rounded-[24px] focus-within:rounded-[16px] border-[#dadce0] focus-within:border-primary-600 focus-within:ring-1 focus-within:ring-primary-600"} ${isDarkMode ? "!bg-transparent !border-[#5f6368] focus-within:!border-primary-400 focus-within:!ring-primary-400" : ""}`}>
             <textarea
               disabled={isSubmitting}
-              placeholder="Add class comment..."
+              placeholder="Add a comment..."
               className={`w-full resize-none bg-transparent outline-none px-4 py-[11px] text-[14px] leading-relaxed ${isDarkMode ? "text-[#e8eaed] placeholder-[#9aa0a6]" : "text-[#202124] placeholder-[#5f6368]"}`}
               style={{ minHeight: '44px', overflow: 'hidden' }}
               value={replyText}
@@ -2711,6 +2726,7 @@ export default function StudentDashboardGraduation({
                         requestId={activeReqId}
                         studentId={studentId}
                         clearanceComments={clearanceComments}
+                        setClearanceComments={setClearanceComments}
                         onCommentAdded={() => fetchClearanceComments(activeReqId)}
                         isDarkMode={isDarkMode}
                         user={user}

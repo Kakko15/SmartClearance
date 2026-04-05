@@ -176,11 +176,13 @@ export default function SignupForm({
   const [signUpData, setSignUpData] = useState({
     firstName: "",
     lastName: "",
+    // BUG-005 FIX: Previously, the ternary always defaulted to "signatory" for
+    // non-student roles. Now properly initializes to the actual selectedRole.
     role:
       selectedRole === "student"
         ? "student"
-        : selectedRole === "signatory"
-          ? "signatory"
+        : ["signatory", "librarian", "cashier", "registrar"].includes(selectedRole)
+          ? selectedRole
           : "signatory",
   });
 
@@ -961,7 +963,6 @@ export default function SignupForm({
       {!IS_LOCALHOST && (
         <div className="flex justify-center py-2 items-center">
           <ReCAPTCHA
-            key={isDark ? "dark" : "light"}
             ref={recaptchaRef}
             sitekey={RECAPTCHA_SITE_KEY}
             onChange={(token) => {

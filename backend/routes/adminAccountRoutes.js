@@ -6,6 +6,7 @@ const { requireAuth, requireRole } = require("../middleware/authMiddleware");
 const { safeErrorResponse } = require("../utils/safeError");
 const { ROLES } = require("../constants/roles");
 const { logAction, ACTIONS } = require("../services/auditService");
+const { notifyAccountStatus } = require("../services/notificationService");
 
 const isDev = process.env.NODE_ENV !== "production";
 
@@ -120,7 +121,6 @@ router.post("/approve-account", requireAuth, requireRole("super_admin"), async (
       .update({
         verification_status: "approved",
         account_enabled: true,
-        updated_at: new Date().toISOString(),
       })
       .eq("id", userId)
       .select()
@@ -153,6 +153,8 @@ router.post("/approve-account", requireAuth, requireRole("super_admin"), async (
       targetType: "profile",
       metadata: { admin_role: req.userRole },
     });
+    
+    notifyAccountStatus(userId, true).catch(err => console.error("Email notify err:", err));
   } catch (error) {
     console.error("Error approving account:", error);
     safeErrorResponse(res, error);
@@ -220,6 +222,8 @@ router.post("/reject-account", requireAuth, requireRole("super_admin"), async (r
       targetType: "profile",
       metadata: { admin_role: req.userRole, reason },
     });
+    
+    notifyAccountStatus(userId, false, reason).catch(err => console.error("Email notify err:", err));
   } catch (error) {
     console.error("Error rejecting account:", error);
     safeErrorResponse(res, error);
@@ -261,7 +265,6 @@ router.post("/bulk-approve", requireAuth, async (req, res) => {
           .update({
             verification_status: "approved",
             account_enabled: true,
-            updated_at: now,
           })
           .eq("id", userId)
           .eq("verification_status", "pending_review")
@@ -284,6 +287,8 @@ router.post("/bulk-approve", requireAuth, async (req, res) => {
         }).catch((logErr) => {
           console.warn("Auth audit log insert failed:", logErr.message);
         });
+
+        notifyAccountStatus(userId, true).catch(err => console.error("Email notify err:", err));
 
         return userId;
       }),
@@ -382,6 +387,8 @@ router.post("/bulk-reject", requireAuth, async (req, res) => {
         } catch (logErr) {
           console.warn("Auth audit log insert failed:", logErr.message);
         }
+
+        notifyAccountStatus(userId, false, reason).catch(err => console.error("Email notify err:", err));
 
         return userId;
       }),

@@ -105,7 +105,12 @@ export default function CustomSelect({
     if (containerRef.current && placement === "auto") {
       const rect = containerRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
-      return spaceBelow < 300 && rect.top > 300 ? "top" : "bottom";
+      const spaceAbove = rect.top;
+      // Provide ~280px of room for the dropdown
+      if (spaceBelow < 280 && spaceAbove > spaceBelow) {
+        return "top";
+      }
+      return "bottom";
     }
     return placement === "auto" ? "bottom" : placement;
   }, [placement]);

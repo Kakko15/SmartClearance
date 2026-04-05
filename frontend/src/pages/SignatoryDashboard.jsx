@@ -512,14 +512,14 @@ export default function ProfessorDashboard({
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
                           <div
-                            className={`w-12 h-12 rounded-full flex items-center justify-center font-medium text-[18px] flex-shrink-0 ${
+                            className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-[18px] flex-shrink-0 shadow-sm ${
                               isDeletedStudent(student)
                                 ? isDarkMode
                                   ? "bg-[#3c4043] text-[#9aa0a6]"
                                   : "bg-[#f1f3f4] text-[#9aa0a6]"
                                 : isDarkMode
-                                  ? "bg-[#8ab4f8]/20 text-[#8ab4f8]"
-                                  : "bg-[#e8f0fe] text-[#1a73e8]"
+                                  ? "bg-indigo-500 text-white"
+                                  : "bg-green-500 text-white"
                             }`}
                           >
                             {isDeletedStudent(student) ? (
@@ -654,7 +654,7 @@ export default function ProfessorDashboard({
                             ) : (
                               <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div
-                                  className={`p-4 rounded-[16px] ${isDarkMode ? "bg-[#3c4043]/30" : "bg-[#f8f9fa]"}`}
+                                  className={`p-4 rounded-[16px] border transition-all duration-300 ${isDarkMode ? "bg-[#3c4043]/30 border-[#3c4043]" : "bg-[#f8f9fa] border-[#dadce0] shadow-[0_1px_2px_0_rgba(60,64,67,0.1)]"}`}
                                 >
                                   <p
                                     className={`text-[12px] font-medium tracking-wide ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}
@@ -668,7 +668,7 @@ export default function ProfessorDashboard({
                                   </p>
                                 </div>
                                 <div
-                                  className={`p-4 rounded-[16px] ${isDarkMode ? "bg-[#3c4043]/30" : "bg-[#f8f9fa]"}`}
+                                  className={`p-4 rounded-[16px] border transition-all duration-300 ${isDarkMode ? "bg-[#3c4043]/30 border-[#3c4043]" : "bg-[#f8f9fa] border-[#dadce0] shadow-[0_1px_2px_0_rgba(60,64,67,0.1)]"}`}
                                 >
                                   <p
                                     className={`text-[12px] font-medium tracking-wide ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`}

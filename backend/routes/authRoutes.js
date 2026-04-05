@@ -535,25 +535,51 @@ router.post("/signup", signupLimiter, async (req, res) => {
       });
     }
 
-    supabase
-      .from("admin_secret_codes")
-      .update({
-        current_uses: codeData.current_uses + 1,
-        used_by: authData.user.id,
-        used_at: new Date().toISOString(),
-      })
-      .eq("id", codeData.id)
-      .eq("current_uses", codeData.current_uses)
-      .then(({ data: updateData, error: updateErr }) => {
-        if (updateErr) {
-          console.warn("Secret code optimistic update failed:", updateErr.message);
-        } else if (!updateData || (Array.isArray(updateData) && updateData.length === 0)) {
+    // RACE-002 FIX: Await the secret code update instead of fire-and-forget.
+    // Use atomic WHERE guard and retry once if optimistic lock misses.
+    const updateSecretCodeUsage = async (retries = 1) => {
+      const { data: updateData, error: updateErr } = await supabase
+        .from("admin_secret_codes")
+        .update({
+          current_uses: codeData.current_uses + 1,
+          used_by: authData.user.id,
+          used_at: new Date().toISOString(),
+        })
+        .eq("id", codeData.id)
+        .eq("current_uses", codeData.current_uses)
+        .select();
+
+      if (updateErr) {
+        console.warn("Secret code update failed:", updateErr.message);
+        return;
+      }
+
+      if (!updateData || (Array.isArray(updateData) && updateData.length === 0)) {
+        if (retries > 0) {
+          // Re-read current_uses and retry once
+          const { data: fresh } = await supabase
+            .from("admin_secret_codes")
+            .select("current_uses, max_uses")
+            .eq("id", codeData.id)
+            .single();
+
+          if (fresh && fresh.current_uses < fresh.max_uses) {
+            codeData.current_uses = fresh.current_uses;
+            return updateSecretCodeUsage(retries - 1);
+          } else {
+            console.warn(`Secret code ${codeData.id} exhausted during concurrent use.`);
+          }
+        } else {
           console.warn(
-            `Secret code ${codeData.id} optimistic lock missed — concurrent use may have occurred.`,
+            `Secret code ${codeData.id} optimistic lock missed after retry.`,
           );
         }
-      })
-      .catch((err) => console.warn("Secret code update failed:", err.message));
+      }
+    };
+
+    await updateSecretCodeUsage().catch((err) =>
+      console.warn("Secret code update failed:", err.message),
+    );
 
     supabase.from("auth_audit_log").insert({
       user_id: authData.user.id,
@@ -702,10 +728,13 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
       recaptchaToken
         ? verifyRecaptcha(recaptchaToken)
         : Promise.resolve({ success: true }),
+      // SEC-003 FIX: Use parameterized .eq() instead of string-interpolated .or()
+      // The old .or(`student_number.eq.${normalizedStudentNumber}`) was vulnerable
+      // to PostgREST filter injection via crafted student number strings.
       supabase
         .from("profiles")
         .select("id, student_number")
-        .or(`student_number.eq.${normalizedStudentNumber}`)
+        .eq("student_number", normalizedStudentNumber)
         .maybeSingle(),
     ]);
 
@@ -724,16 +753,19 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
       });
     }
 
-    const similarity = faceVerification.similarity;
-    const isAutoApproved = faceVerification.verified && similarity >= 90;
+    // BUG-003 FIX: NEVER trust client-submitted face verification claims for
+    // access control decisions. The client can trivially fabricate
+    // { verified: true, similarity: 99 } in a direct POST request.
+    // All student accounts MUST start as pending_review until a registrar
+    // or server-side verification pipeline approves them.
+    const similarity = typeof faceVerification.similarity === "number"
+      ? Math.max(0, Math.min(100, faceVerification.similarity))
+      : 0;
 
-    let verificationStatus = "pending_review";
-    let accountEnabled = false;
-
-    if (isAutoApproved) {
-      verificationStatus = "auto_approved";
-      accountEnabled = true;
-    }
+    // Client-reported data is stored for informational purposes only —
+    // it helps the registrar during manual review, but grants no privileges.
+    const verificationStatus = "pending_review";
+    const accountEnabled = false;
 
     const { data: authData, error: authError } =
       await supabase.auth.admin.createUser({
@@ -799,7 +831,7 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
       metadata: {
         face_verified: faceVerification.verified,
         face_similarity: similarity,
-        auto_approved: isAutoApproved,
+        auto_approved: false,
         verification_status: verificationStatus,
       },
     }).then(() => {}).catch((logError) => {
@@ -822,14 +854,12 @@ router.post("/signup-student", signupLimiter, async (req, res) => {
 
     res.json({
       success: true,
-      autoApproved: isAutoApproved,
+      autoApproved: false,
       similarity: similarity,
       emailVerificationRequired: true,
       emailSent: true,
       signupToken,
-      message: isAutoApproved
-        ? "Account approved! Please verify your email."
-        : "Account pending review. Please verify your email.",
+      message: "Account pending review. Please verify your email.",
       user: {
         id: authData.user.id,
         email: authData.user.email,

@@ -29,7 +29,7 @@ function averagePoint(points = []) {
   };
 }
 
-export default function SelfieCapture({ idDescriptor, onMatch, isDark }) {
+export default function SelfieCapture({ idDescriptor, onMatch, onSubmitForReview, isDark }) {
   const videoRef = useRef(null);
   const [cameraActive, setCameraActive] = useState(false);
   const [capturing, setCapturing] = useState(false);
@@ -44,6 +44,8 @@ export default function SelfieCapture({ idDescriptor, onMatch, isDark }) {
   const lastSimilarityRef = useRef(0);
   const cameraActiveRef = useRef(false);
   const streamRef = useRef(null);
+  // EDGE-003 FIX: Track mount state to prevent setting stream after unmount
+  const mountedRef = useRef(true);
   const startAutoDetectionRef = useRef(null);
   const readyStreakRef = useRef(0);
   const pageVisibleRef = useRef(
@@ -83,7 +85,9 @@ export default function SelfieCapture({ idDescriptor, onMatch, isDark }) {
   };
 
   useEffect(() => {
+    mountedRef.current = true; // EDGE-003 FIX: Mark mounted
     return () => {
+      mountedRef.current = false; // EDGE-003 FIX: Mark unmounted
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
@@ -174,6 +178,13 @@ export default function SelfieCapture({ idDescriptor, onMatch, isDark }) {
 
       if (!cameraResult.success) {
         setResult({ success: false, message: cameraResult.error });
+        return;
+      }
+
+      // EDGE-003 FIX: If component unmounted during awaited camera access,
+      // stop the newly acquired stream immediately to release the camera.
+      if (!mountedRef.current) {
+        cameraResult.stream.getTracks().forEach((t) => t.stop());
         return;
       }
 
@@ -574,7 +585,16 @@ export default function SelfieCapture({ idDescriptor, onMatch, isDark }) {
     }
     stopAutoDetection();
 
-    onMatch(false, lastSimilarityRef.current);
+    // BUG-004 FIX: Use the dedicated onSubmitForReview callback instead of
+    // onMatch(false, ...). The parent's onMatch handler short-circuits on
+    // isMatch=false (shows error toast, goes back to step 2), which made
+    // the "Submit to Registrar" button completely non-functional.
+    if (typeof onSubmitForReview === "function") {
+      onSubmitForReview(lastSimilarityRef.current);
+    } else {
+      // Fallback: call onMatch with a flag indicating manual review intent
+      onMatch(false, lastSimilarityRef.current);
+    }
   };
 
   return (

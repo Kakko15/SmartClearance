@@ -164,6 +164,8 @@ export default function NotificationBell({ isDarkMode = false, onOpenSettings, o
     ? notifications.filter(n => !n.read_at) 
     : notifications;
 
+  const totalBadgeCount = unreadCount + (pendingCount > ackPendingCount ? pendingCount : 0);
+
   return (
     <div className="relative" ref={ref}>
       <button
@@ -182,39 +184,22 @@ export default function NotificationBell({ isDarkMode = false, onOpenSettings, o
             ? "hover:bg-white/10 text-slate-300 focus-visible:ring-offset-gray-900"
             : "hover:bg-slate-100 text-slate-600"
         }`}
-        aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ""}`}
+        aria-label={`Notifications${totalBadgeCount > 0 ? `, ${totalBadgeCount} unread or pending` : ""}`}
         aria-haspopup="true"
         aria-expanded={open}
       >
         <BellIcon className="w-5 h-5" aria-hidden="true" />
-        {unreadCount > 0 && (
+        {totalBadgeCount > 0 && (
           <motion.span
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1"
             aria-hidden="true"
           >
-            {unreadCount > 99 ? "99+" : unreadCount}
+            {totalBadgeCount > 99 ? "99+" : totalBadgeCount}
           </motion.span>
         )}
       </button>
-
-      {}
-      {pendingCount > ackPendingCount && (
-        <motion.span
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          className={`absolute -bottom-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full text-[9px] font-bold px-1 ${
-            isDarkMode
-              ? "bg-amber-500 text-black"
-              : "bg-amber-400 text-amber-900"
-          }`}
-          title={`${pendingCount} pending request${pendingCount !== 1 ? "s" : ""} awaiting your action`}
-          aria-hidden="true"
-        >
-          {pendingCount > 99 ? "99+" : pendingCount}
-        </motion.span>
-      )}
 
       {}
       <div aria-live="polite" aria-atomic="true" className="sr-only">

@@ -23,6 +23,8 @@ export default function TwoFactorSetup({
   const inputRefs = useRef([]);
 
   useEffect(() => {
+    let cancelled = false;
+
     const setup = async () => {
       try {
         const {
@@ -38,6 +40,7 @@ export default function TwoFactorSetup({
           headers,
           body: JSON.stringify({ userId, email, signupToken }),
         });
+        if (cancelled) return;
         const data = await res.json();
         if (data.success) {
           setQrCode(data.qrCode);
@@ -46,12 +49,14 @@ export default function TwoFactorSetup({
           toast.error(data.error || "Failed to setup 2FA");
         }
       } catch (err) {
-        toast.error("Failed to connect to server");
+        if (!cancelled) toast.error("Failed to connect to server");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     setup();
+
+    return () => { cancelled = true; };
   }, [userId, email, signupToken]);
 
   const handleCodeChange = (index, value) => {

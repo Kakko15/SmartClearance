@@ -143,15 +143,9 @@ router.post("/setup", optionalAuth, async (req, res) => {
           .json({ success: false, error: tokenCheck.reason });
       }
 
-      if (tokenCheck.setupUsed) {
-        return res
-          .status(401)
-          .json({
-            success: false,
-            error: "2FA setup already initiated. Please verify your code.",
-          });
+      if (!tokenCheck.setupUsed) {
+        await markSetupUsed(userId);
       }
-      await markSetupUsed(userId);
       isAuthorized = true;
     }
 
