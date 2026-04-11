@@ -1258,7 +1258,7 @@ router.get(
           course_year,
           email
         ),
-        professor_approvals(id, status, approved_at, professor_id, professor:professor_id(full_name))
+        professor_approvals(id, status, approved_at, professor_id, professor:professor_id(full_name, designation))
       `,
         )
         .eq("clearance_type", "graduation")
@@ -1488,7 +1488,7 @@ router.get(
           course_year,
           email
         ),
-        professor_approvals(id, status, approved_at, professor_id, professor:professor_id(full_name))
+        professor_approvals(id, status, approved_at, professor_id, professor:professor_id(full_name, designation))
       `,
         )
         .eq("clearance_type", "graduation")
@@ -1723,7 +1723,7 @@ router.get(
           nstp_serial_no,
           major
         ),
-        professor_approvals(id, status, approved_at, professor_id, professor:professor_id(full_name))
+        professor_approvals(id, status, approved_at, professor_id, professor:professor_id(full_name, designation))
       `,
         )
         .eq("clearance_type", "graduation")
