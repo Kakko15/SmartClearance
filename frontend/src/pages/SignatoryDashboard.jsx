@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import RequestComments from "../components/features/RequestComments";
-import RequestDocuments from "../components/features/RequestDocuments";
+import RequestComments, { preloadClearanceComments } from "../components/features/RequestComments";
+import RequestDocuments, { preloadRequestDocuments } from "../components/features/RequestDocuments";
 import DashboardLayout, {
   GlassCard,
   StatusBadge,
@@ -501,6 +501,12 @@ export default function ProfessorDashboard({
                           ? "hover:bg-[#3c4043]/40"
                           : "hover:bg-[#f8f9fa]"
                       }`}
+                      onMouseEnter={() => {
+                         if (student.request_id) {
+                            preloadClearanceComments(student.request_id, professorId);
+                            preloadRequestDocuments(student.request_id);
+                         }
+                      }}
                       onClick={() => {
                         const nextId =
                           expandedStudent === student.id ? null : student.id;

@@ -158,6 +158,7 @@ export default function Settings({
   const lastSignIn = user?.last_sign_in_at;
 
   const [resetStep, setResetStep] = useState(null);
+  const [resetAction, setResetAction] = useState(null);
   const [resetPassword, setResetPassword] = useState("");
   const [resetQrCode, setResetQrCode] = useState(null);
   const [resetManualKey, setResetManualKey] = useState("");
@@ -185,28 +186,51 @@ export default function Settings({
     setResetLoading(true);
     try {
       const headers = await getAuthHeaders();
-      const res = await fetch(`${API_URL}/auth/2fa/reset-setup`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          userId: user.id,
-          email: user.email,
-          password: resetPassword,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setResetQrCode(data.qrCode);
-        setResetManualKey(data.manualKey);
-        setResetStep("scan");
-        setResetPassword("");
+      
+      if (resetAction === "disable") {
+        const res = await fetch(`${API_URL}/auth/2fa/disable`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            userId: user.id,
+            email: user.email,
+            password: resetPassword,
+          }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          toast.success("2FA disabled successfully");
+          setResetStep(null);
+          setResetPassword("");
+          setResetAction(null);
+          if (profile) profile.totp_enabled = false;
+        } else {
+          toast.error(data.error || "Failed to disable 2FA");
+        }
       } else {
-        toast.error(
-          data.error ||
-            (has2FA
-              ? "Failed to reset authenticator"
-              : "Failed to set up authenticator"),
-        );
+        const res = await fetch(`${API_URL}/auth/2fa/reset-setup`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            userId: user.id,
+            email: user.email,
+            password: resetPassword,
+          }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          setResetQrCode(data.qrCode);
+          setResetManualKey(data.manualKey);
+          setResetStep("scan");
+          setResetPassword("");
+        } else {
+          toast.error(
+            data.error ||
+              (has2FA
+                ? "Failed to reset authenticator"
+                : "Failed to set up authenticator"),
+          );
+        }
       }
     } catch {
       toast.error("Failed to connect to server");
@@ -689,15 +713,22 @@ export default function Settings({
                     {has2FA && !resetStep && (
                       <div className={`mt-6 pt-6 border-t ${borderSubtle}`}>
                         <p className={`text-[14px] mb-4 ${textSecondary}`}>
-                          Lost access to your authenticator app? Reset it to set
-                          up a new one.
+                          Manage your two-factor authentication settings. You can reset your authenticator app or completely disable 2FA.
                         </p>
-                        <button
-                          onClick={() => setResetStep("password")}
-                          className={`px-6 py-2.5 rounded-full text-[14px] font-medium border transition-all hover:bg-black/5 dark:hover:bg-white/5 active:scale-95 ${isDark ? "border-[#5f6368] text-primary-400" : "border-[#dadce0] text-primary-700"}`}
-                        >
-                          Reset Authenticator
-                        </button>
+                        <div className="flex flex-wrap gap-3">
+                          <button
+                            onClick={() => { setResetStep("password"); setResetAction("disable"); }}
+                            className={`px-5 py-2 rounded-full text-[14px] font-medium transition-all active:scale-95 border ${isDark ? "border-[#d93025] text-[#f28b82] hover:bg-[#d93025]/10" : "border-[#d93025] text-[#d93025] hover:bg-[#fce8e6]/"}`}
+                          >
+                            Disable 2FA
+                          </button>
+                          <button
+                            onClick={() => { setResetStep("password"); setResetAction("reset"); }}
+                            className={`px-5 py-2 rounded-full text-[14px] font-medium border transition-all hover:bg-black/5 dark:hover:bg-white/5 active:scale-95 ${isDark ? "border-[#5f6368] text-primary-400" : "border-[#dadce0] text-primary-700"}`}
+                          >
+                            Reset Authenticator
+                          </button>
+                        </div>
                       </div>
                     )}
 
@@ -708,7 +739,7 @@ export default function Settings({
                           your account.
                         </p>
                         <button
-                          onClick={() => setResetStep("password")}
+                          onClick={() => { setResetStep("password"); setResetAction("setup"); }}
                           className={btnPrimary}
                         >
                           Enable 2FA
@@ -721,11 +752,10 @@ export default function Settings({
                         <p
                           className={`text-[15px] mb-5 font-medium ${textPrimary}`}
                         >
-                          Confirm your password to {has2FA ? "reset" : "set up"}{" "}
-                          your authenticator
+                          Confirm your password to {resetAction === "disable" ? "disable" : (has2FA ? "reset" : "set up")} your authenticator
                         </p>
-                        <div className="flex gap-4 items-end">
-                          <div className="flex-1">
+                        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+                          <div className="flex-1 w-full">
                             <PasswordInput
                               label="Password"
                               value={resetPassword}
@@ -736,7 +766,7 @@ export default function Settings({
                           <button
                             onClick={handleResetStart}
                             disabled={resetLoading || !resetPassword}
-                            className={`${btnPrimary} shrink-0 mb-px`}
+                            className={`${resetAction === "disable" ? (isDark ? "bg-[#d93025] text-white hover:bg-[#b3261e]" : "bg-[#d93025] text-white hover:bg-[#b3261e]") : ""} ${btnPrimary} shrink-0 mb-px w-full sm:w-auto`}
                           >
                             {resetLoading ? "Verifying..." : "Continue"}
                           </button>
@@ -745,6 +775,7 @@ export default function Settings({
                           onClick={() => {
                             setResetStep(null);
                             setResetPassword("");
+                            setResetAction(null);
                           }}
                           className={`mt-4 text-[14px] font-medium ${textSecondary} hover:text-primary-700 transition-colors`}
                         >

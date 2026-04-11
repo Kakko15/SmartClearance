@@ -639,6 +639,61 @@ router.post(
   },
 );
 
+router.post(
+  "/disable",
+  requireAuth,
+  requireMatchingUserId,
+  async (req, res) => {
+    try {
+      const { userId, email, password } = req.body;
+
+      if (!userId || !email || !password) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: "User ID, email, and password are required",
+          });
+      }
+
+      const tempClient = createClient(
+        process.env.SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_KEY,
+        {
+          auth: { autoRefreshToken: false, persistSession: false },
+        },
+      );
+      const { error: signInError } = await tempClient.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (signInError) {
+        return res
+          .status(401)
+          .json({ success: false, error: "Incorrect password" });
+      }
+
+      const { error } = await supabase
+        .from("profiles")
+        .update({ totp_enabled: false, totp_secret: null })
+        .eq("id", userId);
+
+      if (error) {
+        return res
+          .status(500)
+          .json({ success: false, error: "Failed to disable 2FA" });
+      }
+
+      res.json({ success: true, message: "2FA disabled successfully" });
+    } catch (error) {
+      console.error("2FA disable error:", error);
+      res
+        .status(500)
+        .json({ success: false, error: "Failed to disable 2FA" });
+    }
+  },
+);
+
 router.post("/status", requireAuth, requireMatchingUserId, async (req, res) => {
   try {
     const { userId } = req.body;

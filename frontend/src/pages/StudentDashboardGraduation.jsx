@@ -468,13 +468,31 @@ const InlineCommentThread = ({
 
   const handleReplySubmit = async (e) => {
     e.preventDefault();
-    if (!replyText.trim()) return;
+    const textToSubmit = replyText.trim();
+    if (!textToSubmit) return;
 
-    setIsSubmitting(true);
+    const targetTag = stage.type === "signatory" && stage.approval ? `[TO:${stage.approval.professor_id}]` : `[TO:${stage.key}]`;
+    const finalComment = `${targetTag} ${textToSubmit}`;
+
+    // OPTIMISTIC UPDATE: Instant UI response
+    const tempId = `temp-${Date.now()}`;
+    const newComment = {
+      id: tempId,
+      commenter_id: user?.id || studentId,
+      commenter_name: studentInfo?.full_name || user?.user_metadata?.full_name || "You",
+      commenter_role: "student",
+      comment_text: finalComment,
+      created_at: new Date().toISOString(),
+      is_resolved: false,
+      avatar_url: user?.user_metadata?.avatar_url
+    };
+
+    if (setClearanceComments) {
+      setClearanceComments(prev => [...prev, newComment]);
+    }
+    setReplyText("");
+
     try {
-      const targetTag = stage.type === "signatory" && stage.approval ? `[TO:${stage.approval.professor_id}]` : `[TO:${stage.key}]`;
-      const finalComment = `${targetTag} ${replyText.trim()}`;
-
       const { data } = await authAxios.post(
         `/comments/${requestId}/comments`,
         {
@@ -485,17 +503,15 @@ const InlineCommentThread = ({
       );
 
       if (data.success) {
-        toast.success("Reply sent successfully");
-        setReplyText("");
-        
-        // Let postgres_changes handle cross-client sync
+        // Silent success, postgres_changes handles cross-client sync
       } else {
         throw new Error(data.error || "Failed to post reply");
       }
     } catch (error) {
       toast.error(error.response?.data?.error || error.message || "Failed to post reply.");
-    } finally {
-      setIsSubmitting(false);
+      if (setClearanceComments) {
+        setClearanceComments(prev => prev.filter(c => c.id !== tempId)); // rollback
+      }
     }
   };
 
@@ -768,10 +784,25 @@ const InlineCommentThread = ({
 
   if (specificComments.length === 0) {
     return (
-      <div className={`mt-4 pt-4 border-t flex flex-col items-center justify-center p-6 transition-colors ${isDarkMode ? "border-[#3c4043] text-[#9aa0a6]" : "border-[#e8eaed] text-[#5f6368]"}`}>
-        <ChatBubbleIcon className="w-6 h-6 mb-2 opacity-50" />
-        <p className="text-[14px] font-medium tracking-tight" style={{ fontFamily: "Google Sans, sans-serif" }}>No feedback yet.</p>
-      </div>
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
+        className={`mt-2 mb-4 mx-2 flex flex-col items-center justify-center px-8 py-[48px] rounded-[24px] transition-all duration-300 ${isDarkMode ? "bg-[#303134]/50 border border-[#3c4043]" : "bg-[#f8f9fa] border border-[#dadce0]/50"}`}
+      >
+        <div className="relative mb-5 group/icon">
+          <div className={`absolute inset-0 rounded-full blur-[20px] opacity-20 transition-opacity duration-300 group-hover/icon:opacity-40 ${isDarkMode ? "bg-primary-900" : "bg-primary-400"}`}></div>
+          <div className={`relative w-[68px] h-[68px] rounded-[24px] rotate-[-5deg] hover:rotate-0 flex items-center justify-center shadow-md transition-transform duration-300 ${isDarkMode ? "bg-[#202124] text-primary-400 border border-[#5f6368]" : "bg-white text-primary-600 border border-slate-100"}`}>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-[32px] h-[32px] opacity-90 drop-shadow-sm">
+              <path fillRule="evenodd" d="M4.804 21.644A6.707 6.707 0 0 0 6 21.75a6.721 6.721 0 0 0 3.585-1.029c.774.182 1.584.279 2.415.279 5.322 0 9.75-3.97 9.75-9 0-5.03-4.428-9-9.75-9s-9.75 3.97-9.75 9c0 2.409 1.025 4.587 2.674 6.192.232.226.277.428.254.543a3.73 3.73 0 0 1-.814 1.686.75.75 0 0 0 .44 1.223ZM8.25 10.875a1.125 1.125 0 1 0 0 2.25 1.125 1.125 0 0 0 0-2.25ZM10.875 12a1.125 1.125 0 1 1 2.25 0 1.125 1.125 0 0 1-2.25 0Zm4.875-1.125a1.125 1.125 0 1 0 0 2.25 1.125 1.125 0 0 0 0-2.25Z" clipRule="evenodd" />
+            </svg>
+          </div>
+        </div>
+        <h3 className={`text-[18px] font-medium tracking-tight mb-2 ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>No feedback yet</h3>
+        <p className={`text-[14px] text-center max-w-[320px] leading-relaxed ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>
+          When reviewers leave feedback or instructions, their comments will seamlessly appear here.
+        </p>
+      </motion.div>
     );
   }
 

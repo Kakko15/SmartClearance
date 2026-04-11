@@ -2,22 +2,46 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { authAxios } from "../../services/api";
 import useRealtimeSubscription from "../../hooks/useRealtimeSubscription";
 
+export const documentsCache = {};
+export const documentFetchPromises = {};
+
+export const preloadRequestDocuments = (requestId) => {
+  if (documentsCache[requestId] || documentFetchPromises[requestId]) return;
+  documentFetchPromises[requestId] = authAxios.get(`/documents/request/${requestId}`).then(res => {
+     if (res.data && res.data.success) {
+        documentsCache[requestId] = res.data.documents || [];
+     }
+     return res;
+  }).catch(() => null);
+};
+
 export default function RequestDocuments({
   requestId,
   userId,
   isDarkMode = false,
 }) {
-  const [documents, setDocuments] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const hasCache = !!documentsCache[requestId];
+  const [documents, setDocuments] = useState(documentsCache[requestId] || []);
+  const [loading, setLoading] = useState(!hasCache);
   const [isExpanded, setIsExpanded] = useState(true);
 
   const loadingTimerRef = useRef(null);
 
   const fetchDocuments = useCallback(async () => {
-    loadingTimerRef.current = setTimeout(() => setLoading(true), 150);
+    if (!documentsCache[requestId]) {
+      loadingTimerRef.current = setTimeout(() => setLoading(true), 150);
+    }
     try {
-      const response = await authAxios.get(`/documents/request/${requestId}`);
-      if (response.data.success) {
+      let response;
+      if (documentFetchPromises[requestId]) {
+        response = await documentFetchPromises[requestId];
+        delete documentFetchPromises[requestId];
+      } else {
+        response = await authAxios.get(`/documents/request/${requestId}`);
+      }
+      
+      if (response && response.data && response.data.success) {
+        documentsCache[requestId] = response.data.documents || [];
         setDocuments(response.data.documents || []);
       }
     } catch (error) {
@@ -85,18 +109,20 @@ export default function RequestDocuments({
             </h4>
           </div>
           <span className={`text-[12px] font-bold px-3 py-1 rounded-full border shadow-sm ${isDarkMode ? "bg-slate-800 text-slate-400 border-[#3c4043]" : "bg-slate-50 text-slate-500 border-slate-200 shadow-[0_1px_2px_rgba(0,0,0,0.05)]"}`}>
-            0 Files
+            {loading ? "..." : "0 Files"}
           </span>
         </div>
-        <div className={`mx-2 mb-4 mt-2 px-6 py-8 rounded-2xl flex flex-col items-center justify-center border-2 border-dashed transition-all duration-300 ${isDarkMode ? "border-[#3c4043] bg-[#282a2d]/50 hover:bg-[#282a2d] hover:border-[#5f6368]" : "border-slate-200 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-300"}`}>
-          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 shadow-sm ${isDarkMode ? "bg-[#3c4043] text-slate-400" : "bg-white text-slate-400 border border-slate-100"}`}>
-            <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
+        {!loading && (
+          <div className={`mx-2 mb-4 mt-2 px-6 py-8 rounded-2xl flex flex-col items-center justify-center border-2 border-dashed transition-all duration-300 ${isDarkMode ? "border-[#3c4043] bg-[#282a2d]/50 hover:bg-[#282a2d] hover:border-[#5f6368]" : "border-slate-200 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-300"}`}>
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 shadow-sm ${isDarkMode ? "bg-[#3c4043] text-slate-400" : "bg-white text-slate-400 border border-slate-100"}`}>
+              <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <p className={`text-[14px] font-bold mb-1 ${isDarkMode ? "text-[#e8eaed]" : "text-slate-700"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>No Documents Yet</p>
+            <p className={`text-[13px] text-center max-w-[250px] leading-relaxed ${isDarkMode ? "text-[#9aa0a6]" : "text-slate-500"}`}>The student has not uploaded any required files.</p>
           </div>
-          <p className={`text-[14px] font-bold mb-1 ${isDarkMode ? "text-[#e8eaed]" : "text-slate-700"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>No Documents Yet</p>
-          <p className={`text-[13px] text-center max-w-[250px] leading-relaxed ${isDarkMode ? "text-[#9aa0a6]" : "text-slate-500"}`}>The student has not uploaded any required files.</p>
-        </div>
+        )}
       </div>
     );
   }
