@@ -545,14 +545,14 @@ router.get(
             findProfStatus(DESIGNATIONS.DIRECTOR_STUDENT_AFFAIRS) !== "approved"
           ) {
             request.current_stage = "Director for Student Affairs";
-          } else if (request.library_status !== "approved") {
-            request.current_stage = "Campus Librarian";
-          } else if (request.cashier_status !== "approved") {
-            request.current_stage = "Chief Accountant";
           } else if (findProfStatus(DESIGNATIONS.NSTP_DIRECTOR) !== "approved") {
             request.current_stage = "NSTP Director";
           } else if (findProfStatus(DESIGNATIONS.EXECUTIVE_OFFICER) !== "approved") {
             request.current_stage = "Executive Officer";
+          } else if (request.library_status !== "approved") {
+            request.current_stage = "Campus Librarian";
+          } else if (request.cashier_status !== "approved") {
+            request.current_stage = "Chief Accountant";
           } else {
             request.current_stage = "Completed";
           }
@@ -690,18 +690,7 @@ router.get(
         }
 
         if (!is_locked && app.request) {
-          if (myDesignation === DESIGNATIONS.NSTP_DIRECTOR) {
-            if (
-              app.request.library_status !== "approved" ||
-              app.request.cashier_status !== "approved"
-            ) {
-              is_locked = true;
-            }
-          } else if (myDesignation === DESIGNATIONS.EXECUTIVE_OFFICER) {
-            if (app.request.cashier_status !== "approved") {
-              is_locked = true;
-            }
-          } else if (myDesignation === DESIGNATIONS.DEAN_GRADUATE_SCHOOL) {
+          if (myDesignation === DESIGNATIONS.DEAN_GRADUATE_SCHOOL) {
             if (
               app.request.cashier_status !== "approved" ||
               app.request.library_status !== "approved" ||
@@ -1287,10 +1276,10 @@ router.get(
               isUndergradDesignation(a.professor?.designation),
             ));
         if (isUndergrad) {
-          const dsa = approvals.find(
-            (a) => a.professor?.designation === DESIGNATIONS.DIRECTOR_STUDENT_AFFAIRS,
+          const execOfficer = approvals.find(
+            (a) => a.professor?.designation === DESIGNATIONS.EXECUTIVE_OFFICER,
           );
-          return dsa?.status === "approved";
+          return execOfficer?.status === "approved";
         } else {
           return req.cashier_status === "approved";
         }

@@ -1,15 +1,17 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from "react";
 import { useSearchParams } from "react-router-dom";
+import { QRCodeSVG } from 'qrcode.react';
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { getClearanceComments, createClearanceComment, updateClearanceComment, deleteClearanceComment, authAxios } from "../services/api";
 import { getStudentTheme } from "../constants/dashboardThemes";
 import useRealtimeSubscription from "../hooks/useRealtimeSubscription";
-import GraduationCertificate from "../components/features/GraduationCertificate";
+const GraduationCertificate = lazy(() => import("../components/features/GraduationCertificate"));
 import DashboardLayout, {
   GlassCard,
   StatusBadge,
 } from "../components/ui/DashboardLayout";
+import Confetti from "../components/ui/Confetti";
 import {
   ChartBarIcon,
   AcademicCapIcon,
@@ -36,6 +38,7 @@ import StudentProfile from "../components/features/StudentProfile";
 import ApplicationModal from "../components/features/ApplicationModal";
 import data from '@emoji-mart/data/sets/14/google.json';
 import Picker from '@emoji-mart/react';
+import CommandPalette, { useCommandPalette } from "../components/ui/CommandPalette";
 
 const applyRichTextFormat = (e, type) => {
   e.preventDefault();
@@ -1531,6 +1534,7 @@ export default function StudentDashboardGraduation({
   const [clearanceStatus, setClearanceStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const urlTab = searchParams.get("tab");
@@ -1559,6 +1563,9 @@ export default function StudentDashboardGraduation({
   const [clearanceComments, setClearanceComments] = useState([]);
   const [requestHistoryLog, setRequestHistoryLog] = useState([]);
   const [docRefreshTrigger, setDocRefreshTrigger] = useState(0);
+
+  // Command Palette (Ctrl+K)
+  const commandPalette = useCommandPalette();
 
   const fetchClearanceComments = useCallback(
     async (reqId) => {
@@ -1840,6 +1847,8 @@ export default function StudentDashboardGraduation({
           { type: "prof", name: "Department Chairman" },
           { type: "prof", name: "College Dean" },
           { type: "prof", name: "Director Student Affairs" },
+          { type: "prof", name: "NSTP Director" },
+          { type: "prof", name: "Executive Officer" },
           {
             type: "admin",
             key: "library",
@@ -1854,8 +1863,6 @@ export default function StudentDashboardGraduation({
             desc: "Financial obligations clearance",
             icon: <BanknotesIcon className="w-4 h-4 text-white" />,
           },
-          { type: "prof", name: "NSTP Director" },
-          { type: "prof", name: "Executive Officer" },
         ]
       : [
           {
@@ -2233,6 +2240,26 @@ export default function StudentDashboardGraduation({
       toggleTheme={toggleTheme}
       isDarkMode={isDarkMode}
     >
+      {/* Command Palette */}
+      <CommandPalette
+        isOpen={commandPalette.isOpen}
+        onClose={commandPalette.close}
+        isDark={isDarkMode}
+        onAction={(actionId) => {
+          switch (actionId) {
+            case "home": setActiveView("home"); break;
+            case "status": setActiveView("status"); break;
+            case "notifications": setActiveView("notifications"); break;
+            case "certificate": setActiveView("certificate"); break;
+            case "history": setActiveView("history"); break;
+            case "settings": onOpenSettings?.("account"); break;
+            case "security": onOpenSettings?.("security"); break;
+            case "theme": toggleTheme?.(); break;
+            case "signout": onSignOut?.(); break;
+            default: break;
+          }
+        }}
+      />
       {activeView === "home" && (
         <StudentOverview
           studentInfo={studentInfo}
@@ -2390,7 +2417,7 @@ export default function StudentDashboardGraduation({
                   </div>
 
                   <motion.button
-                    whileTap={{ scale: 0.98 }}
+                    whileTap={{ scale: 0.97 }}
                     onClick={() => handleApplyClick("undergraduate")}
                     disabled={applying !== false}
                     className={`w-full py-2.5 rounded-full font-medium text-[14px] transition-all duration-200 border border-transparent ${
@@ -2459,7 +2486,7 @@ export default function StudentDashboardGraduation({
                   </div>
 
                   <motion.button
-                    whileTap={{ scale: 0.98 }}
+                    whileTap={{ scale: 0.97 }}
                     onClick={() => handleApplyClick("graduate")}
                     disabled={applying !== false}
                     className={`w-full py-2.5 rounded-full font-medium text-[14px] transition-all duration-200 border border-transparent ${
@@ -2684,24 +2711,35 @@ export default function StudentDashboardGraduation({
                               </div>
                               <h3 className={`text-[19px] font-bold ${isDarkMode ? "text-white" : "text-slate-800"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>Progress</h3>
                            </div>
-                           
-                           <div className="flex flex-col flex-1 items-center justify-center -mt-4">
-                              <div className="relative flex items-end">
-                                <span className={`text-[86px] sm:text-[96px] font-black tracking-tighter leading-none ${pct === 100 ? (isDarkMode ? "text-emerald-400" : "text-emerald-600") : (isDarkMode ? "text-white" : "text-slate-800")}`} style={{ fontFamily: "Google Sans, sans-serif" }}>
-                                  {Math.round(pct)}
-                                </span>
-                                <span className={`text-[24px] font-bold pb-[18px] ml-1 ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}>%</span>
-                              </div>
-                              <span className={`text-[11px] font-bold tracking-[0.25em] uppercase mt-2 ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}>Completion Rate</span>
-                           </div>
 
-                           <div className="mt-auto">
-                             <div className="flex justify-between items-center text-[13px] font-bold mb-3">
-                               <span className={isDarkMode ? "text-slate-400" : "text-slate-500"}>{approved} Stages Cleared</span>
-                               <span className={isDarkMode ? "text-slate-500" : "text-slate-400"}>of {total}</span>
+                           <div className="mt-auto flex flex-col items-center">
+                             <div className="relative flex items-center justify-center w-[120px] h-[120px] mb-4">
+                               {/* Background Ring */}
+                               <svg className="absolute inset-0 w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
+                                 <circle cx="50" cy="50" r="44" fill="none" stroke={isDarkMode ? "#303134" : "#e2e8f0"} strokeWidth="8" />
+                                 {/* Animated Progress Ring */}
+                                 <motion.circle 
+                                   cx="50" cy="50" r="44" fill="none" strokeLinecap="round"
+                                   stroke={pct === 100 ? (isDarkMode ? "#34d399" : "#10b981") : (isDarkMode ? "#60a5fa" : "#3b82f6")} 
+                                   strokeWidth="8" 
+                                   initial={{ strokeDasharray: "276.5", strokeDashoffset: "276.5" }}
+                                   animate={{ strokeDashoffset: 276.5 - (276.5 * pct) / 100 }}
+                                   transition={{ duration: 1.5, ease: [0.22, 1, 0.36, 1], delay: 0.2 }}
+                                 />
+                               </svg>
+                               <div className="absolute inset-0 flex flex-col items-center justify-center pt-1">
+                                 <div className="flex items-start">
+                                   <span className={`text-[28px] font-black tracking-tighter leading-none ${pct === 100 ? (isDarkMode ? "text-emerald-400" : "text-emerald-600") : (isDarkMode ? "text-white" : "text-slate-800")}`} style={{ fontFamily: "Google Sans, sans-serif" }}>
+                                     {Math.round(pct)}
+                                   </span>
+                                   <span className={`text-[12px] font-bold mt-0.5 ml-0.5 ${pct === 100 ? (isDarkMode ? "text-emerald-500/80" : "text-emerald-600/80") : isDarkMode ? "text-slate-500" : "text-slate-400"}`}>%</span>
+                                 </div>
+                               </div>
                              </div>
-                             <div className={`h-3 w-full rounded-full overflow-hidden shadow-inner ${isDarkMode ? "bg-[#303134]" : "bg-slate-200"}`}>
-                               <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 1.2, delay: 0.2 }} className={`h-full rounded-full ${isDarkMode ? "bg-emerald-500" : "bg-[#074F34]"}`} />
+
+                             <div className="flex justify-between w-full items-center text-[13px] font-bold">
+                               <span className={pct === 100 ? (isDarkMode ? "text-emerald-400" : "text-emerald-600") : isDarkMode ? "text-slate-400" : "text-slate-500"}>{approved} Stages Cleared</span>
+                               <span className={isDarkMode ? "text-slate-500" : "text-slate-400"}>of {total}</span>
                              </div>
                            </div>
                          </div>
@@ -2710,14 +2748,22 @@ export default function StudentDashboardGraduation({
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between mt-8 mb-4 px-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-8 mb-4 px-2 gap-4">
                   <h3 className={`text-[23px] font-bold tracking-tight ${isDarkMode ? "text-white" : "text-slate-800"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>All Clearances</h3>
-                  <button onClick={handlePrintClearance} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[12px] font-bold tracking-wider uppercase transition-all shadow-sm print:hidden ${isDarkMode ? "bg-[#3c4043] hover:bg-[#5f6368] text-[#e8eaed]" : "bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 hover:border-slate-300"}`} title="Print clearance progress">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                    </svg>
-                    Print Record
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setShowQRModal(true)} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[12px] font-bold tracking-wider uppercase transition-all shadow-sm print:hidden ${isDarkMode ? "bg-primary-900/30 hover:bg-primary-800/50 text-emerald-400 border border-emerald-900/50" : "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200"}`} title="Show Quick-Approve QR">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm14 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                      </svg>
+                      Quick QR
+                    </button>
+                    <button onClick={handlePrintClearance} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[12px] font-bold tracking-wider uppercase transition-all shadow-sm print:hidden ${isDarkMode ? "bg-[#3c4043] hover:bg-[#5f6368] text-[#e8eaed]" : "bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 hover:border-slate-300"}`} title="Print clearance progress">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                      </svg>
+                      Print Record
+                    </button>
+                  </div>
                 </div>
                 
                 <div className="flex flex-col gap-4">
@@ -2879,11 +2925,16 @@ export default function StudentDashboardGraduation({
             </p>
           </div>
           {clearanceStatus?.request?.certificate_generated ? (
-            <GraduationCertificate
-              requestId={clearanceStatus.request.request_id}
-              studentId={studentId}
-              studentInfo={studentInfo}
-            />
+            <>
+              <Confetti active={true} duration={6000} />
+              <Suspense fallback={null}>
+                <GraduationCertificate
+                requestId={clearanceStatus.request.request_id}
+                studentId={studentId}
+                studentInfo={studentInfo}
+              />
+              </Suspense>
+            </>
           ) : (
             <GlassCard className="p-12 text-center" isDark={isDarkMode}>
               <motion.div
@@ -3131,6 +3182,42 @@ export default function StudentDashboardGraduation({
           />
         )}
       </AnimatePresence>
+      <AnimatePresence>
+        {showQRModal && activeReqId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className={`w-full max-w-sm rounded-[24px] overflow-hidden shadow-2xl flex flex-col items-center p-8 ${isDarkMode ? "bg-[#202124] border border-[#3c4043]" : "bg-white"}`}
+            >
+              <div className="w-full flex justify-between items-center mb-6">
+                <h3 className={`text-xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>Quick Approval</h3>
+                <button
+                  onClick={() => setShowQRModal(false)}
+                  className={`p-2 rounded-full transition-colors ${isDarkMode ? "bg-[#3c4043] text-gray-300 hover:bg-[#5f6368]" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+                >
+                  <XMarkIcon className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="mb-6 p-4 bg-white rounded-[20px] shadow-sm border border-gray-100">
+                <QRCodeSVG
+                  value={`${window.location.origin}/dashboard?quickApprove=${activeReqId}`}
+                  size={200}
+                  level={"Q"}
+                  includeMargin={true}
+                />
+              </div>
+
+              <p className={`text-center text-sm font-medium ${isDarkMode ? "text-slate-300" : "text-slate-600"} max-w-[250px]`}>
+                Show this QR Code to your professor for instant clearance approval.
+              </p>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </DashboardLayout>
   );
 }
