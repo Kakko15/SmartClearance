@@ -39,6 +39,7 @@ const ACTIONS = {
   SECRET_CODE_DELETED: "secret_code_deleted",
 
   COMMENT_DELETED_BY_ADMIN: "comment_deleted_by_admin",
+  ACCOUNT_DELETED: "account_deleted",
 };
 
 module.exports = { logAction, ACTIONS };

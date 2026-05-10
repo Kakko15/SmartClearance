@@ -470,4 +470,117 @@ router.get("/account-stats", requireAuth, requireRole("super_admin"), async (req
   }
 });
 
+// ─── DELETE USER (cascade) ───────────────────────────────────────────
+router.delete("/delete-user/:userId", requireAuth, requireRole("super_admin"), async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const adminId = req.user.id;
+
+    if (!userId) {
+      return res.status(400).json({ success: false, error: "Missing user ID" });
+    }
+
+    // Prevent self-deletion
+    if (userId === adminId) {
+      return res.status(400).json({ success: false, error: "Cannot delete your own account" });
+    }
+
+    // Verify user exists and is not a super_admin
+    const { data: targetProfile, error: profileError } = await supabase
+      .from("profiles")
+      .select("id, full_name, role")
+      .eq("id", userId)
+      .single();
+
+    if (profileError || !targetProfile) {
+      return res.status(404).json({ success: false, error: "User not found" });
+    }
+
+    if (targetProfile.role === "super_admin") {
+      return res.status(403).json({ success: false, error: "Cannot delete a Super Admin account" });
+    }
+
+    // 1. Get all request IDs for this user
+    const { data: userRequests } = await supabase
+      .from("requests")
+      .select("id")
+      .eq("student_id", userId);
+
+    const reqIds = (userRequests || []).map((r) => r.id);
+
+    if (reqIds.length > 0) {
+      // 2. Delete records referencing requests
+      await supabase.from("clearance_certificates").delete().in("request_id", reqIds);
+      await supabase.from("clearance_comments").delete().in("clearance_request_id", reqIds);
+      await supabase.from("clearance_status_history").delete().in("request_id", reqIds);
+      await supabase.from("professor_approvals").delete().in("request_id", reqIds);
+      await supabase.from("request_comments").delete().in("request_id", reqIds);
+      await supabase.from("request_documents").delete().in("request_id", reqIds);
+      await supabase.from("request_history").delete().in("request_id", reqIds);
+      await supabase.from("escalation_history").delete().in("request_id", reqIds);
+      await supabase.from("notification_logs").delete().in("request_id", reqIds);
+      await supabase.from("notifications").delete().in("related_request_id", reqIds);
+
+      // 3. Delete the requests
+      await supabase.from("requests").delete().eq("student_id", userId);
+    }
+
+    // 4. Delete profile-linked records
+    await supabase.from("student_professors").delete().eq("student_id", userId);
+    await supabase.from("profile_edit_requests").delete().eq("user_id", userId);
+    await supabase.from("notifications").delete().eq("user_id", userId);
+    await supabase.from("admin_actions").delete().eq("admin_id", userId);
+    await supabase.from("admin_actions").delete().eq("target_user_id", userId);
+    await supabase.from("announcements").delete().eq("created_by", userId);
+
+    // 5. Nullify references where this user reviewed/approved others
+    await supabase.from("request_history").update({ processed_by: null }).eq("processed_by", userId);
+    await supabase.from("clearance_status_history").update({ changed_by: null }).eq("changed_by", userId);
+    await supabase.from("clearance_comments").update({ resolved_by: null }).eq("resolved_by", userId);
+    await supabase.from("profile_edit_requests").update({ reviewed_by: null }).eq("reviewed_by", userId);
+    await supabase.from("requests").update({ library_approved_by: null }).eq("library_approved_by", userId);
+    await supabase.from("requests").update({ cashier_approved_by: null }).eq("cashier_approved_by", userId);
+    await supabase.from("requests").update({ registrar_approved_by: null }).eq("registrar_approved_by", userId);
+
+    // 6. Delete auth-related records
+    await supabase.from("otp_tokens").delete().eq("user_id", userId);
+    await supabase.from("auth_audit_log").delete().eq("user_id", userId);
+    await supabase.from("user_login_history").delete().eq("user_id", userId);
+    await supabase.from("notification_logs").delete().eq("user_id", userId);
+    await supabase.from("admin_secret_codes").update({ used_by: null }).eq("used_by", userId);
+
+    // 7. Delete the profile
+    const { error: deleteProfileError } = await supabase
+      .from("profiles")
+      .delete()
+      .eq("id", userId);
+
+    if (deleteProfileError) throw deleteProfileError;
+
+    // 8. Delete from Supabase Auth
+    const { error: authDeleteError } = await supabase.auth.admin.deleteUser(userId);
+    if (authDeleteError) {
+      console.warn("Auth user deletion warning:", authDeleteError.message);
+    }
+
+    // Log the action
+    logAction(adminId, ACTIONS.ACCOUNT_DELETED, {
+      targetId: userId,
+      targetType: "profile",
+      metadata: {
+        deleted_user_name: targetProfile.full_name,
+        deleted_user_role: targetProfile.role,
+      },
+    });
+
+    res.json({
+      success: true,
+      message: `User "${targetProfile.full_name}" and all related data deleted successfully`,
+    });
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    safeErrorResponse(res, error);
+  }
+});
+
 module.exports = router;
