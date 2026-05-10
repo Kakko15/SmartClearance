@@ -170,6 +170,18 @@ node scripts/create-accounts.js
 
 This creates default staff accounts (librarian, cashier, registrar, signatories, super admin).
 
+### 5. Docker Deployment (Optional)
+
+```bash
+# Build the backend image
+docker build -t smartclearance-api .
+
+# Run with environment variables
+docker run -p 5000:5000 --env-file backend/.env smartclearance-api
+```
+
+The container includes a built-in health check at `/api/health`.
+
 ---
 
 ## 🔐 Role System
@@ -376,6 +388,11 @@ The `escalationService.js` runs periodic checks:
 | POST | `/api/admin/approve` | Approve pending account |
 | POST | `/api/admin/reject` | Reject pending account |
 | DELETE | `/api/admin/delete-user/:userId` | Cascade delete user |
+
+### System
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/health` | Health check — returns status, version, uptime |
 
 ---
 
