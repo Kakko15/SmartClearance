@@ -787,25 +787,122 @@ const InlineCommentThread = ({
 
   if (specificComments.length === 0) {
     return (
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.98 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.4, ease: "easeOut" }}
-        className={`mt-2 mb-4 mx-2 flex flex-col items-center justify-center px-8 py-[48px] rounded-[24px] transition-all duration-300 ${isDarkMode ? "bg-[#303134]/50 border border-[#3c4043]" : "bg-[#f8f9fa] border border-[#dadce0]/50"}`}
-      >
-        <div className="relative mb-5 group/icon">
-          <div className={`absolute inset-0 rounded-full blur-[20px] opacity-20 transition-opacity duration-300 group-hover/icon:opacity-40 ${isDarkMode ? "bg-primary-900" : "bg-primary-400"}`}></div>
-          <div className={`relative w-[68px] h-[68px] rounded-[24px] rotate-[-5deg] hover:rotate-0 flex items-center justify-center shadow-md transition-transform duration-300 ${isDarkMode ? "bg-[#202124] text-primary-400 border border-[#5f6368]" : "bg-white text-primary-600 border border-slate-100"}`}>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-[32px] h-[32px] opacity-90 drop-shadow-sm">
-              <path fillRule="evenodd" d="M4.804 21.644A6.707 6.707 0 0 0 6 21.75a6.721 6.721 0 0 0 3.585-1.029c.774.182 1.584.279 2.415.279 5.322 0 9.75-3.97 9.75-9 0-5.03-4.428-9-9.75-9s-9.75 3.97-9.75 9c0 2.409 1.025 4.587 2.674 6.192.232.226.277.428.254.543a3.73 3.73 0 0 1-.814 1.686.75.75 0 0 0 .44 1.223ZM8.25 10.875a1.125 1.125 0 1 0 0 2.25 1.125 1.125 0 0 0 0-2.25ZM10.875 12a1.125 1.125 0 1 1 2.25 0 1.125 1.125 0 0 1-2.25 0Zm4.875-1.125a1.125 1.125 0 1 0 0 2.25 1.125 1.125 0 0 0 0-2.25Z" clipRule="evenodd" />
-            </svg>
+      <div ref={threadRef}>
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+          className={`mt-2 mb-4 mx-2 flex flex-col items-center justify-center px-8 py-[48px] rounded-[24px] transition-all duration-300 ${isDarkMode ? "bg-[#303134]/50 border border-[#3c4043]" : "bg-[#f8f9fa] border border-[#dadce0]/50"}`}
+        >
+          <div className="relative mb-5 group/icon">
+            <div className={`absolute inset-0 rounded-full blur-[20px] opacity-20 transition-opacity duration-300 group-hover/icon:opacity-40 ${isDarkMode ? "bg-primary-900" : "bg-primary-400"}`}></div>
+            <div className={`relative w-[68px] h-[68px] rounded-[24px] rotate-[-5deg] hover:rotate-0 flex items-center justify-center shadow-md transition-transform duration-300 ${isDarkMode ? "bg-[#202124] text-primary-400 border border-[#5f6368]" : "bg-white text-primary-600 border border-slate-100"}`}>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-[32px] h-[32px] opacity-90 drop-shadow-sm">
+                <path fillRule="evenodd" d="M4.804 21.644A6.707 6.707 0 0 0 6 21.75a6.721 6.721 0 0 0 3.585-1.029c.774.182 1.584.279 2.415.279 5.322 0 9.75-3.97 9.75-9 0-5.03-4.428-9-9.75-9s-9.75 3.97-9.75 9c0 2.409 1.025 4.587 2.674 6.192.232.226.277.428.254.543a3.73 3.73 0 0 1-.814 1.686.75.75 0 0 0 .44 1.223ZM8.25 10.875a1.125 1.125 0 1 0 0 2.25 1.125 1.125 0 0 0 0-2.25ZM10.875 12a1.125 1.125 0 1 1 2.25 0 1.125 1.125 0 0 1-2.25 0Zm4.875-1.125a1.125 1.125 0 1 0 0 2.25 1.125 1.125 0 0 0 0-2.25Z" clipRule="evenodd" />
+              </svg>
+            </div>
+          </div>
+          <h3 className={`text-[18px] font-medium tracking-tight mb-2 ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>No feedback yet</h3>
+          <p className={`text-[14px] text-center max-w-[320px] leading-relaxed ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>
+            When reviewers leave feedback or instructions, their comments will seamlessly appear here.
+          </p>
+        </motion.div>
+
+        {/* Comment input — always visible so students can post even with no existing comments */}
+        <div className="pt-3 pb-4 pr-[18px] bg-transparent">
+          <form onSubmit={handleReplySubmit} className="flex items-end gap-[13px] group/form">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[13px] overflow-hidden text-white shadow-sm flex-shrink-0 mb-[7px] ${isDarkMode ? "bg-blue-600/80 p-0" : "bg-primary-500"}`}>
+              {(user?.user_metadata?.avatar_url || studentInfo?.avatar_url) ? (
+                <img src={user?.user_metadata?.avatar_url || studentInfo?.avatar_url} alt="You" className="w-full h-full object-cover" />
+              ) : (
+                (studentInfo?.full_name?.charAt(0) || user?.user_metadata?.full_name?.charAt(0) || "U").toUpperCase()
+              )}
+            </div>
+            <div className={`flex-1 flex flex-col transition-all duration-300 relative group/input bg-white border ${replyText.trim().length > 0 ? "rounded-[16px] border-primary-600 ring-1 ring-primary-600" : "rounded-[24px] focus-within:rounded-[16px] border-[#dadce0] focus-within:border-primary-600 focus-within:ring-1 focus-within:ring-primary-600"} ${isDarkMode ? "!bg-transparent !border-[#5f6368] focus-within:!border-primary-400 focus-within:!ring-primary-400" : ""}`}>
+              <textarea
+                disabled={isSubmitting}
+                placeholder="Add a comment..."
+                className={`w-full resize-none bg-transparent outline-none px-4 py-[11px] text-[14px] leading-relaxed ${isDarkMode ? "text-[#e8eaed] placeholder-[#9aa0a6]" : "text-[#202124] placeholder-[#5f6368]"}`}
+                style={{ minHeight: '44px', overflow: 'hidden' }}
+                value={replyText}
+                onChange={(e) => {
+                  setReplyText(e.target.value);
+                  e.target.style.height = 'auto';
+                  e.target.style.height = (e.target.scrollHeight) + 'px';
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleReplySubmit(e);
+                  }
+                }}
+                rows={1}
+              />
+              <div className={`flex items-center gap-[5px] px-3 transition-all duration-200 text-[#5f6368] ${isDarkMode ? "text-[#9aa0a6]" : ""} ${replyText.trim() || showMainEmojiPicker ? "opacity-100 h-[36px] pb-2 visible" : "opacity-0 h-0 invisible group-focus-within/input:opacity-100 group-focus-within/input:h-[36px] group-focus-within/input:pb-2 group-focus-within/input:visible"}`}>
+                <button type="button" onMouseDown={(e) => applyRichTextFormat(e, 'bold')} className={`group/btn relative p-1.5 rounded hover:bg-black/5 hover:text-gray-900 ${isDarkMode ? "hover:text-gray-200 hover:bg-white/10" : ""}`}>
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M15.6 10.79c.97-.67 1.65-1.77 1.65-2.79 0-2.26-1.75-4-4-4H7v14h7.04c2.09 0 3.71-1.7 3.71-3.79 0-1.52-.86-2.82-2.15-3.42zM10 6.5h3c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-3v-3zm3.5 9H10v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5z"/></svg>
+                  <div className={`pointer-events-none absolute top-full mt-1.5 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[11px] font-medium opacity-0 shadow-sm transition-opacity duration-0 group-hover/btn:duration-200 group-hover/btn:delay-300 group-hover/btn:opacity-100 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed]" : "bg-white border-slate-200 text-slate-800"}`}>Bold</div>
+                </button>
+                <button type="button" onMouseDown={(e) => applyRichTextFormat(e, 'italic')} className={`group/btn relative p-1.5 rounded hover:bg-black/5 hover:text-gray-900 ${isDarkMode ? "hover:text-gray-200 hover:bg-white/10" : ""}`}>
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M10 4v3h2.21l-3.42 8H6v3h8v-3h-2.21l3.42-8H18V4z"/></svg>
+                  <div className={`pointer-events-none absolute top-full mt-1.5 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[11px] font-medium opacity-0 shadow-sm transition-opacity duration-0 group-hover/btn:duration-200 group-hover/btn:delay-300 group-hover/btn:opacity-100 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed]" : "bg-white border-slate-200 text-slate-800"}`}>Italic</div>
+                </button>
+                <button type="button" onMouseDown={(e) => applyRichTextFormat(e, 'underline')} className={`group/btn relative p-1.5 rounded hover:bg-black/5 hover:text-gray-900 ${isDarkMode ? "hover:text-gray-200 hover:bg-white/10" : ""}`}>
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17c3.31 0 6-2.69 6-6V3h-2.5v8c0 1.93-1.57 3.5-3.5 3.5S8.5 12.93 8.5 11V3H6v8c0 3.31 2.69 6 6 6zm-7 2v2h14v-2H5z"/></svg>
+                  <div className={`pointer-events-none absolute top-full mt-1.5 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[11px] font-medium opacity-0 shadow-sm transition-opacity duration-0 group-hover/btn:duration-200 group-hover/btn:delay-300 group-hover/btn:opacity-100 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed]" : "bg-white border-slate-200 text-slate-800"}`}>Underline</div>
+                </button>
+                <button type="button" onMouseDown={(e) => applyRichTextFormat(e, 'list')} className={`group/btn relative p-1.5 rounded hover:bg-black/5 hover:text-gray-900 ${isDarkMode ? "hover:text-gray-200 hover:bg-white/10" : ""}`}>
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5S3.17 7.5 4 7.5 5.5 6.83 5.5 6 4.83 4.5 4 4.5zm0 12c-.83 0-1.5.68-1.5 1.5s.68 1.5 1.5 1.5 1.5-.68 1.5-1.5-.67-1.5-1.5-1.5zM7 19h14v-2H7v2zm0-6h14v-2H7v2zm0-8v2h14V5H7z"/></svg>
+                  <div className={`pointer-events-none absolute top-full mt-1.5 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[11px] font-medium opacity-0 shadow-sm transition-opacity duration-0 group-hover/btn:duration-200 group-hover/btn:delay-300 group-hover/btn:opacity-100 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed]" : "bg-white border-slate-200 text-slate-800"}`}>Bulleted list</div>
+                </button>
+                <button type="button" onMouseDown={(e) => applyRichTextFormat(e, 'clear')} className={`group/btn relative p-1.5 rounded hover:bg-black/5 hover:text-gray-900 ${isDarkMode ? "hover:text-gray-200 hover:bg-white/10" : ""}`}>
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M10 19h4v-3h-4v3zM5 4v3h5v3h4V7h5V4H5zM3 14h18v-2H3v2z"/></svg>
+                  <div className={`pointer-events-none absolute top-full mt-1.5 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[11px] font-medium opacity-0 shadow-sm transition-opacity duration-0 group-hover/btn:duration-200 group-hover/btn:delay-300 group-hover/btn:opacity-100 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed]" : "bg-white border-slate-200 text-slate-800"}`}>Clear formatting</div>
+                </button>
+                <button type="button" onMouseDown={(e) => { e.preventDefault(); setShowMainEmojiPicker(p => !p); }} className={`group/btn relative p-1.5 rounded hover:bg-black/5 hover:text-gray-900 ${isDarkMode ? "hover:text-gray-200 hover:bg-white/10" : ""}`}>
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/></svg>
+                  <div className={`pointer-events-none absolute top-full mt-1.5 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[11px] font-medium opacity-0 shadow-sm transition-opacity duration-0 group-hover/btn:duration-200 group-hover/btn:delay-300 group-hover/btn:opacity-100 ${isDarkMode ? "bg-[#282a2d] border-[#3c4043] text-[#e8eaed]" : "bg-white border-slate-200 text-slate-800"}`}>Insert emoji</div>
+                </button>
+              </div>
+              {showMainEmojiPicker && (
+                <div className="absolute bottom-full mb-2 left-0 z-[150] rounded-[16px] overflow-hidden shadow-[0_1px_3px_0_rgba(60,64,67,0.3),0_4px_8px_3px_rgba(60,64,67,0.15)]" onMouseDown={(e) => e.stopPropagation()}>
+                  <Picker 
+                    data={data}
+                    theme={isDarkMode ? 'dark' : 'light'} 
+                    set="google"
+                    previewPosition="none"
+                    skinTonePosition="none"
+                    navPosition="top"
+                    perLine={8}
+                    maxFrequentRows={0}
+                    onEmojiSelect={(emoji) => setReplyText(p => p + emoji.native)} 
+                  />
+                </div>
+              )}
+            </div>
+            <button
+              type="submit"
+              disabled={isSubmitting || !replyText.trim()}
+              className={`flex-shrink-0 p-[5px] rounded-full mb-1 transition-colors ${isSubmitting || !replyText.trim() ? "text-slate-400 cursor-not-allowed" : "text-primary-600 hover:bg-primary-50 active:scale-95"} ${isDarkMode && (isSubmitting || !replyText.trim()) ? "!text-[#5f6368]" : isDarkMode && replyText.trim() ? "!text-primary-400 !hover:bg-[#3c4043]" : ""}`}
+              title="Post comment"
+            >
+              {isSubmitting ? (
+                <svg className="animate-spin h-[22px] w-[22px]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-[22px] h-[22px] -ml-[1px]">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0 1 21.485 12 59.77 59.77 0 0 1 3.27 20.876L5.999 12zm0 0h7.5" />
+                </svg>
+              )}
+            </button>
+          </form>
+          <div className={`mt-[6px] pl-[56px] text-[#9aa0a6] text-[11px] font-medium tracking-tight ${isDarkMode ? "text-[#5f6368]" : ""}`}>
+            <span>Press <strong className={`font-bold text-[11.5px] text-[#5f6368] ${isDarkMode ? '!text-[#9aa0a6]' : ''}`}>Enter</strong> inside to send</span>
           </div>
         </div>
-        <h3 className={`text-[18px] font-medium tracking-tight mb-2 ${isDarkMode ? "text-[#e8eaed]" : "text-[#202124]"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>No feedback yet</h3>
-        <p className={`text-[14px] text-center max-w-[320px] leading-relaxed ${isDarkMode ? "text-[#9aa0a6]" : "text-[#5f6368]"}`} style={{ fontFamily: "Google Sans, sans-serif" }}>
-          When reviewers leave feedback or instructions, their comments will seamlessly appear here.
-        </p>
-      </motion.div>
+      </div>
     );
   }
 
