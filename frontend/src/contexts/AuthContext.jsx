@@ -153,30 +153,8 @@ export function AuthProvider({ children }) {
       // If the user already verified or skipped 2FA in this session, don't prompt again
       if (twoFAVerified === sessionUser.id) {
         // Already handled 2FA for this session – skip all 2FA gates
-      } else if (data.totp_enabled) {
-        // 2FA is enabled but not yet verified this session – require verification
-        setPendingUser(sessionUser);
-        setPendingProfile(data);
-        setTwoFactorPending("verify");
-        setInitializing(false);
-        return;
-      } else {
-        const requires2FA = [
-          "librarian",
-          "cashier",
-          "registrar",
-          "signatory",
-          "super_admin",
-        ].includes(data.role);
-        if (requires2FA) {
-          // 2FA not set up yet – prompt setup
-          setPendingUser(sessionUser);
-          setPendingProfile(data);
-          setTwoFactorPending("setup");
-          setInitializing(false);
-          return;
-        }
       }
+      // 2FA is no longer enforced at login — users can manage it from Settings
 
       setUser(sessionUser);
       setProfile(data);
