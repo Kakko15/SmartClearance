@@ -93,6 +93,9 @@ backend/vitest.config.js
 
 # Project specific
 .supabase/
+appendices/
+Dockerfile
+.dockerignore
 *.sql.backup
 *.dump
 PRIVATE_NOTES.md

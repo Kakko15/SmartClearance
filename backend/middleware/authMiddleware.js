@@ -1,5 +1,18 @@
+/**
+ * @module authMiddleware
+ * @description Express middleware for JWT authentication and role-based access control.
+ * Uses Supabase Auth to verify Bearer tokens and loads user role from profiles.
+ */
 const supabase = require("../supabaseClient");
 
+/**
+ * Middleware that requires a valid JWT Bearer token.
+ * Attaches `req.user` (Supabase user) and `req.userRole` (profile role) on success.
+ *
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
+ */
 async function requireAuth(req, res, next) {
   try {
     const authHeader = req.headers.authorization;

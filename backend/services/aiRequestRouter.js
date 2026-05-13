@@ -1,3 +1,12 @@
+/**
+ * @module aiRequestRouter
+ * @description Rule-based AI classification engine for incoming document requests.
+ * Performs keyword extraction, priority scoring (0-100), urgency determination,
+ * and intelligent routing to the appropriate clearance stage.
+ *
+ * Classification categories: clearance, academic_records, certification, identification, general
+ * Urgency levels: critical (80+), high (60+), medium (40+), low (<40)
+ */
 const supabase = require("../supabaseClient");
 
 async function classifyAndRouteRequest(requestData) {

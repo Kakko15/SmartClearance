@@ -1,5 +1,23 @@
+/**
+ * @module auditService
+ * @description Provides audit logging for all administrative and system actions.
+ * All actions are persisted to the `audit_log` table for compliance and traceability.
+ */
 const supabase = require("../supabaseClient");
 
+/**
+ * Logs an administrative or system action to the audit trail.
+ * Non-blocking — failures are warned but never thrown.
+ *
+ * @async
+ * @param {string} actorId - UUID of the user performing the action
+ * @param {string} action - Action type constant from ACTIONS enum
+ * @param {Object} [options={}] - Additional context
+ * @param {string} [options.targetId] - UUID of the affected entity
+ * @param {string} [options.targetType] - Entity type (e.g., "user", "request")
+ * @param {Object} [options.metadata] - Arbitrary JSON metadata
+ * @returns {Promise<void>}
+ */
 async function logAction(
   actorId,
   action,

@@ -85,6 +85,22 @@ app.get("/", (req, res) => {
   res.send("Smart Clearance System backend running!");
 });
 
+/**
+ * @route GET /api/health
+ * @description System health check endpoint for monitoring and interoperability.
+ * Returns server status, uptime, version, and environment info.
+ */
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: "healthy",
+    service: "SmartClearance API",
+    version: "1.0.0",
+    uptime: Math.floor(process.uptime()),
+    environment: process.env.NODE_ENV || "development",
+    timestamp: new Date().toISOString(),
+  });
+});
+
 const errorHandler = require("./middleware/errorHandler");
 app.use(errorHandler);
 
