@@ -972,56 +972,26 @@ router.post(
         }
       }
 
-      if (
-        [DESIGNATIONS.NSTP_DIRECTOR, DESIGNATIONS.EXECUTIVE_OFFICER, DESIGNATIONS.DEAN_GRADUATE_SCHOOL].includes(
-          myDesignation,
-        )
-      ) {
+      if (myDesignation === DESIGNATIONS.DEAN_GRADUATE_SCHOOL) {
         const { data: request } = await supabase
           .from("requests")
           .select("library_status, cashier_status, registrar_status")
           .eq("id", currentApproval.request_id)
           .single();
 
-        if (request) {
-          if (
-            myDesignation === DESIGNATIONS.NSTP_DIRECTOR &&
-            (request.library_status !== "approved" ||
-              request.cashier_status !== "approved")
-          ) {
-            return res
-              .status(400)
-              .json({
-                success: false,
-                error:
-                  "Cannot approve yet — Library and Cashier must approve first",
-              });
-          }
-          if (
-            myDesignation === DESIGNATIONS.EXECUTIVE_OFFICER &&
-            request.cashier_status !== "approved"
-          ) {
-            return res
-              .status(400)
-              .json({
-                success: false,
-                error: "Cannot approve yet — Cashier must approve first",
-              });
-          }
-          if (
-            myDesignation === DESIGNATIONS.DEAN_GRADUATE_SCHOOL &&
-            (request.cashier_status !== "approved" ||
-              request.library_status !== "approved" ||
-              request.registrar_status !== "approved")
-          ) {
-            return res
-              .status(400)
-              .json({
-                success: false,
-                error:
-                  "Cannot approve yet — all admin stages must approve first",
-              });
-          }
+        if (
+          request &&
+          (request.cashier_status !== "approved" ||
+            request.library_status !== "approved" ||
+            request.registrar_status !== "approved")
+        ) {
+          return res
+            .status(400)
+            .json({
+              success: false,
+              error:
+                "Cannot approve yet — all admin stages must approve first",
+            });
         }
       }
 
@@ -1156,6 +1126,18 @@ router.post(
         return res
           .status(404)
           .json({ success: false, error: "Approval record not found" });
+      }
+
+      const { data: requestCheck } = await supabase
+        .from("requests")
+        .select("is_completed")
+        .eq("id", currentApproval.request_id)
+        .single();
+
+      if (requestCheck?.is_completed) {
+        return res
+          .status(400)
+          .json({ success: false, error: "Request is already completed" });
       }
 
       const preSnapshot = await snapshotApprovals(currentApproval.request_id);

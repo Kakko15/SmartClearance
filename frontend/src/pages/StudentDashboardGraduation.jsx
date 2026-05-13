@@ -1864,8 +1864,8 @@ export default function StudentDashboardGraduation({
 
     const isUndergraduate = r.portion === "undergraduate";
 
-    const findProf = (name) =>
-      profApprovals.find((a) => a.professor?.full_name === name);
+    const findProf = (designation) =>
+      profApprovals.find((a) => a.professor?.designation === designation);
 
     const buildProfNode = (approval, locked, fallbackName) => {
       const name = approval?.professor?.full_name || fallbackName || "Unknown";
@@ -1943,7 +1943,7 @@ export default function StudentDashboardGraduation({
       ? [
           { type: "prof", name: "Department Chairman" },
           { type: "prof", name: "College Dean" },
-          { type: "prof", name: "Director Student Affairs" },
+          { type: "prof", name: "Director of Student Affairs" },
           { type: "prof", name: "NSTP Director" },
           { type: "prof", name: "Executive Officer" },
           {
@@ -1983,7 +1983,7 @@ export default function StudentDashboardGraduation({
             desc: "Record evaluation and validation",
             icon: <BuildingLibraryIcon className="w-4 h-4 text-white" />,
           },
-          { type: "prof", name: "Dean Graduate School" },
+          { type: "prof", name: "Dean of Graduate School" },
         ];
 
     const result = [];
